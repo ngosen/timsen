@@ -283,3 +283,23 @@ Prediction:
 | 10 | 5 | 108 MB | 88.8% | 96.3% | 93.3% | 91.9% |
 | 5 | 3 | 177 MB | 88.9% | 96.8% | 93.7% | 91.9% |
 | 3 | 2 | 278 MB | 89.0% | 97.1% | 94.0% | 91.85% |
+
+Result:
+
+| 3-grams ≥ | 2-grams ≥ | File | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1 | (npz, 1.5 GB) | 89.13% | 97.61% | 94.47% | 91.79% |
+| 3 | 2 | 278 MB | 89.24% | 96.94% | 94.02% | 92.23% |
+| 5 | 3 | 177 MB | 89.00% | 96.58% | 93.76% | 92.16% |
+| 10 | 5 | 108 MB | 88.90% | 96.06% | 93.21% | 92.06% |
+| 20 | 10 | 68 MB | 88.59% | 95.57% | 92.55% | 91.96% |
+| 30 | 20 | 51 MB | 88.43% | 95.10% | 92.13% | 91.87% |
+| 50 | 20 | 44 MB | 88.41% | 94.82% | 91.82% | 91.81% |
+| 50 | 50 | 38 MB | 88.05% | 94.52% | 91.48% | 91.68% |
+
+- Chat and forum held the prediction (within 0.25 points); wiki missed low by 0.2–0.25 points.
+- With the personal dictionary every table from 108 MB up beats the unpruned model, and the 278 MB one
+  beats it by 0.44 points; the prediction expected them level. Dropping 3-grams seen once or twice
+  helps once the user's own counts are added; why is not measured.
+- Each step from 38 MB to 278 MB adds about 0.5 points on wiki and forum and 0.1 on chat with the
+  personal dictionary. Above 100 MB the gain is mostly on edited prose.
