@@ -7,7 +7,7 @@ All notable changes to Đoán dấu. The format follows [Keep a Changelog](https
 ### Changed
 
 - `docs/PLAN.md`: mixed marked/unmarked input, both readings of a word, abbreviations kept as typed,
-  new words in the personal dictionary, and what is taken from users (#).
+  new words in the personal dictionary, and what is taken from users (#5).
 
 ### Added
 
