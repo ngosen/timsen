@@ -111,3 +111,27 @@ Prediction: tone normalization +0.2; web → about 89%; forum ≥ web with fewer
   chat slightly. Forum test pages may share quoted posts with training pages of the same thread, so
   the `forum` column may be optimistic; `chat` is unaffected.
 - Peak memory: 14 GB (wiki + subs + forum), 27 GB (all four).
+
+## 2026-10-15 · What an input method sees while typing
+
+Question: how accurate is the model when a word must be fixed as it is typed, and how often could it
+ask instead of guessing? Setup: `research.typing_sim`, wiki + subs + forum model, frozen chat set.
+"Margin" is how far (log score) the chosen spelling must beat every other spelling to be applied
+without asking.
+
+Prediction: left context only about 86%; at a middle margin, about 85% of words applied with about
+96% of them right, and the right spelling in the top three for about 95% of the rest.
+
+| Margin | Applied | Right when applied | Right in top 3 when asked |
+| --- | --- | --- | --- |
+| 1 | 94.0% | 92.0% | 84.7% |
+| 2 | 87.7% | 93.9% | 88.6% |
+| 3 | 82.1% | 95.4% | 90.1% |
+| 4 | 75.3% | 96.6% | 91.2% |
+| 6 | 61.0% | 98.0% | 93.4% |
+
+Whole run 89.13%; left context only 79.79%.
+
+- Left context only missed the prediction by 6 points: the next word matters more than expected, so
+  an input method should keep revising the last few words rather than fix each one as it is typed.
+- Margin 3 matches the prediction (82% applied, 95% right); the top-3 share when asked is 90%, not 95%.
