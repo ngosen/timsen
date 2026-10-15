@@ -56,7 +56,10 @@ Every number in this repository says what was measured, on which test set, with 
 - **Style:** `ruff format` and `ruff check` (config in `pyproject.toml`). Functions under ~50 lines.
 - **Rust:** `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `cargo test`. The crate must
   restore exactly like `research.model`; after changing the table format or the model, rebuild the
-  test table with `python -m research.fixture`.
+  test table with `python -m research.fixture`. A bad table file gives an `Error`, never a panic.
+  Invariants that must hold for any input (output as long as the input, unknown words unchanged,
+  capitalization kept) belong in property tests (`proptest`), not only in fixed examples. Timing
+  follows [`.claude/skills/measure-latency`](.claude/skills/measure-latency/SKILL.md).
 - **Tests:** `python -m pytest`. A bug fix comes with a test that fails without it.
 
 ## Commits and pull requests
