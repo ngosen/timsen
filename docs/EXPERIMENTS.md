@@ -303,3 +303,41 @@ Result:
   helps once the user's own counts are added; why is not measured.
 - Each step from 38 MB to 278 MB adds about 0.5 points on wiki and forum and 0.1 on chat with the
   personal dictionary. Above 100 MB the gain is mostly on edited prose.
+
+## 2026-10-15 · Trimming the table vocabulary
+
+Question: about 20 MB of each shipped table is vocabulary, mostly unmarked words seen fewer than 20
+times (English words, typos). A plain form whose only spelling is itself restores as typed whether or
+not it is in the table, so dropping it only loses its n-grams as context. What does that cost?
+Setup: `research.table --min-plain N` drops such forms seen fewer than N times; they become `<unk>`.
+Scored with `research.evaluate` and `research.personal` (5-fold, weight 100) on the exported files.
+`research.personal` maps the user's words to `<unk>` too, which the planned personal dictionary would
+not (it learns words the table lacks), so the personal figures are a lower bound.
+
+Prediction:
+
+| Table | N | File | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- | --- | --- |
+| 44 MB | 20 | 30 MB | 88.36% | 94.80% | 91.80% | 91.70% |
+| 44 MB | 100 | 27 MB | 88.30% | 94.78% | 91.77% | 91.60% |
+| 177 MB | 20 | 163 MB | 88.95% | 96.56% | 93.74% | 92.05% |
+| 177 MB | 100 | 160 MB | 88.90% | 96.54% | 93.71% | 91.95% |
+
+## 2026-10-15 · Kneser-Ney at the shipped sizes
+
+Question: Kneser-Ney beat stupid backoff by 0.26 points at 1.1 GB (3-grams). Does it still win at the
+two shipped sizes? Setup: `research.kn_export` (wiki + subs + forum, vocabulary capped at 65,000),
+KenLM `lmplz -o 3 --prune 0 19 49` and `--prune 0 2 4` (the same count thresholds as the 44 MB and
+177 MB tables; KenLM applies the 2-gram threshold to adjusted counts, so it keeps a different number of
+2-grams, reported below), `research.kn_model eval` with the stupid-backoff candidates. No personal
+dictionary: adding user counts to a Kneser-Ney model needs re-estimating it, which `research.personal`
+does not do.
+
+Prediction:
+
+| Model | chat | wiki | forum |
+| --- | --- | --- | --- |
+| Stupid backoff, 44 MB | 88.41% | 94.82% | 91.82% |
+| Kneser-Ney, same thresholds | 88.8% | 95.3% | 92.3% |
+| Stupid backoff, 177 MB | 89.00% | 96.58% | 93.76% |
+| Kneser-Ney, same thresholds | 89.3% | 96.9% | 94.2% |
