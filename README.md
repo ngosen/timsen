@@ -25,7 +25,7 @@ Python 3.11+. Data goes to `TIMSEN_DIR` (default `/tmp/timsen`); expect a few GB
 ```bash
 pip install -e '.[dev]'
 python -m research.fetch_wiki                 # Wikipedia, CC BY-SA
-python -m research.fetch_subs                 # OpenSubtitles, research only
+python -m research.fetch_subs                 # OpenSubtitles, counts ship with attribution
 python -m research.fetch_fineweb forum 1      # forum pages from FineWeb-2 file 1 (repeat for 2-4)
 python -m research.train /tmp/timsen/models/wsf.npz wiki subs forum
 python -m research.evaluate /tmp/timsen/models/wsf.npz /tmp/timsen/test/wiki /tmp/timsen/test/forum
@@ -43,4 +43,7 @@ enters the repository, and every change goes through a pull request with passing
 ## Licence
 
 Code: GPL-3.0-or-later. Released count tables follow the licences of their corpora
-([`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md)).
+([`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md)). They contain counts from Wikipedia, FineWeb-2 and
+OpenSubtitles (<http://www.opensubtitles.org/>, via [OPUS](https://opus.nlpl.eu/); P. Lison and
+J. Tiedemann, 2016, "OpenSubtitles2016: Extracting Large Parallel Corpora from Movie and TV
+Subtitles", LREC 2016).

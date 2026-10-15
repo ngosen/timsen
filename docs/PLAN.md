@@ -13,8 +13,9 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
   accuracy on longer writing. Kneser-Ney at the same sizes gains 0.3–0.5 points on edited prose and
   0–0.3 on chat, but cannot take personal counts by simple addition; revisit only with a measured way
   to combine it with the personal dictionary.
-- **Corpora:** Wikipedia, OpenSubtitles and FineWeb-2 forum pages. The OpenSubtitles licence must be
-  settled before the repository or the table is made public.
+- **Corpora:** Wikipedia, OpenSubtitles and FineWeb-2 forum pages. OpenSubtitles has no formal
+  licence; the tables ship its counts with attribution, as `wordfreq` does, and are rebuilt without
+  it if a takedown request comes (`docs/DATA_SOURCES.md`).
 - **Where the gain is:** the personal dictionary (+2.7 to +3.4 points on chat depending on the table, still rising) and revising the
   last few words while typing (89% against 80% when each word is fixed as typed). More general text
   gives about half a point per doubling.
