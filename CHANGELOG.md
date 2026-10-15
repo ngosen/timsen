@@ -15,7 +15,7 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 ### Added
 
 - `Typing` in the `timsen` crate: the best spelling of a run after each syllable, with `pop` for
-  backspace; `Table::restore` now goes through it (#).
+  backspace; `Table::restore` now goes through it (#14).
 - `timsen` crate: maps a `.timsen` table and restores a run of unmarked syllables, keeping
   capitalization, in new or old tone placement; same output as `research.model` (#12).
 - `research.crosscheck` and `research.fixture`: compare another implementation with the Python model
