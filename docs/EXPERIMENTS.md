@@ -220,3 +220,86 @@ Prediction: abbreviations are 3–5% of chat words; keeping them as typed gains 
   `not` → `nốt` 16, `doc`, `chat`, `ci`), which the personal dictionary is meant to fix, and words the
   writer left unmarked by habit (`dung` → `đúng` 16, `nay` → `này` 12, `de` → `để` 11), where the
   guess is arguably right and the metric is wrong. So 89.13% slightly understates the model.
+
+## 2026-10-15 · Pruned table for shipping
+
+Question: how much does pruning the wiki + subs + forum 3-gram table to a size an input method can ship
+cost, alone and with the personal dictionary on top? Setup: `research.evaluate --min-tri N --min-bi N`
+on the 1.5 GB model, and `research.personal ... 100 --min-tri N --min-bi N` (5-fold on chat, weight
+100). Sizes count vocabulary, 2-gram and 3-gram entries at 12 bytes each; the real file format comes
+later.
+
+| 3-grams ≥ | 2-grams ≥ | 3-grams kept | 2-grams kept | Size |
+| --- | --- | --- | --- | --- |
+| 1 | 1 | 73.1M | 15.2M | 1,066 MB |
+| 20 | 10 | 2.19M | 1.83M | 55 MB |
+| 30 | 20 | 1.49M | 1.12M | 38 MB |
+| 50 | 20 | 0.91M | 1.12M | 31 MB |
+| 50 | 50 | 0.91M | 0.58M | 25 MB |
+
+Prediction (chat / wiki / forum, then chat with personal dictionary):
+
+| Size | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- |
+| 1,066 MB | 89.13% | 97.61% | 94.47% | 92.1% |
+| 55 MB | 88.6% | 97.2% | 93.9% | 91.9% |
+| 38 MB | 88.4% | 97.0% | 93.6% | 91.8% |
+| 31 MB | 88.2% | 96.8% | 93.4% | 91.7% |
+| 25 MB | 87.9% | 96.6% | 93.1% | 91.5% |
+
+The personal dictionary should win back part of the pruning loss, since the user's own 2- and
+3-grams are the ones pruning drops first.
+
+Result (5-fold personal dictionary, weight 100, on chat):
+
+| Size | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- |
+| 1,066 MB | 89.13% | 97.61% | 94.47% | 91.79% |
+| 55 MB | 88.59% | 95.57% | 92.55% | 91.96% |
+| 38 MB | 88.43% | 95.10% | 92.13% | 91.87% |
+| 31 MB | 88.41% | 94.82% | 91.82% | 91.81% |
+| 25 MB | 88.05% | 94.52% | 91.48% | 91.68% |
+
+- Chat alone held the prediction (0.5–1.1 points lost). Wiki and forum missed badly: pruning costs
+  2–3 points there, three times the prediction. The 3-grams pruning drops are mostly edited prose.
+- With the personal dictionary the size stops mattering on chat: every pruned table is within 0.2
+  points of the full one, and 55 MB beats it. The personal gain on the full table is 2.66 points
+  (the earlier +3.4 was on an older chat set and model).
+- `research.table` files restore exactly like the pruned model they came from (same scores on all
+  three sets at 38 and 31 MB). The real files are larger than the estimate, 51.2 MB and 44.2 MB:
+  about 20 MB is vocabulary (562,236 words, their unmarked forms and candidate lists), most of it
+  unmarked words seen fewer than 20 times (407,371).
+
+### Larger tables
+
+Question: the editing-prose loss is large and a 100–200 MB file is acceptable on a desktop. How much
+of it comes back between 55 MB and 1 GB? Sizes below are the real `.timsen` files, measured after
+export.
+
+Prediction:
+
+| 3-grams ≥ | 2-grams ≥ | Estimated file | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- | --- | --- |
+| 10 | 5 | 108 MB | 88.8% | 96.3% | 93.3% | 91.9% |
+| 5 | 3 | 177 MB | 88.9% | 96.8% | 93.7% | 91.9% |
+| 3 | 2 | 278 MB | 89.0% | 97.1% | 94.0% | 91.85% |
+
+Result:
+
+| 3-grams ≥ | 2-grams ≥ | File | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1 | (npz, 1.5 GB) | 89.13% | 97.61% | 94.47% | 91.79% |
+| 3 | 2 | 278 MB | 89.24% | 96.94% | 94.02% | 92.23% |
+| 5 | 3 | 177 MB | 89.00% | 96.58% | 93.76% | 92.16% |
+| 10 | 5 | 108 MB | 88.90% | 96.06% | 93.21% | 92.06% |
+| 20 | 10 | 68 MB | 88.59% | 95.57% | 92.55% | 91.96% |
+| 30 | 20 | 51 MB | 88.43% | 95.10% | 92.13% | 91.87% |
+| 50 | 20 | 44 MB | 88.41% | 94.82% | 91.82% | 91.81% |
+| 50 | 50 | 38 MB | 88.05% | 94.52% | 91.48% | 91.68% |
+
+- Chat and forum held the prediction (within 0.25 points); wiki missed low by 0.2–0.25 points.
+- With the personal dictionary every table from 108 MB up beats the unpruned model, and the 278 MB one
+  beats it by 0.44 points; the prediction expected them level. Dropping 3-grams seen once or twice
+  helps once the user's own counts are added; why is not measured.
+- Each step from 38 MB to 278 MB adds about 0.5 points on wiki and forum and 0.1 on chat with the
+  personal dictionary. Above 100 MB the gain is mostly on edited prose.
