@@ -135,3 +135,39 @@ Whole run 89.13%; left context only 79.79%.
 - Left context only missed the prediction by 6 points: the next word matters more than expected, so
   an input method should keep revising the last few words rather than fix each one as it is typed.
 - Margin 3 matches the prediction (82% applied, 95% right); the top-3 share when asked is 90%, not 95%.
+
+## 2026-10-15 · How much does more forum text pay?
+
+Question: FineWeb-2 has about 26 more files of forum pages (roughly 1.1B words). Is fetching them
+worth it? Setup: wiki + subs + forum files 1–2 only (about 85M forum words), frozen chat set.
+
+Prediction: about 88.7% (forum gain per doubling about 0.4 points).
+
+| Forum words | chat |
+| --- | --- |
+| 0 | 87.76% |
+| ~85M (files 1–2) | 88.63% |
+| 171M (files 1–4) | 89.13% |
+
+The prediction held (88.63%). The last doubling gave 0.50 points. If that rate holds, all 30 files
+(about 7.5× the forum text) would add 1–1.5 points, at several times the training memory (14 GB now).
+
+## 2026-10-15 · Kneser-Ney smoothing
+
+Question: does a properly smoothed model beat stupid backoff on the same text? Setup: KenLM `lmplz`
+(commit 4cb443e) on wiki + subs + forum, vocabulary capped at the 65,000 most frequent syllables
+(98.48% of tokens); 4-gram singletons pruned. `research.kn_model` reads the ARPA file and restores with
+a beam of 64. Candidate spellings come from the stupid-backoff model, so both choose among the same
+words.
+
+Prediction: 3-gram about 89.6%, 4-gram about 90.0% on chat (stupid backoff: 89.13%).
+
+| Model | chat | wiki | forum | File size |
+| --- | --- | --- | --- | --- |
+| Stupid backoff, 3-gram | 89.13% | 97.61% | 94.47% | 1.5 GB |
+| Kneser-Ney, 3-gram | 89.39% | 97.63% | 94.96% | 1.1 GB |
+| Kneser-Ney, 4-gram | 90.09% | 97.88% | 95.21% | 1.6 GB |
+
+- Smoothing alone is worth 0.26 points, less than predicted (0.5); the fourth word is worth another
+  0.70. Whole sentences right on chat: 38.2% → 39.3%.
+- Both are far too large for an input method. Pruning cost needs measuring before choosing.
