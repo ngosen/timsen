@@ -7,7 +7,7 @@ feature is called Đoán dấu. *Tim sen* is the green heart inside a lotus seed
 **Status: research.** This repository holds the code that trains and measures the model. A Rust
 library with a C API, so input methods on Linux, macOS and Windows can use it, comes once the model is
 settled. Results so far are in [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md); the steps ahead are in
-[`docs/PLAN.md`](docs/PLAN.md). How the two shipped tables (44 MB and 177 MB) compare is in
+[`docs/PLAN.md`](docs/PLAN.md). How the two tables (22.6 MB, shipped first, and 130.7 MB) compare is in
 [`docs/TABLES.md`](docs/TABLES.md).
 
 ## How it works

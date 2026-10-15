@@ -1,8 +1,23 @@
 # Choosing a table
 
-Tim Sen ships two tables of word counts, **44 MB** and **177 MB**. Both use the same file format and
-the same personal dictionary; they differ in how many rare word sequences they keep. The other sizes
-below were measured to choose them and are not shipped.
+Tim Sen has two tables of word counts in the same file format, used with the same personal
+dictionary. The small one ships first; the large one may follow.
+
+| | Small | Large |
+| --- | --- | --- |
+| File | 22.6 MB | 130.7 MB |
+| Chat + personal | 92.05% | 92.32% |
+| Chat | 88.58% | 89.18% |
+| Wikipedia | 94.84% | 96.55% |
+| Forum | 91.82% | 93.74% |
+
+They differ in how many rare word sequences they keep. Both leave out unmarked words seen fewer than
+1,000 times whose only spelling is themselves (English words, typos); those are restored as typed
+either way, and leaving them out cost nothing measurable ("Trimming the table vocabulary" in
+[`EXPERIMENTS.md`](EXPERIMENTS.md)).
+
+The table below compares the pruning levels measured to choose them, before that trimming, so the
+sizes are larger than the shipped files; the two chosen levels are in bold.
 
 | File | 3-word ≥ | 2-word ≥ | Chat + personal | Chat | Wikipedia | Forum |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -28,7 +43,7 @@ What the table shows:
   personal dictionary helps less.
 
 So: the small table for mostly chatting; the large one for articles, documents or long emails, where
-it gets about 1.8 more words in 100 right.
+it gets about 1.7 more words in 100 right.
 
 The file is mapped from disk, so only the parts in use are read into memory; the size mainly affects
 the download.

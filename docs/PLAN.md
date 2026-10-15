@@ -5,11 +5,13 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
 
 ## Decisions
 
-- **Model:** syllable 3-grams with stupid backoff, shipped as two tables the user chooses between:
-  44 MB (3-grams seen 50+ times, 2-grams 20+) and 177 MB (5+, 3+). With the personal dictionary they
-  differ by 0.35 points on chat (91.81% and 92.16%); on edited prose by about 1.8 (wiki 94.82% and
-  96.58%). Both use the same file format. Kneser-Ney gained about one point at 1.5 GB but is
-  unmeasured at these sizes; revisit only with an equal-size comparison.
+- **Model:** syllable 3-grams with stupid backoff, in two tables of the same format: small (3-grams
+  seen 50+ times, 2-grams 20+; 22.6 MB) and large (5+, 3+; 130.7 MB). Both leave out unmarked words
+  seen fewer than 1,000 times whose only spelling is themselves. With the personal dictionary they
+  differ by 0.27 points on chat (92.05% and 92.32%); on edited prose by about 1.7 (wiki 94.84% and
+  96.55%). The small table ships first; the large one is added later if users ask for better
+  accuracy on longer writing. Kneser-Ney gained about one point at 1.5 GB but is unmeasured at these
+  sizes; revisit only with an equal-size comparison.
 - **Corpora:** Wikipedia, OpenSubtitles and FineWeb-2 forum pages. The OpenSubtitles licence must be
   settled before the repository or the table is made public.
 - **Where the gain is:** the personal dictionary (+2.7 to +3.4 points on chat depending on the table, still rising) and revising the
@@ -24,10 +26,9 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
 
 ## Steps
 
-1. **Shipped table.** Done: `research.table` writes the fixed binary format, and both sizes are
+1. **Shipped table.** Done: `research.table` writes the fixed binary format, and both tables are
    measured on all test sets, alone and with the personal dictionary (`docs/EXPERIMENTS.md`, "Pruned
-   table for shipping"). Left: drop rare unmarked words from the vocabulary, which is about 20 MB of
-   each file, if that costs nothing measurable.
+   table for shipping" and "Trimming the table vocabulary").
 2. **Whole-run restore in Rust.** A Rust crate reads the table and restores a run. On the same table
    it must give exactly the same output as `research.model` on every test set. Output keeps the
    user's capitalization and follows the input method's tone placement setting (the table is built
