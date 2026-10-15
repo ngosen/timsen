@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+# Corpora, test sets and models live under DOAN_DAU_DIR, never in the repository.
+*.npz
+*.txt.gz
+*.parquet
+*.arpa
+*.binary
