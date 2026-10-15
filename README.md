@@ -1,7 +1,8 @@
-# Đoán dấu
+# Tim Sen
 
 Diacritic guessing for Vietnamese input methods: type `toi da go phim` without marks, get
-`tôi đã gõ phím`. Part of the [Ngó Sen](https://github.com/ngosen/ngosen) input method.
+`tôi đã gõ phím`. Built for the [Ngó Sen](https://github.com/ngosen/ngosen) input method, where the
+feature is called Đoán dấu. *Tim sen* is the green heart inside a lotus seed.
 
 **Status: research.** This repository holds the code that trains and measures the model. A Rust
 library with a C API, so input methods on Linux, macOS and Windows can use it, comes once the model is
@@ -17,15 +18,15 @@ user's own typing can be added on top, which matters most for technical and chat
 
 ## Reproducing the measurements
 
-Python 3.11+. Data goes to `DOANDAU_DIR` (default `/tmp/doandau`); expect a few GB.
+Python 3.11+. Data goes to `TIMSEN_DIR` (default `/tmp/timsen`); expect a few GB.
 
 ```bash
 pip install -e '.[dev]'
 python -m research.fetch_wiki                 # Wikipedia, CC BY-SA
 python -m research.fetch_subs                 # OpenSubtitles, research only
 python -m research.fetch_fineweb forum 1      # forum pages from FineWeb-2 file 1 (repeat for 2-4)
-python -m research.train /tmp/doandau/models/wsf.npz wiki subs forum
-python -m research.evaluate /tmp/doandau/models/wsf.npz /tmp/doandau/test/wiki /tmp/doandau/test/forum
+python -m research.train /tmp/timsen/models/wsf.npz wiki subs forum
+python -m research.evaluate /tmp/timsen/models/wsf.npz /tmp/timsen/test/wiki /tmp/timsen/test/forum
 ```
 
 To measure on your own writing, put your messages in a text file (one per line) and run

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Đoán dấu. The format follows [Keep a Changelog](https://keepachangelog.com/).
+All notable changes to Tim Sen. The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## Unreleased
 

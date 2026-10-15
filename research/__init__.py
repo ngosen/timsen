@@ -1,1 +1,1 @@
-"""Research code for Vietnamese diacritic restoration (Đoán dấu)."""
+"""Research code for Vietnamese diacritic restoration (Tim Sen)."""
