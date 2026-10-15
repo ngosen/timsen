@@ -536,3 +536,88 @@ Small table, wiki, by threshold:
 - Choices take about twice a syllable's guess (p99 2.9–3.5 ms against the predicted 1 ms): the
   backward pass over two steps scores every triple of candidates, as a push does, and spells three
   candidates per word. Asking for both after each syllable stays near 5 ms at p99.
+
+## 2026-10-15 · Marked words and two readings
+
+Question: when the user types some words with marks, does keeping them as context help the words
+that are guessed? And when the input method passes both readings of a word, as it interpreted the
+keys (`tét`) and as the raw letters (`test`), how many words does choosing between them fix, and how
+many does it break? Setup: `Typing::push` keeps a marked word as typed and looks it up in either
+tone placement; `Typing::push_either` takes both readings. `cargo run --release --example
+readings_eval TABLE RUNS TRUTH`, same runs as "Restoring while typing", both tables, all four sets.
+
+- Mixed input: every other word keeps its marks, the rest are typed plain; only the plain words are
+  scored, against guessing every word.
+- Two readings: each word of the truth is typed in Telex through the Ngó Sen engine (`bamboo-core`
+  from `ngosen/bamboo_core`, pinned in `Cargo.toml`). A marked word is typed as its keys, so its raw
+  reading is the keys (`tieengs`); an unmarked word is typed as is, so the engine may change it
+  (`test` → `tét`). After the run ends, a word takes its raw reading only when that ranks first with
+  at least the threshold's confidence; when it ranks first below the threshold it is counted as a
+  suggestion. "Fixed": the engine changed the word and the raw reading put it back. "Broken": the
+  engine had it right and the raw reading replaced it.
+
+A check on two made-up lines before this entry found that raw keys the table does not know
+(`goox quys`) beat the real words (`gỗ quý`) at 0.99 confidence: unknown words share one pooled count
+in the table. `push_either` now drops a raw reading the table does not know; a unit test covers it.
+
+Prediction (small table): mixed input on wiki, plain words 94.8% when all are guessed and 96.5%
+next to marked words; on forum 91.8% and 94.0%. The keys of a marked word give it back in all but
+0.1% of words. The engine changes about 1% of the words on wiki and 1.5% on forum, 60% of those
+known to the table. At threshold 0.9, half of the changed words that the table knows are fixed, and
+broken words are fewer than a tenth of the fixed ones. The large table fixes more, since it knows
+more unmarked words.
+
+Result. The first run counted 594 marked wiki words whose keys did not give them back, against the
+predicted 0.1%: the engine placed tones the old way (`hòa`) while the test sets use the new one. The
+harness now sets the engine to the new placement; the counts below are from the second run. Fixed
+and broken counts were the same in both runs.
+
+Mixed input, plain words right:
+
+| Table, set | Every word guessed | Next to marked words |
+| --- | --- | --- |
+| Small, wiki | 94.95% | 95.96% |
+| Small, subs | 95.66% | 96.50% |
+| Small, web | 95.34% | 96.28% |
+| Small, forum | 92.13% | 93.53% |
+| Large, wiki | 96.69% | 97.43% |
+| Large, subs | 96.68% | 97.34% |
+| Large, web | 96.47% | 97.18% |
+| Large, forum | 94.07% | 95.17% |
+
+Two readings (the engine and the readings do not depend on the table):
+
+| Set | Words | Changed by the engine (known to the table) | With a known raw reading | Keys do not give back |
+| --- | --- | --- | --- | --- |
+| wiki | 73,604 | 357 (223) | 4,117 | 146 |
+| subs | 31,845 | 80 (54) | 3,967 | 24 |
+| web | 87,833 | 146 (98) | 5,321 | 86 |
+| forum | 92,220 | 204 (141) | 6,005 | 125 |
+
+Fixed / broken / suggestions right / suggestions wrong:
+
+| Table, set | Threshold 0.5 | 0.9 | 0.99 | 0.999 |
+| --- | --- | --- | --- | --- |
+| Small, wiki | 161 / 7 / 0 / 0 | 157 / 1 / 4 / 6 | 138 / 0 / 23 / 7 | 101 / 0 / 60 / 7 |
+| Small, subs | 26 / 2 / 0 / 0 | 25 / 0 / 1 / 2 | 21 / 0 / 5 / 2 | 18 / 0 / 8 / 2 |
+| Small, web | 71 / 4 / 0 / 0 | 51 / 1 / 20 / 3 | 36 / 0 / 35 / 4 | 29 / 0 / 42 / 4 |
+| Small, forum | 109 / 4 / 0 / 0 | 87 / 1 / 22 / 3 | 73 / 0 / 36 / 4 | 57 / 0 / 52 / 4 |
+| Large, wiki | 175 / 6 / 0 / 0 | 169 / 2 / 6 / 4 | 153 / 0 / 22 / 6 | 118 / 0 / 57 / 6 |
+| Large, subs | 35 / 3 / 0 / 0 | 29 / 0 / 6 / 3 | 27 / 0 / 8 / 3 | 24 / 0 / 11 / 3 |
+| Large, web | 78 / 6 / 0 / 0 | 65 / 1 / 13 / 5 | 44 / 0 / 34 / 6 | 31 / 0 / 47 / 6 |
+| Large, forum | 112 / 4 / 0 / 0 | 101 / 1 / 11 / 3 | 84 / 0 / 28 / 4 | 73 / 0 / 39 / 4 |
+
+- Marked words help their neighbours by 0.66–1.40 points, less than the predicted 1.7–2.2.
+- The engine changes far fewer words than predicted: 0.5% on wiki and 0.2% on forum, not 1% and
+  1.5%. Most are English or French words (`of` → `ò`, `post` → `pót`, `boot` → `bôt`, `core` →
+  `coẻ`, `test` → `tét`); 62–69% are known to the table, as predicted.
+- At 0.9 the small table fixes 70% of the changed words the table knows on wiki and 62% on forum
+  (predicted half), and breaks one word per set at most (`lé` → `les`, `bõ` → `box` on forum). At
+  0.99 nothing breaks on any set and 68–93% of the 0.9 fixes remain; the rest become suggestions.
+  Switching only at 0.99 and suggesting below it is the setting to try first.
+- Words the engine changes that the table does not know stay changed: `messenger` → `mesenger`
+  (a doubled `s` undoes a tone in Telex) is the most common on forum.
+- The large table fixes 8–27% more words, as predicted, though both tables keep the same unmarked
+  words; more 3-grams around them are the likely reason, not checked.
+- 146 marked wiki words (0.2%) cannot be typed back, mostly foreign names with accents Telex does
+  not have (`Suárez`, `château`); those are left out of the fixed and broken counts.

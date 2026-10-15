@@ -8,3 +8,8 @@ repository.workspace = true
 
 [dependencies]
 memmap2 = "0.9"
+
+[dev-dependencies]
+# The engine Ngó Sen ships; only the readings measurement uses it.
+bamboo-core = { git = "https://github.com/ngosen/bamboo_core", rev = "e8ebe4a818d82611a6e69fd0eba22c75b26d831f" }
+proptest = "1"

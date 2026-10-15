@@ -14,6 +14,9 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Added
 
+- `Typing::push` keeps a word typed with marks as typed, in either tone placement, and uses it as
+  context; `Typing::push_either` chooses between an input method's reading of a word and its raw
+  letters (#16).
 - `Typing::choices`: up to three spellings for each of the last few words, best first, with a
   confidence for the first (#15).
 - `Typing` in the `timsen` crate: the best spelling of a run after each syllable, with `pop` for

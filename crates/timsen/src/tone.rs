@@ -46,6 +46,57 @@ pub(crate) fn with_style(word: &str, style: ToneStyle) -> String {
     chars.into_iter().collect()
 }
 
+/// Each base letter followed by its marked forms: hat or breve or horn, then the five tones.
+const MARKED: [&str; 7] = [
+    "aàáảãạăằắẳẵặâầấẩẫậ",
+    "eèéẻẽẹêềếểễệ",
+    "iìíỉĩị",
+    "oòóỏõọôồốổỗộơờớởỡợ",
+    "uùúủũụưừứửữự",
+    "yỳýỷỹỵ",
+    "dđ",
+];
+
+/// The lowercase letters of `word` without any marks: `Hoà` → `hoa`, `đường` → `duong`.
+pub(crate) fn strip(word: &str) -> String {
+    word.chars()
+        .flat_map(char::to_lowercase)
+        .map(|c| {
+            MARKED
+                .iter()
+                .find(|group| group.contains(c))
+                .and_then(|group| group.chars().next())
+                .unwrap_or(c)
+        })
+        .collect()
+}
+
+/// A lowercase word in the table's own tone placement: `hòa` → `hoà`. The inverse of
+/// [`with_style`] with [`ToneStyle::Old`].
+pub(crate) fn to_new(word: &str) -> String {
+    let mut chars: Vec<char> = word.chars().collect();
+    let n = chars.len();
+    if n < 2 {
+        return word.to_string();
+    }
+    let (first, last) = (chars[n - 2], chars[n - 1]);
+    let moved = match last {
+        'a' | 'e' => O.iter().position(|&c| c == first).map(|t| {
+            let tones = if last == 'a' { &A } else { &E };
+            ('o', tones[t])
+        }),
+        'y' if n < 3 || chars[n - 3] != 'q' => {
+            U.iter().position(|&c| c == first).map(|t| ('u', Y[t]))
+        }
+        _ => None,
+    };
+    if let Some((plain, marked)) = moved {
+        chars[n - 2] = plain;
+        chars[n - 1] = marked;
+    }
+    chars.into_iter().collect()
+}
+
 /// Gives `restored` the capitalization of `typed`, letter by letter.
 pub(crate) fn apply_case(typed: &str, restored: &str) -> String {
     let mut out = String::with_capacity(restored.len());
@@ -82,6 +133,23 @@ mod tests {
         for word in ["quý", "quả", "hoàng", "tuyết", "khuya", "hoa", "y", "gõ"] {
             assert_eq!(with_style(word, ToneStyle::Old), word);
         }
+    }
+
+    #[test]
+    fn old_style_reads_back_as_new() {
+        for word in [
+            "hoà", "khoẻ", "thuỷ", "hoạ", "xoè", "quý", "quả", "hoàng", "khuya", "hoa", "y", "gõ",
+        ] {
+            assert_eq!(to_new(&with_style(word, ToneStyle::Old)), word);
+        }
+    }
+
+    #[test]
+    fn strip_removes_every_mark() {
+        assert_eq!(strip("Đường"), "duong");
+        assert_eq!(strip("HOÀ"), "hoa");
+        assert_eq!(strip("nghiêng"), "nghieng");
+        assert_eq!(strip("test"), "test");
     }
 
     #[test]

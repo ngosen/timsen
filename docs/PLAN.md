@@ -44,11 +44,12 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
    - Done: `Typing::choices` gives the top three spellings and a confidence per word. At 0.9, a
      newly shown word marked sure is right 97–98% of the time, and over 90% of the words that later
      change were below 0.9 when shown ("Confidence and choices while typing").
-   - Mixed input: a syllable the user typed with marks is kept as typed; only unmarked syllables are
-     guessed.
-   - The input method passes both readings of a word, as interpreted (`tét`) and as raw letters
-     (`test`); the library chooses between them from context, so it knows nothing about Telex or VNI.
-     Measure fixes and wrong changes before shipping; when unsure, keep the word or only suggest.
+   - Done: a syllable typed with marks is kept as typed and serves as context for the guessed ones
+     (0.7–1.4 points better next to them). `push_either` takes both readings of a word, as
+     interpreted (`tét`) and as raw letters (`test`); the library knows nothing about Telex or VNI.
+     Typed in Telex through the Ngó Sen engine, switching to the raw reading at confidence 0.99
+     fixes 21–153 words per test set and breaks none; below that the raw reading is only a
+     suggestion ("Marked words and two readings").
    - Rejecting a guess uses the same keys as Cứu chữ: Tab to change, Esc to keep.
 4. **Personal dictionary.** Learn syllable 2- and 3-gram counts only from text known to be right:
    words the user typed with marks, and guesses the user corrected. Guesses left untouched are not
