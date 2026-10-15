@@ -303,3 +303,104 @@ Result:
   helps once the user's own counts are added; why is not measured.
 - Each step from 38 MB to 278 MB adds about 0.5 points on wiki and forum and 0.1 on chat with the
   personal dictionary. Above 100 MB the gain is mostly on edited prose.
+
+## 2026-10-15 · Trimming the table vocabulary
+
+Question: about 20 MB of each shipped table is vocabulary, mostly unmarked words seen fewer than 20
+times (English words, typos). A plain form whose only spelling is itself restores as typed whether or
+not it is in the table, so dropping it only loses its n-grams as context. What does that cost?
+Setup: `research.table --min-plain N` drops such forms seen fewer than N times; they become `<unk>`.
+Scored with `research.evaluate` and `research.personal` (5-fold, weight 100) on the exported files.
+`research.personal` maps the user's words to `<unk>` too, which the planned personal dictionary would
+not (it learns words the table lacks), so the personal figures are a lower bound.
+
+Prediction:
+
+| Table | N | File | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- | --- | --- |
+| 44 MB | 20 | 30 MB | 88.36% | 94.80% | 91.80% | 91.70% |
+| 44 MB | 100 | 27 MB | 88.30% | 94.78% | 91.77% | 91.60% |
+| 177 MB | 20 | 163 MB | 88.95% | 96.56% | 93.74% | 92.05% |
+| 177 MB | 100 | 160 MB | 88.90% | 96.54% | 93.71% | 91.95% |
+
+## 2026-10-15 · Kneser-Ney at the shipped sizes
+
+Question: Kneser-Ney beat stupid backoff by 0.26 points at 1.1 GB (3-grams). Does it still win at the
+two shipped sizes? Setup: `research.kn_export` (wiki + subs + forum, vocabulary capped at 65,000),
+KenLM `lmplz -o 3 --prune 0 19 49` and `--prune 0 2 4` (the same count thresholds as the 44 MB and
+177 MB tables; KenLM applies the 2-gram threshold to adjusted counts, so it keeps a different number of
+2-grams, reported below), `research.kn_model eval` with the stupid-backoff candidates. No personal
+dictionary: adding user counts to a Kneser-Ney model needs re-estimating it, which `research.personal`
+does not do.
+
+Prediction:
+
+| Model | chat | wiki | forum |
+| --- | --- | --- | --- |
+| Stupid backoff, 44 MB | 88.41% | 94.82% | 91.82% |
+| Kneser-Ney, same thresholds | 88.8% | 95.3% | 92.3% |
+| Stupid backoff, 177 MB | 89.00% | 96.58% | 93.76% |
+| Kneser-Ney, same thresholds | 89.3% | 96.9% | 94.2% |
+
+Result (N = 0 is the untrimmed file; its personal figure differs from the earlier 91.81% by 0.01
+because the table also maps the user's rare marked words to `<unk>`):
+
+| Table | N | Vocabulary | File | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 44 MB | 0 | 562,236 | 44.2 MB | 88.41% | 94.82% | 91.82% | 91.82% |
+| 44 MB | 20 | 157,318 | 29.5 MB | 88.46% | 94.82% | 91.83% | 91.86% |
+| 44 MB | 100 | 69,898 | 25.5 MB | 88.56% | 94.84% | 91.83% | 91.89% |
+| 177 MB | 0 | 562,236 | 177.2 MB | 89.00% | 96.58% | 93.76% | 92.16% |
+| 177 MB | 20 | 157,318 | 154.5 MB | 89.03% | 96.57% | 93.76% | 92.18% |
+| 177 MB | 100 | 69,898 | 143.2 MB | 89.16% | 96.57% | 93.76% | 92.21% |
+
+- The prediction expected a small loss; trimming gains instead, up to 0.15 points on chat, with wiki
+  and forum unchanged. Likely reason, not measured: the dropped words now share the `<unk>` n-grams,
+  which say more about the context of a rare word than each word's own few counts.
+- Files shrink more than predicted: 44 → 25.5 MB and 177 → 143 MB at N = 100.
+
+### Stronger trimming
+
+Prediction: N = 300 and 1000 keep gaining on chat by about 0.05 points each, wiki and forum unchanged;
+the small table reaches about 24 and 23 MB.
+
+| Table | N | Vocabulary | File | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 44 MB | 100 | 69,898 | 25.5 MB | 88.56% | 94.84% | 91.83% | 91.89% |
+| 44 MB | 300 | 48,628 | 23.8 MB | 88.58% | 94.85% | 91.84% | 91.95% |
+| 44 MB | 1000 | 39,682 | 22.6 MB | 88.58% | 94.84% | 91.82% | 92.05% |
+| 177 MB | 100 | 69,898 | 143.2 MB | 89.16% | 96.57% | 93.76% | 92.21% |
+| 177 MB | 300 | 48,628 | 137.0 MB | 89.20% | 96.57% | 93.76% | 92.26% |
+| 177 MB | 1000 | 39,682 | 130.7 MB | 89.18% | 96.55% | 93.74% | 92.32% |
+
+- Chat alone stops gaining after N = 100 (missed: predicted +0.05 per step); wiki and forum move by
+  at most 0.03 points, less than 30 words. Sizes held the prediction (23.8 and 22.6 MB).
+- With the personal dictionary chat keeps gaining, +0.16 points from N = 100 to 1000 on both tables.
+  `research.personal` maps the user's own rare words to `<unk>` as well, so part of this may be the
+  shared `<unk>` counts standing in for words the real personal dictionary would learn by name.
+- N = 1000 for both shipped tables: 22.6 MB and 130.7 MB, no measured loss anywhere.
+
+Result for "Kneser-Ney at the shipped sizes" (KenLM kept 1.08M 2-grams and 0.87M 3-grams for the
+small thresholds, 3.79M and 7.98M for the large; stupid backoff keeps 1.12M/0.91M and 4.70M/8.41M):
+
+| Model | chat | wiki | forum |
+| --- | --- | --- | --- |
+| Stupid backoff, small, untrimmed | 88.41% | 94.82% | 91.82% |
+| Stupid backoff, small, trimmed (N = 1000) | 88.58% | 94.84% | 91.82% |
+| Kneser-Ney, small thresholds | 88.59% | 95.18% | 92.28% |
+| Stupid backoff, large, untrimmed | 89.00% | 96.58% | 93.76% |
+| Stupid backoff, large, trimmed (N = 1000) | 89.18% | 96.55% | 93.74% |
+| Kneser-Ney, large thresholds | 89.46% | 96.79% | 94.16% |
+
+- Forum held the prediction; wiki missed low by 0.1 on both; chat missed low by 0.2 on the small
+  table and beat it by 0.16 on the large one.
+- Against the trimmed tables (whose vocabulary, 39,682 words, is close to the 65,000 cap here),
+  Kneser-Ney gains 0.3–0.5 points on edited prose, and on chat nothing on the small table and 0.28 on
+  the large one, with slightly fewer n-grams.
+- The personal dictionary is worth 3.4 points on chat, ten times that, and stupid backoff takes it by
+  adding counts. Kneser-Ney would need either re-estimation on the user's machine or a second model
+  mixed in, neither measured. The shipped tables stay stupid backoff; Kneser-Ney is worth revisiting
+  only together with a measured way to add personal counts.
+
+The frozen chat set was deleted after these runs. Chat figures from a new set are not comparable
+with the ones above; measure a new baseline first.

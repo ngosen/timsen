@@ -1,6 +1,6 @@
 """Writes a pruned model as the fixed binary table the library maps from disk, and reads it back.
 
-usage: python -m research.table MODEL.npz OUT.timsen --min-tri N --min-bi N
+usage: python -m research.table MODEL.npz OUT.timsen --min-tri N --min-bi N [--min-plain N]
 
 Layout, little-endian, each section padded to a multiple of 8 bytes:
   header    8s magic, u32 version, u32 0, u64 n_words n_bigrams n_trigrams n_plain n_cand, f64 total
@@ -29,12 +29,16 @@ HEADER = struct.Struct("<8sII5Qd")
 MASK = (1 << SHIFT) - 1
 
 
-def options_table(m):
-    """Every plain form restore can look up, with the ids Model.options returns for it."""
+def options_table(m, min_plain=0):
+    """Every plain form restore can look up, with the ids Model.options returns for it. A form whose
+    only spelling is itself restores as typed even when missing, so below min_plain it is left out."""
     table = {p: list(ids) for p, ids in m.cand.items()}
     for i, w in enumerate(m.words[3:], 3):
         if w not in table and w.isascii():
             table[w] = [i]
+    rare = [p for p, ids in table.items() if ids == [m.id.get(p)] and m.uni[ids[0]] < min_plain]
+    for p in rare:
+        del table[p]
     return dict(sorted(table.items(), key=lambda kv: kv[0].encode()))
 
 
@@ -67,8 +71,8 @@ def u32(a):
     return a.astype("<u4").tobytes()
 
 
-def write(m, path):
-    opts = options_table(m)
+def write(m, path, min_plain=0):
+    opts = options_table(m, min_plain)
     keep = sorted({BOS, EOS, UNK, *(i for ids in opts.values() for i in ids)})
     new_id = np.full(len(m.words), -1, dtype=np.int64)
     new_id[keep] = np.arange(len(keep))
@@ -134,8 +138,9 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--min-tri", type=int, default=1)
     ap.add_argument("--min-bi", type=int, default=1)
+    ap.add_argument("--min-plain", type=int, default=0, help="leave out rarer words that restore as typed")
     a = ap.parse_args()
-    write(Model(a.model, a.min_tri, a.min_bi), a.out)
+    write(Model(a.model, a.min_tri, a.min_bi), a.out, a.min_plain)
 
 
 if __name__ == "__main__":
