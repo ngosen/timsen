@@ -8,7 +8,7 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 - `Personal` scores learned words the table lacks as the table's `<unk>`, so a personal dictionary
   learned from text with English or code words guesses the Vietnamese around them as well as
-  `research.personal` does (#).
+  `research.personal` does (#20).
 - `research.personal` adds learned counts to a table file's total instead of recomputing it from the
   words the file keeps (#18).
 - `docs/DATA_SOURCES.md`: OpenSubtitles counts may ship in released tables, with a link to
