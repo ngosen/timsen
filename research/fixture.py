@@ -27,6 +27,10 @@ CORPUS = [
     "quý khách vui lòng chờ",
     "gia đình tôi ở hà nội",
     "mở file code ra xem",
+    # gõ is likelier after "bạn thích", but only gỗ ends a run: an open run and an ended one differ.
+    "bạn thích gỗ",
+    "bạn thích gõ phím",
+    "bạn thích gõ phím",
 ] * 6
 TEST = [
     "Tôi gõ phím rất nhanh, bàn phím này gõ rất êm.",
@@ -35,6 +39,7 @@ TEST = [
     "Quý khách vui lòng chờ, gia đình tôi ở Hà Nội.",
     "Mở file code ra xem commit mới.",
     "gõ",
+    "Bạn thích gỗ.",
 ]
 
 

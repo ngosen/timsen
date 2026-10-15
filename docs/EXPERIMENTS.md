@@ -429,3 +429,48 @@ Result:
   comparison does see a difference when one is made (1,260 runs with 3-grams off).
 - Whole-set restore took 10–34 s per set in one thread (about 0.26 ms per word on wiki with the small
   table, 0.32 with the large), on a machine running other jobs at the same time. Not tuned yet.
+
+## 2026-10-15 · Restoring while typing
+
+Question: when the input method asks for the best spelling after every syllable, how many syllables
+must follow a word before its guess is as good as the whole-run restoration, how often does a shown
+word change, and how long does each syllable take? Setup: `Typing` in the crate (the Viterbi lattice
+grows by one step per syllable; an open run has no end-of-run score), `research.crosscheck ... TRUTH`
+for the reference, `cargo run --release --example typing_eval TABLE RUNS TRUTH`. Both trimmed
+tables; wiki, subs, web, forum. "Fixed after k": the word as shown once k more syllables were typed,
+or the final restoration if the run ended first. The chat set is gone, so this has no chat figure.
+Timing follows `.claude/skills/measure-latency`; the machine runs other jobs.
+
+Prediction (small table): fixed after 0, 1, 2, 3, 4 on wiki 88.8%, 93.6%, 94.5%, 94.75%, 94.8%
+(whole run 94.84%); on forum 86.0%, 90.6%, 91.5%, 91.7%, 91.8% (whole run 91.82%). About 6% of words
+change after first shown. Per syllable p50 0.05 ms, p95 0.3 ms, p99 1 ms, max under 10 ms; the
+large table about 1.3 times slower. First syllable after opening under 5 ms.
+
+Result (load average 14–18 during the run):
+
+| Table, set | Fixed after 0 | 1 | 2 | 3 | Whole run | Changed after shown |
+| --- | --- | --- | --- | --- | --- | --- |
+| Small, wiki | 87.35% | 94.12% | 94.80% | 94.84% | 94.84% | 10.80% |
+| Small, subs | 87.92% | 94.44% | 95.09% | 95.10% | 95.11% | 10.72% |
+| Small, web | 86.63% | 94.25% | 94.97% | 95.00% | 95.00% | 11.68% |
+| Small, forum | 83.95% | 91.10% | 91.79% | 91.82% | 91.82% | 13.42% |
+| Large, wiki | 89.04% | 95.65% | 96.49% | 96.53% | 96.55% | 10.24% |
+| Large, subs | 89.18% | 95.46% | 96.24% | 96.34% | 96.34% | 10.20% |
+| Large, web | 88.06% | 95.29% | 96.13% | 96.18% | 96.20% | 11.08% |
+| Large, forum | 85.74% | 92.67% | 93.63% | 93.73% | 93.74% | 12.93% |
+
+| Table | p50 | p95 | p99 | Max | Open | First syllable |
+| --- | --- | --- | --- | --- | --- | --- |
+| Small | 0.14–0.20 ms | 0.88–0.96 ms | 1.55–1.64 ms | 8.2 ms | 2.0–2.7 ms | 0.06–0.20 ms |
+| Large | 0.17–0.24 ms | 1.02–1.10 ms | 1.76–1.88 ms | 10.4 ms | 1.9–2.4 ms | 0.08–0.18 ms |
+
+- The whole-run column equals `research.evaluate` on the same tables (wiki 94.84% and 96.55%,
+  forum 91.82% and 93.74%), so the harness scores like the Python one.
+- Three following syllables give the whole-run accuracy to within 0.02 points on every set; two
+  give all but 0.04–0.10. An input method can treat words three syllables back as final. Prediction
+  for "after 0" was 1.5 points too high and for "after 1" 0.5 too low: the next word matters even
+  more than expected, the ones after it less.
+- 10–13% of words change at least once after they are first shown, almost twice the predicted 6%.
+  Showing every guess as final would flicker; this is what the confidence of the next step is for.
+- Per-syllable time missed the prediction (p50 0.14 ms against 0.05) but stays under 2 ms at p99.
+  Each call spells the whole run, so long runs cost more; the 10.4 ms maximum is one such call.
