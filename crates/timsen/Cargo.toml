@@ -1,0 +1,10 @@
+[package]
+name = "timsen"
+version = "0.1.0"
+description = "Vietnamese diacritic restoration from a syllable n-gram table"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+memmap2 = "0.9"

@@ -30,10 +30,11 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
 1. **Shipped table.** Done: `research.table` writes the fixed binary format, and both tables are
    measured on all test sets, alone and with the personal dictionary (`docs/EXPERIMENTS.md`, "Pruned
    table for shipping" and "Trimming the table vocabulary").
-2. **Whole-run restore in Rust.** A Rust crate reads the table and restores a run. On the same table
-   it must give exactly the same output as `research.model` on every test set. Output keeps the
-   user's capitalization and follows the input method's tone placement setting (the table is built
-   with the new placement).
+2. **Whole-run restore in Rust.** Done: the `timsen` crate (`crates/timsen`) maps a table and
+   restores a run, keeping the user's capitalization and following the tone placement setting. It
+   restores every run of every test set exactly like `research.model` on both tables
+   (`docs/EXPERIMENTS.md`, "Rust restore against the Python model"); CI checks it on a small fixture
+   table.
 3. **Restore while typing.** After each syllable, return the best spelling of the last few words
    (earlier guesses may change), a confidence per word and the top three choices for unsure words.
    Target: a few milliseconds per key on a typical laptop.

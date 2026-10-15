@@ -404,3 +404,28 @@ small thresholds, 3.79M and 7.98M for the large; stupid backoff keeps 1.12M/0.91
 
 The frozen chat set was deleted after these runs. Chat figures from a new set are not comparable
 with the ones above; measure a new baseline first.
+
+## 2026-10-15 · Rust restore against the Python model
+
+Question: does the `timsen` crate restore exactly like `research.model` on the shipped tables?
+Setup: `research.crosscheck` writes the unmarked runs of each test set and the Python restoration;
+`cargo run --release --example restore` restores the same runs; the outputs are compared line by
+line. Both tables (small and large, trimmed at N = 1000), test sets wiki, subs, web and forum. As a
+check that the comparison can see a difference, the same run with 3-grams switched off in the crate.
+
+Prediction: 0 differing runs on every set and table. With 3-grams off: more than 1,000 differing runs
+on wiki with the small table. Floating-point logs could differ in the last bit between numpy and
+Rust; if that shows, a handful of runs on near-ties.
+
+Result:
+
+| Table | wiki | subs | web | forum |
+| --- | --- | --- | --- | --- |
+| Small, differing runs | 0 of 11,765 | 0 of 5,460 | 0 of 10,082 | 0 of 10,179 |
+| Large, differing runs | 0 of 11,765 | 0 of 5,460 | 0 of 10,082 | 0 of 10,179 |
+| Small, 3-grams off in the crate | 1,260 of 11,765 | | | |
+
+- The prediction held: the crate restores every run exactly like the Python model, and the
+  comparison does see a difference when one is made (1,260 runs with 3-grams off).
+- Whole-set restore took 10–34 s per set in one thread (about 0.26 ms per word on wiki with the small
+  table, 0.32 with the large), on a machine running other jobs at the same time. Not tuned yet.

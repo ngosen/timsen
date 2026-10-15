@@ -14,6 +14,10 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Added
 
+- `timsen` crate: maps a `.timsen` table and restores a run of unmarked syllables, keeping
+  capitalization, in new or old tone placement; same output as `research.model` (#12).
+- `research.crosscheck` and `research.fixture`: compare another implementation with the Python model
+  run by run (#12).
 - `research.table --min-plain N`: leaves rare words that restore as typed out of the table, which
   shrinks the small table from 44 MB to 22.6 MB; `research.personal` reads `.timsen` files (#11).
 - `docs/TABLES.md`: accuracy of every measured table size, to help users choose between the two

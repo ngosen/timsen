@@ -5,9 +5,9 @@ coding agent; the output must still read like a careful human wrote it, and the 
 be able to explain every line.
 
 This repository holds Tim Sen, the diacritic guesser behind the Đoán dấu feature of the
-[Ngó Sen](https://github.com/ngosen/ngosen) input method: type `toi da go phim`, get `tôi đã gõ phím`. Today it holds the research code that trains
-and measures the model (`research/`). A Rust library with a C API, usable from input methods on Linux,
-macOS and Windows, comes once the model is settled.
+[Ngó Sen](https://github.com/ngosen/ngosen) input method: type `toi da go phim`, get `tôi đã gõ phím`. It holds the research code that trains
+and measures the model (`research/`) and the Rust crate that restores marks from a table
+(`crates/timsen`). A C API, usable from input methods on Linux, macOS and Windows, comes later.
 
 ## Before you start
 
@@ -54,6 +54,9 @@ Every number in this repository says what was measured, on which test set, with 
 - **Reuse what exists.** Tokenizing and mark handling live in `research/text.py`; the model in
   `research/model.py`. Do not copy them into a new script.
 - **Style:** `ruff format` and `ruff check` (config in `pyproject.toml`). Functions under ~50 lines.
+- **Rust:** `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `cargo test`. The crate must
+  restore exactly like `research.model`; after changing the table format or the model, rebuild the
+  test table with `python -m research.fixture`.
 - **Tests:** `python -m pytest`. A bug fix comes with a test that fails without it.
 
 ## Commits and pull requests

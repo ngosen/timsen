@@ -3,9 +3,13 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
-# Corpora, test sets and models live under DOAN_DAU_DIR, never in the repository.
+# Corpora, test sets and models live under TIMSEN_DIR, never in the repository.
 *.npz
 *.txt.gz
 *.parquet
 *.arpa
 *.binary
+*.timsen
+# Built from made-up sentences by research.fixture for the Rust tests.
+!crates/timsen/tests/fixtures/tiny.timsen
+/target/
