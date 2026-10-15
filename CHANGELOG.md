@@ -6,7 +6,7 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Changed
 
-- `docs/PLAN.md`: two shipped tables, 44 MB and 177 MB, chosen by the user (#).
+- `docs/PLAN.md`: two shipped tables, 44 MB and 177 MB, chosen by the user (#9).
 - `docs/PLAN.md`: mixed marked/unmarked input, both readings of a word, abbreviations kept as typed,
   new words in the personal dictionary, and what is taken from users (#5).
 
