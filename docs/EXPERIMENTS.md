@@ -220,3 +220,32 @@ Prediction: abbreviations are 3–5% of chat words; keeping them as typed gains 
   `not` → `nốt` 16, `doc`, `chat`, `ci`), which the personal dictionary is meant to fix, and words the
   writer left unmarked by habit (`dung` → `đúng` 16, `nay` → `này` 12, `de` → `để` 11), where the
   guess is arguably right and the metric is wrong. So 89.13% slightly understates the model.
+
+## 2026-10-15 · Pruned table for shipping
+
+Question: how much does pruning the wiki + subs + forum 3-gram table to a size an input method can ship
+cost, alone and with the personal dictionary on top? Setup: `research.evaluate --min-tri N --min-bi N`
+on the 1.5 GB model, and `research.personal ... 100 --min-tri N --min-bi N` (5-fold on chat, weight
+100). Sizes count vocabulary, 2-gram and 3-gram entries at 12 bytes each; the real file format comes
+later.
+
+| 3-grams ≥ | 2-grams ≥ | 3-grams kept | 2-grams kept | Size |
+| --- | --- | --- | --- | --- |
+| 1 | 1 | 73.1M | 15.2M | 1,066 MB |
+| 20 | 10 | 2.19M | 1.83M | 55 MB |
+| 30 | 20 | 1.49M | 1.12M | 38 MB |
+| 50 | 20 | 0.91M | 1.12M | 31 MB |
+| 50 | 50 | 0.91M | 0.58M | 25 MB |
+
+Prediction (chat / wiki / forum, then chat with personal dictionary):
+
+| Size | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- |
+| 1,066 MB | 89.13% | 97.61% | 94.47% | 92.1% |
+| 55 MB | 88.6% | 97.2% | 93.9% | 91.9% |
+| 38 MB | 88.4% | 97.0% | 93.6% | 91.8% |
+| 31 MB | 88.2% | 96.8% | 93.4% | 91.7% |
+| 25 MB | 87.9% | 96.6% | 93.1% | 91.5% |
+
+The personal dictionary should win back part of the pruning loss, since the user's own 2- and
+3-grams are the ones pruning drops first.

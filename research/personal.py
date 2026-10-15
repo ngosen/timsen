@@ -1,8 +1,9 @@
 """Adds counts from the user's own text to a base model (the personal dictionary), scored 5-fold.
 
-usage: python -m research.personal MODEL.npz CHATFILE WEIGHT... [--fractions 0,0.1,1]
+usage: python -m research.personal MODEL.npz CHATFILE WEIGHT... [--fractions 0,0.1,1] [--min-tri N] [--min-bi N]
 Each fold is a contiguous fifth of the file, so sentences from one message rarely land on both sides.
 With --fractions, each fold trains on that share of the other four fifths (sampled with a fixed seed).
+--min-tri and --min-bi prune the base table before personal counts are added, as a shipped table would be.
 """
 
 import argparse
@@ -64,10 +65,12 @@ def main():
     ap.add_argument("chat")
     ap.add_argument("weights", nargs="+", type=float)
     ap.add_argument("--fractions", default="1")
+    ap.add_argument("--min-tri", type=int, default=1)
+    ap.add_argument("--min-bi", type=int, default=1)
     a = ap.parse_args()
     lines = open(a.chat, encoding="utf-8").read().splitlines()
     size = len(lines) // FOLDS + 1
-    m = Model(a.model)
+    m = Model(a.model, a.min_tri, a.min_bi)
     base = m.snapshot()
     for weight in a.weights:
         for frac in (float(x) for x in a.fractions.split(",")):
