@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 
-use crate::table::{BOS, EOS, SHIFT};
+use crate::table::{BOS, EOS, SHIFT, UNK};
 use crate::{Error, Table, tone};
 
 /// How much one learned n-gram weighs against one seen in the corpora.
@@ -25,7 +25,12 @@ pub struct Personal<'t> {
     uni: HashMap<u32, u64>,
     bi: HashMap<u64, u64>,
     tri: HashMap<u64, u64>,
-    /// Learned words and run ends, which the table's total counts the same way.
+    /// The same n-grams with each learned word the table lacks read as `<unk>` where it is a context,
+    /// as the table counts such words. Kept apart so a saved file names only real words.
+    unk_uni: u64,
+    unk_bi: HashMap<u64, u64>,
+    unk_tri: HashMap<u64, u64>,
+    /// Learned words the table knows, and run ends: the table's total leaves `<unk>` out.
     tokens: u64,
 }
 
@@ -35,6 +40,10 @@ fn key2(v: u32, w: u32) -> u64 {
 
 fn key3(u: u32, v: u32, w: u32) -> u64 {
     (u64::from(u) << (2 * SHIFT)) | key2(v, w)
+}
+
+fn get(map: &HashMap<u64, u64>, k: u64) -> u64 {
+    map.get(&k).copied().unwrap_or(0)
 }
 
 impl<'t> Personal<'t> {
@@ -47,6 +56,9 @@ impl<'t> Personal<'t> {
             uni: HashMap::new(),
             bi: HashMap::new(),
             tri: HashMap::new(),
+            unk_uni: 0,
+            unk_bi: HashMap::new(),
+            unk_tri: HashMap::new(),
             tokens: 0,
         }
     }
@@ -77,17 +89,64 @@ impl<'t> Personal<'t> {
             .chain([Some(EOS)])
             .collect();
         for &id in seq[2..].iter().flatten() {
-            *self.uni.entry(id).or_default() += 1;
-            self.tokens += 1;
+            self.add(&[id], 1);
         }
         for i in 2..seq.len() {
             if let (Some(v), Some(w)) = (seq[i - 1], seq[i]) {
-                *self.bi.entry(key2(v, w)).or_default() += 1;
+                self.add(&[v, w], 1);
                 if let Some(u) = seq[i - 2] {
-                    *self.tri.entry(key3(u, v, w)).or_default() += 1;
+                    self.add(&[u, v, w], 1);
                 }
             }
         }
+    }
+
+    /// Counts an n-gram `c` times, and again with words the table lacks read as `<unk>`: in context
+    /// position always, and as the last word for the n-grams that serve as a longer one's context.
+    fn add(&mut self, ids: &[u32], c: u64) {
+        match *ids {
+            [w] => {
+                *self.uni.entry(w).or_default() += c;
+                if self.own(w) {
+                    self.tokens += c;
+                } else {
+                    self.unk_uni += c;
+                }
+            }
+            [v, w] => {
+                *self.bi.entry(key2(v, w)).or_default() += c;
+                let mut keys = Vec::new();
+                if !self.own(v) {
+                    keys.push(key2(UNK, w));
+                }
+                if !self.own(w) {
+                    keys.push(key2(self.context(v), UNK));
+                }
+                for k in keys {
+                    *self.unk_bi.entry(k).or_default() += c;
+                }
+            }
+            [u, v, w] => {
+                *self.tri.entry(key3(u, v, w)).or_default() += c;
+                let mut keys = Vec::new();
+                if !self.own(u) || !self.own(v) {
+                    keys.push(key3(self.context(u), self.context(v), w));
+                }
+                if !self.own(w) {
+                    keys.push(key3(self.context(u), self.context(v), UNK));
+                }
+                for k in keys {
+                    *self.unk_tri.entry(k).or_default() += c;
+                }
+            }
+            _ => unreachable!("n-grams are one to three words"),
+        }
+    }
+
+    /// The id a word stands for as a context: words the table lacks are `<unk>` there, so they share
+    /// what the table and the other learned words say about unknown words.
+    pub(crate) fn context(&self, id: u32) -> u32 {
+        if self.own(id) { id } else { UNK }
     }
 
     /// The id of a word as typed, adding it if the table lacks it; `None` once ids run out.
@@ -141,7 +200,8 @@ impl<'t> Personal<'t> {
         } else {
             0.0
         };
-        base + WEIGHT * self.uni.get(&id).copied().unwrap_or(0) as f64
+        let unk = if id == UNK { self.unk_uni } else { 0 };
+        base + WEIGHT * (self.uni.get(&id).copied().unwrap_or(0) + unk) as f64
     }
 
     pub(crate) fn bigram(&self, v: u32, w: u32) -> f64 {
@@ -150,7 +210,8 @@ impl<'t> Personal<'t> {
         } else {
             0.0
         };
-        base + WEIGHT * self.bi.get(&key2(v, w)).copied().unwrap_or(0) as f64
+        let k = key2(v, w);
+        base + WEIGHT * (get(&self.bi, k) + get(&self.unk_bi, k)) as f64
     }
 
     pub(crate) fn trigram(&self, u: u32, v: u32, w: u32) -> f64 {
@@ -160,7 +221,8 @@ impl<'t> Personal<'t> {
         } else {
             0.0
         };
-        base + WEIGHT * self.tri.get(&key3(u, v, w)).copied().unwrap_or(0) as f64
+        let k = key3(u, v, w);
+        base + WEIGHT * (get(&self.tri, k) + get(&self.unk_tri, k)) as f64
     }
 
     pub(crate) fn total(&self) -> f64 {
@@ -233,15 +295,10 @@ impl<'t> Personal<'t> {
                         .ok_or(Error::Format("too many words in personal dictionary"))?,
                 });
             }
-            match ids[..] {
-                [w] => {
-                    *p.uni.entry(w).or_default() += c;
-                    p.tokens += c;
-                }
-                [v, w] => *p.bi.entry(key2(v, w)).or_default() += c,
-                [u, v, w] => *p.tri.entry(key3(u, v, w)).or_default() += c,
-                _ => return Err(Error::Format("bad personal dictionary line")),
+            if ids.len() > 3 {
+                return Err(Error::Format("bad personal dictionary line"));
             }
+            p.add(&ids, c);
         }
         Ok(p)
     }
@@ -282,6 +339,19 @@ mod tests {
     }
 
     #[test]
+    fn a_new_context_word_shares_what_other_new_words_were_followed_by() {
+        let t = table();
+        let mut p = Personal::new(&t);
+        for _ in 0..3 {
+            learn(&mut p, "gõ");
+        }
+        learn(&mut p, "abc gỗ");
+        learn(&mut p, "def gỗ");
+        learn(&mut p, "ghi");
+        assert_eq!(p.restore(&["ghi", "go"], ToneStyle::New), ["ghi", "gỗ"]);
+    }
+
+    #[test]
     fn nothing_is_learned_across_an_unknown_word() {
         let t = table();
         let mut p = Personal::new(&t);
@@ -315,12 +385,12 @@ mod tests {
     }
 
     #[test]
-    fn the_total_adds_learned_words_and_run_ends() {
+    fn the_total_adds_learned_known_words_and_run_ends() {
         let t = table();
         let mut p = Personal::new(&t);
         learn(&mut p, "nhà ta");
         learn(&mut p, "ngó");
-        assert_eq!(p.total(), t.total() + WEIGHT * (3.0 + 2.0));
+        assert_eq!(p.total(), t.total() + WEIGHT * (3.0 + 1.0));
     }
 
     #[test]

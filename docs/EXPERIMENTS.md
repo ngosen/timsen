@@ -696,3 +696,36 @@ id with no table counts, so a context word seen once tells it little and the gue
 Vietnamese prior. Learning new words does help where it applies (`để` for `de`, `vẫn` for `van`),
 but less than pooling helps here. Next: let a learned word the table lacks back off to the table's
 `<unk>` counts as a context, and measure again.
+
+## 2026-10-15 · New words as `<unk>` in context
+
+Question: does reading a learned word the table lacks as `<unk>` when it is a context close the 0.2
+points the crate lost to `research.personal` on chat ("Personal dictionary through the crate, on
+chat")? Change: `Personal` also counts each learned n-gram with such words folded into `<unk>` in
+context position (and as the last word of the n-grams that serve as a longer one's context), and
+`logp` looks contexts up that way. The new word itself stays a candidate with its own counts.
+
+Check 1, against Python: learn every line of the subs test file, including lines with words the
+tables lack (which the earlier cross-check left out), and restore the wiki and forum runs with
+`research.personal` and with `cargo run --release --example restore TABLE --learn`. With contexts
+pooled the two models agree except where a new word adds a candidate, so: before the change (main)
+at least 30 runs differ per set and table; after it, at most 10.
+
+Check 2, chat, rebuilt as before and deleted after: the crate's personal dictionary rises to
+Python's or above: small at least 92.2%, large at least 92.4% (Python 92.19% and 92.42%).
+
+Result, check 1 (runs that differ from Python, of 11,765 wiki and 10,179 forum runs):
+
+| Table, set | main | context as `<unk>` | and new words out of the total |
+| --- | --- | --- | --- |
+| small, wiki | 5 | 0 | 0 |
+| small, forum | 3 | 1 | 0 |
+| large, wiki | 2 | 0 | 0 |
+| large, forum | 8 | 5 | 1 |
+
+The "before" half missed: 2–8 runs, not 30 or more. Subtitles hold few words the tables lack, so the
+pooled contexts rarely come into play on wiki and forum text. Pooling alone left 6 runs, 4 of them
+with no new word in the crate's output. Their cause was the total: `research.personal` adds learned words
+from `uni[3:]`, which leaves `<unk>` out, and the crate counted new words in it. The crate now
+leaves them out too. The one run left has three French words from the subtitles, which the crate
+offers as candidates and Python cannot: the intended difference.
