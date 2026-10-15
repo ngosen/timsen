@@ -416,3 +416,16 @@ check that the comparison can see a difference, the same run with 3-grams switch
 Prediction: 0 differing runs on every set and table. With 3-grams off: more than 1,000 differing runs
 on wiki with the small table. Floating-point logs could differ in the last bit between numpy and
 Rust; if that shows, a handful of runs on near-ties.
+
+Result:
+
+| Table | wiki | subs | web | forum |
+| --- | --- | --- | --- | --- |
+| Small, differing runs | 0 of 11,765 | 0 of 5,460 | 0 of 10,082 | 0 of 10,179 |
+| Large, differing runs | 0 of 11,765 | 0 of 5,460 | 0 of 10,082 | 0 of 10,179 |
+| Small, 3-grams off in the crate | 1,260 of 11,765 | | | |
+
+- The prediction held: the crate restores every run exactly like the Python model, and the
+  comparison does see a difference when one is made (1,260 runs with 3-grams off).
+- Whole-set restore took 10–34 s per set in one thread (about 0.26 ms per word on wiki with the small
+  table, 0.32 with the large), on a machine running other jobs at the same time. Not tuned yet.
