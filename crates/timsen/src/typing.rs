@@ -11,6 +11,9 @@ pub struct Typing<'t> {
     table: &'t Table,
     typed: Vec<String>,
     opts: Vec<Vec<u32>>,
+    /// `kept[i][k]`: the text candidate k of syllable i stands for when the user typed it that way,
+    /// or `None` when it is a guess spelled from the table.
+    kept: Vec<Vec<Option<String>>>,
     /// `scores[i][a * opts[i].len() + b]`: best path through syllable i ending with candidate a of
     /// syllable i - 1 and candidate b of syllable i.
     scores: Vec<Vec<f64>>,
@@ -24,18 +27,54 @@ impl<'t> Typing<'t> {
             table,
             typed: Vec::new(),
             opts: Vec::new(),
+            kept: Vec::new(),
             scores: Vec::new(),
             back: Vec::new(),
         }
     }
 
-    /// Adds the next syllable, typed without marks.
+    /// Adds the next syllable. One typed without marks is guessed; one typed with marks is kept as
+    /// typed and only serves as context.
     pub fn push(&mut self, syllable: &str) {
         let plain = syllable.to_lowercase();
+        if tone::strip(&plain) != plain {
+            return self.push_kept(syllable, &[syllable]);
+        }
         let o: Vec<u32> = self
             .table
             .options(&plain)
             .map_or_else(|| vec![UNK], |o| o.collect());
+        let kept = vec![None; o.len()];
+        self.push_options(syllable, o, kept);
+    }
+
+    /// Adds a word the input method could read two ways: as it interpreted the keys (`tét`) and as
+    /// the raw letters (`test`). Both are kept as typed; the context chooses, and an equal score
+    /// keeps the interpreted one. Raw letters the table does not know are never chosen: unknown
+    /// words share one pooled count, which would let any string of keys outscore a real word.
+    pub fn push_either(&mut self, interpreted: &str, raw: &str) {
+        if interpreted.to_lowercase() == raw.to_lowercase() || self.id_of(raw) == UNK {
+            return self.push_kept(interpreted, &[interpreted]);
+        }
+        self.push_kept(interpreted, &[interpreted, raw]);
+    }
+
+    fn push_kept(&mut self, typed: &str, readings: &[&str]) {
+        let o = readings.iter().map(|r| self.id_of(r)).collect();
+        let kept = readings.iter().map(|r| Some(r.to_string())).collect();
+        self.push_options(typed, o, kept);
+    }
+
+    /// The table's id for a word as typed, in either tone placement, or `UNK`.
+    fn id_of(&self, word: &str) -> u32 {
+        let word = tone::to_new(&word.to_lowercase());
+        self.table
+            .options(&tone::strip(&word))
+            .and_then(|mut o| o.find(|&id| self.table.word(id) == word))
+            .unwrap_or(UNK)
+    }
+
+    fn push_options(&mut self, typed: &str, o: Vec<u32>, kept: Vec<Option<String>>) {
         let n = self.opts.len();
         let (pp, prev) = (self.opts_at(n, 2), self.opts_at(n, 1));
         let score: &[f64] = if n == 0 { &[0.0] } else { &self.scores[n - 1] };
@@ -54,8 +93,9 @@ impl<'t> Typing<'t> {
                 }
             }
         }
-        self.typed.push(syllable.to_string());
+        self.typed.push(typed.to_string());
         self.opts.push(o);
+        self.kept.push(kept);
         self.scores.push(next);
         self.back.push(bp);
     }
@@ -64,6 +104,7 @@ impl<'t> Typing<'t> {
     pub fn pop(&mut self) {
         self.typed.pop();
         self.opts.pop();
+        self.kept.pop();
         self.scores.pop();
         self.back.pop();
     }
@@ -136,6 +177,9 @@ impl<'t> Typing<'t> {
 
     /// Candidate k of syllable i, spelled for output.
     fn spell_one(&self, i: usize, k: usize, style: ToneStyle) -> String {
+        if let Some(text) = &self.kept[i][k] {
+            return text.clone();
+        }
         let (id, typed) = (self.opts[i][k], &self.typed[i]);
         if id == UNK {
             return typed.clone();
@@ -405,5 +449,56 @@ mod tests {
         typing.pop();
         typing.push("cua");
         assert_eq!(typing.guess(ToneStyle::New)[3], "gõ");
+    }
+
+    #[test]
+    fn a_marked_word_is_kept_and_steers_its_neighbours() {
+        let t = table();
+        for (last, want) in [("quý", "gỗ"), ("cửa", "gõ")] {
+            let mut typing = Typing::new(&t);
+            for w in ["nguoi", "ta", "co", "go", last] {
+                typing.push(w);
+            }
+            assert_eq!(typing.finish(ToneStyle::New)[3..], [want, last]);
+        }
+    }
+
+    #[test]
+    fn a_marked_word_is_found_in_either_tone_placement() {
+        let t = table();
+        let mut typing = Typing::new(&t);
+        typing.push("Hòa");
+        assert_eq!(typing.guess(ToneStyle::New), ["Hòa"]);
+        assert_ne!(typing.opts[0][0], UNK);
+        assert_eq!(typing.id_of("hoà"), typing.opts[0][0]);
+    }
+
+    #[test]
+    fn an_unknown_raw_reading_never_wins() {
+        let t = table();
+        let mut typing = Typing::new(&t);
+        for w in ["nhà", "ta", "có"] {
+            typing.push(w);
+        }
+        typing.push_either("gỗ", "goox");
+        typing.push_either("quý", "quys");
+        // Unknown words share one pooled count, which on a real table outscores most real words.
+        let ids = [[typing.id_of("gỗ")], [typing.id_of("quý")]];
+        assert_eq!(typing.opts[3..], ids);
+        assert_eq!(typing.finish(ToneStyle::New)[3..], ["gỗ", "quý"]);
+    }
+
+    #[test]
+    fn either_reading_follows_the_context() {
+        let t = table();
+        let mut typing = Typing::new(&t);
+        typing.push("mở");
+        typing.push_either("fìle", "file");
+        typing.push("code");
+        assert_eq!(typing.finish(ToneStyle::New), ["mở", "file", "code"]);
+        typing.pop();
+        typing.pop();
+        typing.push_either("tét", "test");
+        assert_eq!(typing.finish(ToneStyle::New)[1], "tét");
     }
 }
