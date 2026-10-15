@@ -6,7 +6,7 @@ All notable changes to Đoán dấu. The format follows [Keep a Changelog](https
 
 ### Added
 
-- `docs/PLAN.md`: steps from the research code to a Rust library (#).
+- `docs/PLAN.md`: steps from the research code to a Rust library (#4).
 - `research.train --order 4`: stupid-backoff 4-grams, kept for comparison with Kneser-Ney (#3).
 - `research.kn_export` and `research.kn_model`: Kneser-Ney models estimated with KenLM, read from
   ARPA and scored with beam search (#2).
