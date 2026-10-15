@@ -341,3 +341,25 @@ Prediction:
 | Kneser-Ney, same thresholds | 88.8% | 95.3% | 92.3% |
 | Stupid backoff, 177 MB | 89.00% | 96.58% | 93.76% |
 | Kneser-Ney, same thresholds | 89.3% | 96.9% | 94.2% |
+
+Result (N = 0 is the untrimmed file; its personal figure differs from the earlier 91.81% by 0.01
+because the table also maps the user's rare marked words to `<unk>`):
+
+| Table | N | Vocabulary | File | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 44 MB | 0 | 562,236 | 44.2 MB | 88.41% | 94.82% | 91.82% | 91.82% |
+| 44 MB | 20 | 157,318 | 29.5 MB | 88.46% | 94.82% | 91.83% | 91.86% |
+| 44 MB | 100 | 69,898 | 25.5 MB | 88.56% | 94.84% | 91.83% | 91.89% |
+| 177 MB | 0 | 562,236 | 177.2 MB | 89.00% | 96.58% | 93.76% | 92.16% |
+| 177 MB | 20 | 157,318 | 154.5 MB | 89.03% | 96.57% | 93.76% | 92.18% |
+| 177 MB | 100 | 69,898 | 143.2 MB | 89.16% | 96.57% | 93.76% | 92.21% |
+
+- The prediction expected a small loss; trimming gains instead, up to 0.15 points on chat, with wiki
+  and forum unchanged. Likely reason, not measured: the dropped words now share the `<unk>` n-grams,
+  which say more about the context of a rare word than each word's own few counts.
+- Files shrink more than predicted: 44 → 25.5 MB and 177 → 143 MB at N = 100.
+
+### Stronger trimming
+
+Prediction: N = 300 and 1000 keep gaining on chat by about 0.05 points each, wiki and forum unchanged;
+the small table reaches about 24 and 23 MB.
