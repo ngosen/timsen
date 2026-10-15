@@ -38,6 +38,9 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
 3. **Restore while typing.** After each syllable, return the best spelling of the last few words
    (earlier guesses may change), a confidence per word and the top three choices for unsure words.
    Target: a few milliseconds per key on a typical laptop.
+   - Done: `Typing` in the crate gives the best spelling after each syllable in under 2 ms at p99;
+     words three syllables back are as good as final ("Restoring while typing" in
+     `EXPERIMENTS.md`).
    - Mixed input: a syllable the user typed with marks is kept as typed; only unmarked syllables are
      guessed.
    - The input method passes both readings of a word, as interpreted (`tét`) and as raw letters
