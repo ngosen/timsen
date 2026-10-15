@@ -5,7 +5,9 @@ use std::path::Path;
 use timsen::{Table, ToneStyle};
 
 fn fixture(name: &str) -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(name)
 }
 
 fn table() -> Table {
@@ -20,7 +22,11 @@ fn restores_exactly_like_the_python_model() {
     assert_eq!(runs.lines().count(), expected.lines().count());
     for (run, want) in runs.lines().zip(expected.lines()) {
         let words: Vec<&str> = run.split(' ').collect();
-        assert_eq!(t.restore(&words, ToneStyle::New).join(" "), want, "run: {run}");
+        assert_eq!(
+            t.restore(&words, ToneStyle::New).join(" "),
+            want,
+            "run: {run}"
+        );
     }
 }
 

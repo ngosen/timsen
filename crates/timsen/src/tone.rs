@@ -28,9 +28,15 @@ pub(crate) fn with_style(word: &str, style: ToneStyle) -> String {
     }
     let (first, last) = (chars[n - 2], chars[n - 1]);
     let moved = match first {
-        'o' => A.iter().chain(&E).position(|&c| c == last).map(|t| (O[t % 5], if t < 5 { 'a' } else { 'e' })),
+        'o' => A
+            .iter()
+            .chain(&E)
+            .position(|&c| c == last)
+            .map(|t| (O[t % 5], if t < 5 { 'a' } else { 'e' })),
         // In "quý" the u belongs to the consonant, so the mark stays on y.
-        'u' if n < 3 || chars[n - 3] != 'q' => Y.iter().position(|&c| c == last).map(|t| (U[t], 'y')),
+        'u' if n < 3 || chars[n - 3] != 'q' => {
+            Y.iter().position(|&c| c == last).map(|t| (U[t], 'y'))
+        }
         _ => None,
     };
     if let Some((marked, plain)) = moved {
@@ -60,7 +66,13 @@ mod tests {
 
     #[test]
     fn old_style_moves_the_mark_to_the_first_vowel() {
-        for (new, old) in [("hoà", "hòa"), ("khoẻ", "khỏe"), ("thuỷ", "thủy"), ("hoạ", "họa"), ("xoè", "xòe")] {
+        for (new, old) in [
+            ("hoà", "hòa"),
+            ("khoẻ", "khỏe"),
+            ("thuỷ", "thủy"),
+            ("hoạ", "họa"),
+            ("xoè", "xòe"),
+        ] {
             assert_eq!(with_style(new, ToneStyle::Old), old);
         }
     }

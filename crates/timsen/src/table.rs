@@ -91,7 +91,9 @@ impl Cursor<'_> {
     /// Claims `len` bytes and returns where they start; sections are padded to 8 bytes.
     fn take(&mut self, len: usize) -> Result<usize, Error> {
         let start = self.pos;
-        let end = start.checked_add(len).ok_or(Error::Format("section too large"))?;
+        let end = start
+            .checked_add(len)
+            .ok_or(Error::Format("section too large"))?;
         if end > self.bytes.len() {
             return Err(Error::Format("file is truncated"));
         }
@@ -113,13 +115,18 @@ impl Cursor<'_> {
         }
         let s = Strings { offsets, blob, n };
         for i in 0..n {
-            std::str::from_utf8(s.bytes(self.bytes, i)).map_err(|_| Error::Format("string is not UTF-8"))?;
+            std::str::from_utf8(s.bytes(self.bytes, i))
+                .map_err(|_| Error::Format("string is not UTF-8"))?;
         }
         Ok(s)
     }
 
     fn grams(&mut self, n: usize) -> Result<Grams, Error> {
-        Ok(Grams { keys: self.take(8 * n)?, counts: self.take(4 * n)?, n })
+        Ok(Grams {
+            keys: self.take(8 * n)?,
+            counts: self.take(4 * n)?,
+            n,
+        })
     }
 }
 
@@ -167,13 +174,17 @@ impl Table {
         if u32_at(&bytes, 8, 0) != VERSION {
             return Err(Error::Format("unsupported version"));
         }
-        let [n_words, n_bi, n_tri, n_plain, n_cand] = [0, 1, 2, 3, 4].map(|i| header_u64(&bytes, i));
+        let [n_words, n_bi, n_tri, n_plain, n_cand] =
+            [0, 1, 2, 3, 4].map(|i| header_u64(&bytes, i));
         let (n_words, n_bi, n_tri, n_plain, n_cand) = (n_words?, n_bi?, n_tri?, n_plain?, n_cand?);
-        if n_words < 3 || n_words > 1 << SHIFT {
+        if !(3..=1 << SHIFT).contains(&n_words) {
             return Err(Error::Format("bad vocabulary size"));
         }
         let total = f64::from_le_bytes(bytes[56..64].try_into().unwrap());
-        let mut c = Cursor { bytes: &bytes, pos: HEADER_LEN };
+        let mut c = Cursor {
+            bytes: &bytes,
+            pos: HEADER_LEN,
+        };
         let words = c.strings(n_words)?;
         let uni = c.take(4 * n_words)?;
         let bigrams = c.grams(n_bi)?;
@@ -191,7 +202,17 @@ impl Table {
                 return Err(Error::Format("candidate id out of bounds"));
             }
         }
-        Ok(Table { bytes, total, words, uni, bigrams, trigrams, plain, cand_start, cand_ids })
+        Ok(Table {
+            bytes,
+            total,
+            words,
+            uni,
+            bigrams,
+            trigrams,
+            plain,
+            cand_start,
+            cand_ids,
+        })
     }
 
     pub fn word(&self, id: u32) -> &str {
@@ -217,7 +238,10 @@ impl Table {
     }
 
     pub(crate) fn trigram(&self, u: u32, v: u32, w: u32) -> f64 {
-        self.lookup(&self.trigrams, (u64::from(u) << (2 * SHIFT)) | (u64::from(v) << SHIFT) | u64::from(w))
+        self.lookup(
+            &self.trigrams,
+            (u64::from(u) << (2 * SHIFT)) | (u64::from(v) << SHIFT) | u64::from(w),
+        )
     }
 
     fn lookup(&self, g: &Grams, key: u64) -> f64 {

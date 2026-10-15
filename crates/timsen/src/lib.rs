@@ -37,7 +37,11 @@ impl Table {
     fn logp(&self, u: u32, v: u32, w: u32) -> f64 {
         let tri = self.trigram(u, v, w);
         if tri > 0.0 {
-            let ctx = if u == BOS && v == BOS { self.segments() } else { self.bigram(u, v) };
+            let ctx = if u == BOS && v == BOS {
+                self.segments()
+            } else {
+                self.bigram(u, v)
+            };
             return (tri.max(1e-9) / ctx.max(1.0)).ln();
         }
         let bi = self.bigram(v, w);

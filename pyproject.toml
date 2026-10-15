@@ -20,3 +20,7 @@ ignore = ["B905"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools]
+# crates/ holds the Rust library, not a Python package.
+packages = ["research"]
