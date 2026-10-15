@@ -379,3 +379,28 @@ the small table reaches about 24 and 23 MB.
   `research.personal` maps the user's own rare words to `<unk>` as well, so part of this may be the
   shared `<unk>` counts standing in for words the real personal dictionary would learn by name.
 - N = 1000 for both shipped tables: 22.6 MB and 130.7 MB, no measured loss anywhere.
+
+Result for "Kneser-Ney at the shipped sizes" (KenLM kept 1.08M 2-grams and 0.87M 3-grams for the
+small thresholds, 3.79M and 7.98M for the large; stupid backoff keeps 1.12M/0.91M and 4.70M/8.41M):
+
+| Model | chat | wiki | forum |
+| --- | --- | --- | --- |
+| Stupid backoff, small, untrimmed | 88.41% | 94.82% | 91.82% |
+| Stupid backoff, small, trimmed (N = 1000) | 88.58% | 94.84% | 91.82% |
+| Kneser-Ney, small thresholds | 88.59% | 95.18% | 92.28% |
+| Stupid backoff, large, untrimmed | 89.00% | 96.58% | 93.76% |
+| Stupid backoff, large, trimmed (N = 1000) | 89.18% | 96.55% | 93.74% |
+| Kneser-Ney, large thresholds | 89.46% | 96.79% | 94.16% |
+
+- Forum held the prediction; wiki missed low by 0.1 on both; chat missed low by 0.2 on the small
+  table and beat it by 0.16 on the large one.
+- Against the trimmed tables (whose vocabulary, 39,682 words, is close to the 65,000 cap here),
+  Kneser-Ney gains 0.3–0.5 points on edited prose, and on chat nothing on the small table and 0.28 on
+  the large one, with slightly fewer n-grams.
+- The personal dictionary is worth 3.4 points on chat, ten times that, and stupid backoff takes it by
+  adding counts. Kneser-Ney would need either re-estimation on the user's machine or a second model
+  mixed in, neither measured. The shipped tables stay stupid backoff; Kneser-Ney is worth revisiting
+  only together with a measured way to add personal counts.
+
+The frozen chat set was deleted after these runs. Chat figures from a new set are not comparable
+with the ones above; measure a new baseline first.

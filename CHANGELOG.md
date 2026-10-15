@@ -6,12 +6,16 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Changed
 
+- `docs/PLAN.md`, `docs/TABLES.md`: the small table ships first; stupid backoff stays after measuring
+  Kneser-Ney at the shipped sizes (#).
 - `docs/PLAN.md`: two shipped tables, 44 MB and 177 MB, chosen by the user (#9).
 - `docs/PLAN.md`: mixed marked/unmarked input, both readings of a word, abbreviations kept as typed,
   new words in the personal dictionary, and what is taken from users (#5).
 
 ### Added
 
+- `research.table --min-plain N`: leaves rare words that restore as typed out of the table, which
+  shrinks the small table from 44 MB to 22.6 MB; `research.personal` reads `.timsen` files (#).
 - `docs/TABLES.md`: accuracy of every measured table size, to help users choose between the two
   shipped tables (#10).
 - `research.table`: writes a pruned model as a fixed binary table (`.timsen`) that can be mapped from

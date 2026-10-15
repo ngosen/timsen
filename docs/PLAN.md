@@ -10,8 +10,9 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
   seen fewer than 1,000 times whose only spelling is themselves. With the personal dictionary they
   differ by 0.27 points on chat (92.05% and 92.32%); on edited prose by about 1.7 (wiki 94.84% and
   96.55%). The small table ships first; the large one is added later if users ask for better
-  accuracy on longer writing. Kneser-Ney gained about one point at 1.5 GB but is unmeasured at these
-  sizes; revisit only with an equal-size comparison.
+  accuracy on longer writing. Kneser-Ney at the same sizes gains 0.3–0.5 points on edited prose and
+  0–0.3 on chat, but cannot take personal counts by simple addition; revisit only with a measured way
+  to combine it with the personal dictionary.
 - **Corpora:** Wikipedia, OpenSubtitles and FineWeb-2 forum pages. The OpenSubtitles licence must be
   settled before the repository or the table is made public.
 - **Where the gain is:** the personal dictionary (+2.7 to +3.4 points on chat depending on the table, still rising) and revising the
