@@ -656,3 +656,43 @@ Result (4,904 learned runs: the subs lines whose words both tables know):
 - Learning changed far fewer runs than predicted (0.1–0.5%, not 3–4%): subtitles are general text
   the tables already hold, not one writer's habits. The changed runs are still enough to show the
   check compares learned counts, not the table alone.
+
+## 2026-10-15 · Personal dictionary through the crate, on chat
+
+Question: does the crate's personal dictionary give the gain `research.personal` measured on chat,
+and what does it cost per syllable? Setup: the chat set is rebuilt the way it was first built: the
+user's own messages typed into Claude Code on this machine, run through `research.chat_testset`,
+kept in RAM and deleted after the run. It now holds the messages written since, so its figures are
+not comparable with the earlier chat figures. Both trimmed tables. `research.personal TABLE CHAT 0
+100` (weight 0 is the table alone; the total bug of "Personal dictionary in Rust" is fixed), and
+`cargo run --release --example personal_eval TABLE LINES` on `research.crosscheck --lines CHAT`:
+the same five contiguous folds, the crate learning the other four fifths, and every syllable of the
+fold typed into `Typing` with the learned counts and timed.
+
+Prediction: the table alone scores the same in Python and the crate (small 88.3%, large 88.9%).
+Python with the personal dictionary: small 92.0%, large 92.3%. The crate learns the words the
+tables lack, which Python maps to `<unk>`, so it scores about 0.3 points higher: small 92.3%, large
+92.6%. Per syllable with the learned counts: p99 under 2.5 ms (1.6 ms without, wiki).
+
+Result: the chat set has 3,881 sentences, 53,371 words.
+
+| Table | Alone (Python = crate) | Python personal | Crate personal | Crate p99 per syllable |
+| --- | --- | --- | --- | --- |
+| small | 88.63% | 92.19% | 91.97% | 2.29 ms |
+| large | 89.25% | 92.42% | 92.23% | 2.65 ms |
+
+The table alone matched to the word, as predicted, though both figures sit 0.3 above the guess. The
+personal dictionary missed in direction: the crate scores 0.2 points below Python, not 0.3 above.
+p99 held on the small table and missed on the large one (2.65 ms against 2.5).
+
+Why: comparing each word's guess on the small table, Python alone is right on 206 words, the crate
+alone on 87, both wrong but different on 56. The losses cluster on English words that share a
+Vietnamese syllable's letters (`the` → `thế`, `on` → `ơn`, `to` → `tổ`, `yet` → `yết`) and on
+common syllables next to them (`dùng` → `dụng`, `cài` → `cái`). The likely cause, not yet tested:
+Python folds every word the table
+lacks into `<unk>`, so a learned context of code and English words pools into one slot that has
+both the table's `<unk>` counts and many learned followers. The crate gives each such word its own
+id with no table counts, so a context word seen once tells it little and the guess falls back to the
+Vietnamese prior. Learning new words does help where it applies (`để` for `de`, `vẫn` for `van`),
+but less than pooling helps here. Next: let a learned word the table lacks back off to the table's
+`<unk>` counts as a context, and measure again.
