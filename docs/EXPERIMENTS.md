@@ -191,5 +191,32 @@ Prediction: about 89.8% on chat, 97.85% on wiki; peak memory about 28 GB.
   proper smoothing.
 - Peak memory 22 GB, model file 2.2 GB. Scoring took 37 minutes for the three sets (exact Viterbi over
   up to 44⁴ states), against a few minutes for the 3-gram.
-- Conclusion: build the table with KenLM. It is only needed when building; the input method reads the
-  table with its own code.
+- Kneser-Ney is the better model at this size. Whether that holds at the 30–40 MB an input method can
+  ship is unmeasured, so the shipped table stays a 3-gram stupid-backoff model for now
+  ([`PLAN.md`](PLAN.md)); KenLM would only be needed when building the table.
+
+## 2026-10-15 · Unmarked words in chat
+
+Question: would keeping chat abbreviations (`a`, `e`, `ko`) as typed, or expanding them to the full
+word, raise chat accuracy? Setup: wiki + subs + forum 3-gram model, frozen chat set, every word that
+is unmarked in the reference.
+
+Prediction: abbreviations are 3–5% of chat words; keeping them as typed gains about 0.8 points.
+
+| Word | Typed unmarked | Wrongly marked | Truly marked with the same letters |
+| --- | --- | --- | --- |
+| a | 395 | 86 | 68 |
+| ko | 273 | 4 | 0 |
+| ok | 241 | 0 | 0 |
+| b | 231 | 0 | 0 |
+| j | 179 | 0 | 0 |
+| e | 56 | 2 | 7 |
+
+- Missed: these abbreviations are about 2% of chat words and the model already keeps them, because the
+  forum text uses them (`ko` 150,000 times, `e` 136,000). Forcing `a` would gain 86 words and lose up
+  to 68 (`ạ`, `à`); expanding to `anh` counts as wrong against the reference. Gain about zero.
+- 37.6% of chat words are unmarked in the reference; the model wrongly marks 1.46% of all words. The
+  largest groups are English and project words (`ui` → `ủi` 45, `kho` → `khó` 43, `sen` → `sến` 20,
+  `not` → `nốt` 16, `doc`, `chat`, `ci`), which the personal dictionary is meant to fix, and words the
+  writer left unmarked by habit (`dung` → `đúng` 16, `nay` → `này` 12, `de` → `để` 11), where the
+  guess is arguably right and the metric is wrong. So 89.13% slightly understates the model.

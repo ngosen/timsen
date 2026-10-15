@@ -4,6 +4,11 @@ All notable changes to Đoán dấu. The format follows [Keep a Changelog](https
 
 ## Unreleased
 
+### Changed
+
+- `docs/PLAN.md`: mixed marked/unmarked input, both readings of a word, abbreviations kept as typed,
+  new words in the personal dictionary, and what is taken from users (#).
+
 ### Added
 
 - `docs/PLAN.md`: steps from the research code to a Rust library (#4).
