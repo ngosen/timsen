@@ -171,3 +171,25 @@ Prediction: 3-gram about 89.6%, 4-gram about 90.0% on chat (stupid backoff: 89.1
 - Smoothing alone is worth 0.26 points, less than predicted (0.5); the fourth word is worth another
   0.70. Whole sentences right on chat: 38.2% → 39.3%.
 - Both are far too large for an input method. Pruning cost needs measuring before choosing.
+
+## 2026-10-15 · Stupid backoff with 4-grams
+
+Question: the Kneser-Ney 4-gram gain looked like it came mostly from the fourth word. Does stupid backoff
+get it too, so KenLM is not needed? Setup: `research.train --order 4`, same corpora, 4-grams seen once
+dropped (35.5M kept), exact Viterbi over the last three candidates.
+
+Prediction: about 89.8% on chat, 97.85% on wiki; peak memory about 28 GB.
+
+| Model | chat | wiki | forum |
+| --- | --- | --- | --- |
+| Stupid backoff, 3-gram | 89.13% | 97.61% | 94.47% |
+| Stupid backoff, 4-gram | 89.25% | 97.79% | 94.76% |
+| Kneser-Ney, 4-gram | 90.09% | 97.88% | 95.21% |
+
+- Missed by 0.55 points: the fourth word adds only 0.12 with stupid backoff. Splitting the Kneser-Ney gain
+  into "smoothing 0.26 + order 0.70" was wrong; the two interact, and a longer context only pays with
+  proper smoothing.
+- Peak memory 22 GB, model file 2.2 GB. Scoring took 37 minutes for the three sets (exact Viterbi over
+  up to 44⁴ states), against a few minutes for the 3-gram.
+- Conclusion: build the table with KenLM. It is only needed when building; the input method reads the
+  table with its own code.

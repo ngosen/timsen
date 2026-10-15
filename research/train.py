@@ -1,6 +1,6 @@
-"""Counts syllable 1/2/3-grams from prepared corpora.
+"""Counts syllable 1/2/3-grams (and 4-grams with --order 4) from prepared corpora.
 
-usage: python -m research.train OUT.npz CORPUS...
+usage: python -m research.train [--order 4] OUT.npz CORPUS...
 
 A corpus NAME reads every data/NAME*.txt.gz (one paragraph per line, held-out text already removed by
 the fetch script). Words are mapped to the new tone placement before counting.
@@ -15,7 +15,7 @@ from multiprocessing import Pool
 import numpy as np
 
 from . import paths
-from .model import BOS, EOS, SHIFT, UNK
+from .model import BOS, EOS, SHIFT, UNK, quad_key
 from .text import segments
 
 MIN_VOCAB = 3
@@ -23,6 +23,8 @@ MAX_VOCAB = (1 << SHIFT) - 1
 CHUNK_LINES = 5_000  # small chunks keep each worker's arrays small
 WORKERS = 8
 MERGE_EVERY = 40
+MIN_QUAD = 2  # 4-grams seen once are most of the table and add little
+ORDER = 3
 
 
 def chunks(names):
@@ -53,9 +55,9 @@ def count_words(lines):
 VOCAB = None
 
 
-def init_vocab(vocab):
-    global VOCAB
-    VOCAB = vocab
+def init_vocab(vocab, order):
+    global VOCAB, ORDER
+    VOCAB, ORDER = vocab, order
 
 
 def count_ngrams(lines):
@@ -70,7 +72,11 @@ def count_ngrams(lines):
     uni = np.bincount(a, minlength=len(VOCAB) + 3)
     bk = ((a[:-1] << SHIFT) | a[1:])[a[1:] != BOS]
     tk = ((a[:-2] << (2 * SHIFT)) | (a[1:-1] << SHIFT) | a[2:])[(a[2:] != BOS) & (a[1:-1] != EOS)]
-    return uni, np.unique(bk, return_counts=True), np.unique(tk, return_counts=True)
+    qk = np.zeros(0, dtype=np.uint64)
+    if ORDER == 4:
+        keep = (a[3:] != BOS) & (a[2:-1] != EOS) & (a[1:-2] != EOS) & (a[:-3] != EOS)
+        qk = quad_key(a[:-3], a[1:-2], a[2:-1], a[3:])[keep]
+    return uni, *(np.unique(k, return_counts=True) for k in (bk, tk, qk))
 
 
 def merge(parts):
@@ -81,7 +87,11 @@ def merge(parts):
 
 
 def main():
-    out, names = sys.argv[1], sys.argv[2:]
+    global ORDER
+    args = sys.argv[1:]
+    if args[0] == "--order":
+        ORDER, args = int(args[1]), args[2:]
+    out, names = args[0], args[1:]
     t0 = time.time()
     with Pool(WORKERS) as pool:
         words = Counter()
@@ -91,18 +101,20 @@ def main():
     vocab = {w: i + 3 for i, w in enumerate(kept)}
     print(f"tokens {sum(words.values()):,} vocab {len(vocab):,} ({time.time() - t0:.0f}s)", flush=True)
     uni = np.zeros(len(vocab) + 3, dtype=np.int64)
-    bis, tris = [], []
-    with Pool(WORKERS, initializer=init_vocab, initargs=(vocab,)) as pool:
-        for u, b, t in pool.imap_unordered(count_ngrams, chunks(names)):
+    parts = ([], [], [])
+    with Pool(WORKERS, initializer=init_vocab, initargs=(vocab, ORDER)) as pool:
+        for u, *grams in pool.imap_unordered(count_ngrams, chunks(names)):
             uni += u
-            bis.append(b)
-            tris.append(t)
-            if len(tris) >= MERGE_EVERY:
-                bis, tris = [merge(bis)], [merge(tris)]
-    bk, bc = merge(bis)
-    tk, tc = merge(tris)
-    print(f"bigrams {len(bk):,} trigrams {len(tk):,} ({time.time() - t0:.0f}s)", flush=True)
-    np.savez(out, words=np.array(["<s>", "</s>", "<unk>", *kept]), uni=uni, bk=bk, bc=bc, tk=tk, tc=tc)
+            for part, g in zip(parts, grams):
+                part.append(g)
+            if len(parts[0]) >= MERGE_EVERY:
+                parts = tuple([merge(p)] for p in parts)
+    (bk, bc), (tk, tc), (qk, qc) = (merge(p) for p in parts)
+    keep = qc >= MIN_QUAD
+    qk, qc = qk[keep], qc[keep]
+    print(f"bigrams {len(bk):,} trigrams {len(tk):,} 4-grams {len(qk):,} ({time.time() - t0:.0f}s)", flush=True)
+    quads = {"qk": qk, "qc": qc} if ORDER == 4 else {}
+    np.savez(out, words=np.array(["<s>", "</s>", "<unk>", *kept]), uni=uni, bk=bk, bc=bc, tk=tk, tc=tc, **quads)
 
 
 if __name__ == "__main__":

@@ -44,3 +44,21 @@ def test_evaluate_scores_a_held_out_file(model_path, tmp_path):
     r = evaluate.evaluate(m, test, m.restore)
     assert r["words"] == 7
     assert r["word"] == 1.0
+
+
+# "ta có gõ" outnumbers "ta có gỗ", so only the word before "ta" can pick gỗ.
+FOUR_GRAM_CORPUS = ["nhà ta có gỗ"] * 5 + ["người ta có gõ"] * 10
+
+
+@pytest.mark.parametrize(("order", "expected"), [(3, "gõ"), (4, "gỗ")])
+def test_fourth_word_back_decides_when_the_trigram_cannot(tmp_path, monkeypatch, order, expected):
+    monkeypatch.setattr(paths, "DATA", tmp_path)
+    with gzip.open(tmp_path / "quad.txt.gz", "wt", encoding="utf-8") as f:
+        f.write("\n".join(FOUR_GRAM_CORPUS) + "\n")
+    out = tmp_path / "quad.npz"
+    monkeypatch.setattr(sys, "argv", ["train", "--order", str(order), str(out), "quad"])
+    monkeypatch.setattr(train, "WORKERS", 1)
+    train.main()
+    m = Model(out)
+    assert m.restore(["nha", "ta", "co", "go"]) == ["nhà", "ta", "có", expected]
+    assert m.restore(["nguoi", "ta", "co", "go"]) == ["người", "ta", "có", "gõ"]
