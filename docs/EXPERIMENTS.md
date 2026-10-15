@@ -474,3 +474,65 @@ Result (load average 14–18 during the run):
   Showing every guess as final would flicker; this is what the confidence of the next step is for.
 - Per-syllable time missed the prediction (p50 0.14 ms against 0.05) but stays under 2 ms at p99.
   Each call spells the whole run, so long runs cost more; the 10.4 ms maximum is one such call.
+
+## 2026-10-15 · Confidence and choices while typing
+
+Question: can a per-word confidence tell an input method which guesses to show as settled and which
+to offer as a choice, and do the top three choices hold the right word when it is unsure? Setup:
+`Typing::choices` scores each spelling of a word by its best path through the run (max-marginals:
+the forward scores already kept, met by a backward pass over the last few syllables); confidence is
+the best spelling's share of the probability over all spellings. Same runs, tables and command as
+"Restoring while typing". Scored at thresholds 0.5, 0.7, 0.9, 0.95 and 0.99, twice: for each word
+when it is first shown (the last word of an open run), and for the finished run. "Changed words
+flagged": of the words that change after first shown, the share that were below the threshold when
+shown.
+
+Prediction (small table, threshold 0.9): when first shown on wiki, 70% of words sure, 97% right when
+sure, the truth in the top three for 95% of unsure words, 80% of later-changed words flagged. For
+the finished run on wiki 88% sure, 98.5% right when sure, 97% in the top three when unsure; on forum
+84% sure and 97.5% right when sure. Choices for the last three words p99 under 1 ms.
+
+Result (load average 5–11 during the run). The accuracy and change columns of "Restoring while
+typing" came out identical, so the added calls do not disturb the guesses.
+
+Threshold 0.9, both views:
+
+| Table, set | When shown: sure / right when sure / top 3 / flagged | Finished run: sure / right when sure / top 3 |
+| --- | --- | --- |
+| Small, wiki | 69.96% / 98.17% / 92.62% / 93.03% | 89.06% / 98.85% / 92.97% |
+| Small, subs | 68.49% / 97.92% / 93.78% / 92.71% | 88.29% / 98.76% / 95.28% |
+| Small, web | 68.09% / 97.80% / 92.23% / 92.45% | 89.05% / 98.81% / 93.22% |
+| Small, forum | 63.16% / 96.87% / 92.14% / 92.36% | 83.41% / 97.90% / 92.79% |
+| Large, wiki | 73.35% / 98.40% / 93.86% / 91.56% | 92.78% / 99.14% / 94.03% |
+| Large, subs | 71.19% / 98.06% / 94.28% / 90.73% | 91.38% / 98.97% / 96.21% |
+| Large, web | 71.15% / 98.01% / 92.61% / 90.97% | 92.03% / 99.02% / 94.36% |
+| Large, forum | 67.27% / 97.03% / 92.36% / 90.70% | 88.07% / 98.22% / 93.12% |
+
+Small table, wiki, by threshold:
+
+| Threshold | When shown: sure / right when sure / flagged | Finished run: sure / right when sure |
+| --- | --- | --- |
+| 0.5 | 92.98% / 90.88% / 36.21% | 98.02% / 95.96% |
+| 0.7 | 82.93% / 95.08% / 73.01% | 94.32% / 97.53% |
+| 0.9 | 69.96% / 98.17% / 93.03% | 89.06% / 98.85% |
+| 0.95 | 62.73% / 99.02% / 97.29% | 86.16% / 99.24% |
+| 0.99 | 49.05% / 99.66% / 99.57% | 78.63% / 99.62% |
+
+| Table | Choices for the last three words: p50 | p95 | p99 | Max |
+| --- | --- | --- | --- | --- |
+| Small | 0.29–0.40 ms | 1.66–1.77 ms | 2.90–2.98 ms | 11.7 ms |
+| Large | 0.35–0.48 ms | 1.96–2.04 ms | 3.33–3.48 ms | 13.0 ms |
+
+- Confidence sorts words as hoped. At 0.9 a word shown as sure is right 97–98.4% of the time when
+  first shown and 97.9–99.1% in the finished run, against 84–89% and 92–97% for all words.
+- It also predicts flicker: 91–93% of the words that later change were below 0.9 when first shown
+  (predicted 80%). An input method can underline or grey a word below 0.9 and expect almost every
+  later change to land on such a word.
+- The share of sure words matched the prediction (wiki 69.96% when shown against 70%; finished
+  89.06% against 88%, forum 83.41% against 84%); right-when-sure came out slightly better.
+- The top three missed: they hold the truth for 92–96% of unsure words, not 97%, and raising the
+  threshold barely helps. Not yet checked why; one guess is words whose right spelling is not among
+  the table's candidates at all, which no ranking can fix.
+- Choices take about twice a syllable's guess (p99 2.9–3.5 ms against the predicted 1 ms): the
+  backward pass over two steps scores every triple of candidates, as a push does, and spells three
+  candidates per word. Asking for both after each syllable stays near 5 ms at p99.

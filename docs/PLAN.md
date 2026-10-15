@@ -41,6 +41,9 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
    - Done: `Typing` in the crate gives the best spelling after each syllable in under 2 ms at p99;
      words three syllables back are as good as final ("Restoring while typing" in
      `EXPERIMENTS.md`).
+   - Done: `Typing::choices` gives the top three spellings and a confidence per word. At 0.9, a
+     newly shown word marked sure is right 97–98% of the time, and over 90% of the words that later
+     change were below 0.9 when shown ("Confidence and choices while typing").
    - Mixed input: a syllable the user typed with marks is kept as typed; only unmarked syllables are
      guessed.
    - The input method passes both readings of a word, as interpreted (`tét`) and as raw letters
