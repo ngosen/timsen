@@ -65,8 +65,10 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
      the same learned text it restores exactly like `research.personal` on both tables ("Personal
      dictionary in Rust"). Pausing and private fields are the input method's: it simply does not
      call `learn`.
-   - Left: the five-fold chat measurement through the crate, which needs the user's chat file again,
-     and the time per syllable with a large personal dictionary.
+   - Measured through the crate on chat: +3.0 to +3.3 points over the table alone, 0.2 below
+     `research.personal`, p99 2.3–2.7 ms per syllable ("Personal dictionary through the crate, on
+     chat"). Left: words the table lacks should fall back to its `<unk>` counts as a context, which
+     is where the 0.2 points go.
 5. **C API.** A thin C interface and header so input methods on macOS and Windows can use the crate.
 
 Then, in the Ngó Sen repository: an option, off by default. Whether it fills in marks or only suggests
