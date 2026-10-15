@@ -52,9 +52,19 @@ pub(crate) trait Counts {
     fn uni(&self, id: u32) -> f64;
     fn segments(&self) -> f64;
     fn total(&self) -> f64;
+    /// The id a word is looked up by when it is a context.
+    fn context(&self, id: u32) -> u32;
+    /// The id a word is looked up by when it is the word being scored, and the log share it gets of
+    /// that id's score.
+    fn predicted(&self, id: u32) -> (u32, f64);
 
     /// Log score of `w` after `u v`, as `Model.logp` computes it.
     fn logp(&self, u: u32, v: u32, w: u32) -> f64 {
+        let (w, share) = self.predicted(w);
+        share + self.logp_of(self.context(u), self.context(v), w)
+    }
+
+    fn logp_of(&self, u: u32, v: u32, w: u32) -> f64 {
         let tri = self.trigram(u, v, w);
         if tri > 0.0 {
             let ctx = if u == BOS && v == BOS {
@@ -89,6 +99,12 @@ macro_rules! counts {
             }
             fn total(&self) -> f64 {
                 <$t>::total(self)
+            }
+            fn context(&self, id: u32) -> u32 {
+                <$t>::context(self, id)
+            }
+            fn predicted(&self, id: u32) -> (u32, f64) {
+                <$t>::predicted(self, id)
             }
         }
     };
