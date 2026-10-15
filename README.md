@@ -5,7 +5,8 @@ Diacritic guessing for Vietnamese input methods: type `toi da go phim` without m
 
 **Status: research.** This repository holds the code that trains and measures the model. A Rust
 library with a C API, so input methods on Linux, macOS and Windows can use it, comes once the model is
-settled. Results so far are in [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md).
+settled. Results so far are in [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md); the steps ahead are in
+[`docs/PLAN.md`](docs/PLAN.md).
 
 ## How it works
 
