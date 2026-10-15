@@ -225,6 +225,10 @@ impl Table {
         id
     }
 
+    pub(crate) fn predicted(&self, id: u32) -> (u32, f64) {
+        (id, 0.0)
+    }
+
     pub fn word(&self, id: u32) -> &str {
         std::str::from_utf8(self.words.bytes(&self.bytes, id as usize)).unwrap()
     }

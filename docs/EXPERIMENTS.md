@@ -729,3 +729,36 @@ with no new word in the crate's output. Their cause was the total: `research.per
 from `uni[3:]`, which leaves `<unk>` out, and the crate counted new words in it. The crate now
 leaves them out too. The one run left has three French words from the subtitles, which the crate
 offers as candidates and Python cannot: the intended difference.
+
+Result, check 2 (chat, rebuilt: 3,885 sentences, 53,402 words; four more messages than the last
+entry, so Python and main are rerun on it):
+
+| Table | Python | crate, main | crate, this change |
+| --- | --- | --- | --- |
+| small | 92.20% | 91.98% | 92.11% |
+| large | 92.43% | 92.24% | 92.37% |
+
+Missed: the change recovers 0.13 of the 0.22 points, not all of them. Per word on the small table,
+Python alone is right on 92 words (206 before), the crate alone on 47, both wrong on 29; the English
+look-alikes are gone. 162 of the 168 sit within two words of a word the table lacks. The rest of the
+gap is the new word as the predicted word: Python scores it as `<unk>` after its context (`gói`
+followed by a package name), the crate by its own exact n-grams, which are mostly unseen.
+
+The pooled lookups first cost about half again per syllable (p99 3.2 ms against 2.2 on the small
+table); looking in the pooled maps only for keys that hold `<unk>` brings it to 2.3–2.5 ms against
+2.2 on main, two runs each, with the same scores.
+
+Next, predicted before the change: a new word whose unmarked form the table does not offer at all
+(so it never competes with a table spelling) is scored as `<unk>` after its context, times its share
+of the learned spellings of that form; a new word that competes with table spellings keeps its own
+counts. Prediction: chat within 0.03 of Python (small at least 92.17%, large at least 92.40%); check
+1 drops the last differing run (large forum 1 → 0).
+
+Result: hit. Chat: small 92.20%, large 92.43%, equal to Python to the hundredth. Check 1: 0 runs
+differ on all four (large forum 1 → 0). On chat the crate now restores like `research.personal`;
+the new words it offers where a table spelling exists gain nothing measurable here.
+
+Time per syllable, small table, three runs each against main on the same machine: p50 0.063–0.068
+ms against 0.050–0.056, p99 2.41–2.86 ms against 2.18–2.47; large table p99 2.63 against 2.41.
+Precomputing each new word's share when it is learned did not move this. The extra time is the
+table's `<unk>` counts, now looked up wherever a new word stands, as `research.personal` does.

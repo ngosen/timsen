@@ -17,8 +17,12 @@ const MAX_ID: u32 = (1 << SHIFT) - 1;
 /// survives a new table.
 pub struct Personal<'t> {
     table: &'t Table,
-    /// Word `table.len() + i` is `new_words[i]`.
+    /// Word `table.len() + i` is `new_words[i]`, its unmarked form `new_plain[i]`. `new_share[i]` is
+    /// its log share of the learned spellings of that form when the table does not offer the form at
+    /// all, and `None` when it does.
     new_words: Vec<String>,
+    new_plain: Vec<String>,
+    new_share: Vec<Option<f64>>,
     new_ids: HashMap<String, u32>,
     /// Learned words an unmarked form does not already offer in the table.
     extra: HashMap<String, Vec<u32>>,
@@ -26,7 +30,8 @@ pub struct Personal<'t> {
     bi: HashMap<u64, u64>,
     tri: HashMap<u64, u64>,
     /// The same n-grams with each learned word the table lacks read as `<unk>` where it is a context,
-    /// as the table counts such words. Kept apart so a saved file names only real words.
+    /// as the table counts such words. Kept apart so a saved file names only real words; every key
+    /// holds `<unk>`, so other lookups skip these maps.
     unk_uni: u64,
     unk_bi: HashMap<u64, u64>,
     unk_tri: HashMap<u64, u64>,
@@ -51,6 +56,8 @@ impl<'t> Personal<'t> {
         Personal {
             table,
             new_words: Vec::new(),
+            new_plain: Vec::new(),
+            new_share: Vec::new(),
             new_ids: HashMap::new(),
             extra: HashMap::new(),
             uni: HashMap::new(),
@@ -111,6 +118,7 @@ impl<'t> Personal<'t> {
                     self.tokens += c;
                 } else {
                     self.unk_uni += c;
+                    self.share(w);
                 }
             }
             [v, w] => {
@@ -149,6 +157,44 @@ impl<'t> Personal<'t> {
         if self.own(id) { id } else { UNK }
     }
 
+    /// A new word whose unmarked form the table does not offer never competes with a table spelling,
+    /// so it is scored as `<unk>`, as the table scores such words, split among the learned spellings
+    /// of that form by their counts. Other words keep their own counts.
+    pub(crate) fn predicted(&self, id: u32) -> (u32, f64) {
+        let Some(i) = (id as usize).checked_sub(self.table.len()) else {
+            return (id, 0.0);
+        };
+        match self.new_share[i] {
+            Some(share) => (UNK, share),
+            None => (id, 0.0),
+        }
+    }
+
+    /// Refreshes the shares of the spellings of new word `id`'s unmarked form after its count moved.
+    fn share(&mut self, id: u32) {
+        let i = id as usize - self.table.len();
+        if self.new_share[i].is_none() {
+            return;
+        }
+        let ids = &self.extra[&self.new_plain[i]];
+        let count = |id: &u32| self.uni.get(id).copied().unwrap_or(0) as f64;
+        let sum: f64 = ids.iter().map(count).sum();
+        let shares: Vec<(usize, f64)> = ids
+            .iter()
+            .map(|id| {
+                let share = if ids.len() == 1 {
+                    0.0
+                } else {
+                    (count(id).max(0.5) / sum.max(1.0)).ln()
+                };
+                (*id as usize - self.table.len(), share)
+            })
+            .collect();
+        for (j, share) in shares {
+            self.new_share[j] = Some(share);
+        }
+    }
+
     /// The id of a word as typed, adding it if the table lacks it; `None` once ids run out.
     fn intern(&mut self, word: &str) -> Option<u32> {
         let word = tone::to_new(&word.to_lowercase());
@@ -166,6 +212,8 @@ impl<'t> Personal<'t> {
         }
         self.new_ids.insert(word.clone(), id);
         self.new_words.push(word);
+        self.new_share.push(offered.is_empty().then_some(0.0));
+        self.new_plain.push(plain.clone());
         self.extra.entry(plain).or_default().push(id);
         Some(id)
     }
@@ -211,7 +259,12 @@ impl<'t> Personal<'t> {
             0.0
         };
         let k = key2(v, w);
-        base + WEIGHT * (get(&self.bi, k) + get(&self.unk_bi, k)) as f64
+        let unk = if v == UNK || w == UNK {
+            get(&self.unk_bi, k)
+        } else {
+            0
+        };
+        base + WEIGHT * (get(&self.bi, k) + unk) as f64
     }
 
     pub(crate) fn trigram(&self, u: u32, v: u32, w: u32) -> f64 {
@@ -222,7 +275,12 @@ impl<'t> Personal<'t> {
             0.0
         };
         let k = key3(u, v, w);
-        base + WEIGHT * (get(&self.tri, k) + get(&self.unk_tri, k)) as f64
+        let unk = if u == UNK || v == UNK || w == UNK {
+            get(&self.unk_tri, k)
+        } else {
+            0
+        };
+        base + WEIGHT * (get(&self.tri, k) + unk) as f64
     }
 
     pub(crate) fn total(&self) -> f64 {
@@ -349,6 +407,29 @@ mod tests {
         learn(&mut p, "def gỗ");
         learn(&mut p, "ghi");
         assert_eq!(p.restore(&["ghi", "go"], ToneStyle::New), ["ghi", "gỗ"]);
+    }
+
+    #[test]
+    fn a_new_word_alone_in_its_form_is_scored_as_unknown_after_its_context() {
+        let t = table();
+        let mut p = Personal::new(&t);
+        for _ in 0..3 {
+            learn(&mut p, "gõ");
+        }
+        learn(&mut p, "gỗ abc nhà");
+        learn(&mut p, "gỗ def nhà");
+        learn(&mut p, "ghi");
+        assert_eq!(p.restore(&["go", "ghi"], ToneStyle::New), ["gỗ", "ghi"]);
+    }
+
+    #[test]
+    fn new_spellings_of_one_form_split_by_how_often_they_were_learned() {
+        let t = table();
+        let mut p = Personal::new(&t);
+        learn(&mut p, "ngộ");
+        learn(&mut p, "ngó");
+        learn(&mut p, "ngó");
+        assert_eq!(p.restore(&["ngo"], ToneStyle::New), ["ngó"]);
     }
 
     #[test]
