@@ -12,8 +12,8 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 ### Added
 
 - `research.table`: writes a pruned model as a fixed binary table (`.timsen`) that can be mapped from
-  disk without parsing; `research.evaluate` scores such a table directly (#).
-- `research.personal --min-tri/--min-bi`: the personal dictionary on top of a pruned table (#).
+  disk without parsing; `research.evaluate` scores such a table directly (#8).
+- `research.personal --min-tri/--min-bi`: the personal dictionary on top of a pruned table (#8).
 - `docs/PLAN.md`: steps from the research code to a Rust library (#4).
 - `research.train --order 4`: stupid-backoff 4-grams, kept for comparison with Kneser-Ney (#3).
 - `research.kn_export` and `research.kn_model`: Kneser-Ney models estimated with KenLM, read from
