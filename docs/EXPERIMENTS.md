@@ -249,3 +249,37 @@ Prediction (chat / wiki / forum, then chat with personal dictionary):
 
 The personal dictionary should win back part of the pruning loss, since the user's own 2- and
 3-grams are the ones pruning drops first.
+
+Result (5-fold personal dictionary, weight 100, on chat):
+
+| Size | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- |
+| 1,066 MB | 89.13% | 97.61% | 94.47% | 91.79% |
+| 55 MB | 88.59% | 95.57% | 92.55% | 91.96% |
+| 38 MB | 88.43% | 95.10% | 92.13% | 91.87% |
+| 31 MB | 88.41% | 94.82% | 91.82% | 91.81% |
+| 25 MB | 88.05% | 94.52% | 91.48% | 91.68% |
+
+- Chat alone held the prediction (0.5–1.1 points lost). Wiki and forum missed badly: pruning costs
+  2–3 points there, three times the prediction. The 3-grams pruning drops are mostly edited prose.
+- With the personal dictionary the size stops mattering on chat: every pruned table is within 0.2
+  points of the full one, and 55 MB beats it. The personal gain on the full table is 2.66 points
+  (the earlier +3.4 was on an older chat set and model).
+- `research.table` files restore exactly like the pruned model they came from (same scores on all
+  three sets at 38 and 31 MB). The real files are larger than the estimate, 51.2 MB and 44.2 MB:
+  about 20 MB is vocabulary (562,236 words, their unmarked forms and candidate lists), most of it
+  unmarked words seen fewer than 20 times (407,371).
+
+### Larger tables
+
+Question: the editing-prose loss is large and a 100–200 MB file is acceptable on a desktop. How much
+of it comes back between 55 MB and 1 GB? Sizes below are the real `.timsen` files, measured after
+export.
+
+Prediction:
+
+| 3-grams ≥ | 2-grams ≥ | Estimated file | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- | --- | --- |
+| 10 | 5 | 108 MB | 88.8% | 96.3% | 93.3% | 91.9% |
+| 5 | 3 | 177 MB | 88.9% | 96.8% | 93.7% | 91.9% |
+| 3 | 2 | 278 MB | 89.0% | 97.1% | 94.0% | 91.85% |
