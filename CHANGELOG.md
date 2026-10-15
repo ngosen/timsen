@@ -13,7 +13,7 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 ### Added
 
 - `docs/TABLES.md`: accuracy of every measured table size, to help users choose between the two
-  shipped tables (#).
+  shipped tables (#10).
 - `research.table`: writes a pruned model as a fixed binary table (`.timsen`) that can be mapped from
   disk without parsing; `research.evaluate` scores such a table directly (#8).
 - `research.personal --min-tri/--min-bi`: the personal dictionary on top of a pruned table (#8).
