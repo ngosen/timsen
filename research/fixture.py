@@ -1,7 +1,8 @@
 """Builds the small table the Rust tests compare against, from a few made-up sentences.
 
 usage: python -m research.fixture [OUT_DIR]   (default: crates/timsen/tests/fixtures)
-Writes tiny.timsen, tiny.runs and tiny.expected. Rerun after changing the table format or the model.
+Writes tiny.timsen, tiny.runs and tiny.expected, and for the personal dictionary tiny.learned and
+tiny.personal.expected. Rerun after changing the table format or the model.
 """
 
 import gzip
@@ -41,6 +42,9 @@ TEST = [
     "gõ",
     "Bạn thích gỗ.",
 ]
+# The user's own text: it turns gỗ quý into gõ quý and makes gõ end a run. The last line has a word
+# the table lacks, so crosscheck leaves it out.
+PERSONAL = ["nhà ta có gõ quý", "bạn thích gõ", "tôi thích ngó sen"]
 
 
 def build(out):
@@ -56,6 +60,9 @@ def build(out):
         table.write(Model(tmp / "tiny.npz"), out / "tiny.timsen")
         (tmp / "test").write_text("\n".join(TEST) + "\n", encoding="utf-8")
         crosscheck.write(out / "tiny.timsen", tmp / "test", out / "tiny.runs", out / "tiny.expected")
+        (tmp / "personal").write_text("\n".join(PERSONAL) + "\n", encoding="utf-8")
+        learned, expected = out / "tiny.learned", out / "tiny.personal.expected"
+        crosscheck.write_personal(out / "tiny.timsen", tmp / "personal", out / "tiny.runs", learned, expected)
 
 
 if __name__ == "__main__":

@@ -215,6 +215,11 @@ impl Table {
         })
     }
 
+    /// Number of words, counting `<s>`, `</s>` and `<unk>`.
+    pub(crate) fn len(&self) -> usize {
+        self.words.n
+    }
+
     pub fn word(&self, id: u32) -> &str {
         std::str::from_utf8(self.words.bytes(&self.bytes, id as usize)).unwrap()
     }

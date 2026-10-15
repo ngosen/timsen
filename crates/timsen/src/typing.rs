@@ -1,14 +1,65 @@
 //! Restoring a run while it is typed, one syllable at a time.
 
 use crate::table::{BOS, EOS, UNK};
-use crate::{Table, ToneStyle, tone};
+use crate::{Counts, Personal, Table, ToneStyle, tone};
 
 const START: [u32; 1] = [BOS];
+
+/// Where words and counts come from.
+#[derive(Clone, Copy)]
+enum Source<'t> {
+    Table(&'t Table),
+    Personal(&'t Personal<'t>),
+}
+
+impl<'t> Source<'t> {
+    fn table(self) -> &'t Table {
+        match self {
+            Source::Table(t) => t,
+            Source::Personal(p) => p.table(),
+        }
+    }
+
+    fn options(self, plain: &str) -> Option<Vec<u32>> {
+        match self {
+            Source::Table(t) => t.options(plain).map(Iterator::collect),
+            Source::Personal(p) => p.options(plain),
+        }
+    }
+
+    fn word(self, id: u32) -> &'t str {
+        match self {
+            Source::Table(t) => t.word(id),
+            Source::Personal(p) => p.word(id),
+        }
+    }
+
+    fn logp(self, u: u32, v: u32, w: u32) -> f64 {
+        match self {
+            Source::Table(t) => t.logp(u, v, w),
+            Source::Personal(p) => p.logp(u, v, w),
+        }
+    }
+
+    /// The id of a word as typed, in either tone placement, or `UNK`.
+    fn id_of(self, word: &str) -> u32 {
+        let word = tone::to_new(&word.to_lowercase());
+        let t = self.table();
+        let known = t
+            .options(&tone::strip(&word))
+            .and_then(|mut o| o.find(|&id| t.word(id) == word));
+        let learned = || match self {
+            Source::Personal(p) => p.new_id(&word),
+            Source::Table(_) => None,
+        };
+        known.or_else(learned).unwrap_or(UNK)
+    }
+}
 
 /// A run being typed. Each syllable adds one step to the Viterbi lattice, so asking for the best
 /// spelling after every syllable costs one step, not a new search over the whole run.
 pub struct Typing<'t> {
-    table: &'t Table,
+    src: Source<'t>,
     typed: Vec<String>,
     opts: Vec<Vec<u32>>,
     /// `kept[i][k]`: the text candidate k of syllable i stands for when the user typed it that way,
@@ -23,8 +74,17 @@ pub struct Typing<'t> {
 
 impl<'t> Typing<'t> {
     pub fn new(table: &'t Table) -> Typing<'t> {
+        Typing::from_source(Source::Table(table))
+    }
+
+    /// Typing with the user's learned counts on top of the table's.
+    pub fn with_personal(personal: &'t Personal<'t>) -> Typing<'t> {
+        Typing::from_source(Source::Personal(personal))
+    }
+
+    fn from_source(src: Source<'t>) -> Typing<'t> {
         Typing {
-            table,
+            src,
             typed: Vec::new(),
             opts: Vec::new(),
             kept: Vec::new(),
@@ -40,10 +100,7 @@ impl<'t> Typing<'t> {
         if tone::strip(&plain) != plain {
             return self.push_kept(syllable, &[syllable]);
         }
-        let o: Vec<u32> = self
-            .table
-            .options(&plain)
-            .map_or_else(|| vec![UNK], |o| o.collect());
+        let o = self.src.options(&plain).unwrap_or_else(|| vec![UNK]);
         let kept = vec![None; o.len()];
         self.push_options(syllable, o, kept);
     }
@@ -65,13 +122,8 @@ impl<'t> Typing<'t> {
         self.push_options(typed, o, kept);
     }
 
-    /// The table's id for a word as typed, in either tone placement, or `UNK`.
     fn id_of(&self, word: &str) -> u32 {
-        let word = tone::to_new(&word.to_lowercase());
-        self.table
-            .options(&tone::strip(&word))
-            .and_then(|mut o| o.find(|&id| self.table.word(id) == word))
-            .unwrap_or(UNK)
+        self.src.id_of(word)
     }
 
     fn push_options(&mut self, typed: &str, o: Vec<u32>, kept: Vec<Option<String>>) {
@@ -84,7 +136,7 @@ impl<'t> Typing<'t> {
             for (c, &w) in o.iter().enumerate() {
                 let cell = b * o.len() + c;
                 for (a, &u) in pp.iter().enumerate() {
-                    let s = score[a * prev.len() + b] + self.table.logp(u, v, w);
+                    let s = score[a * prev.len() + b] + self.src.logp(u, v, w);
                     // Strictly greater keeps the first best, as numpy's argmax does.
                     if a == 0 || s > next[cell] {
                         next[cell] = s;
@@ -146,11 +198,7 @@ impl<'t> Typing<'t> {
         let (mut best, mut a, mut b) = (f64::NEG_INFINITY, 0, 0);
         for (i, &u) in pp.iter().enumerate() {
             for (j, &v) in prev.iter().enumerate() {
-                let end = if ended {
-                    self.table.logp(u, v, EOS)
-                } else {
-                    0.0
-                };
+                let end = if ended { self.src.logp(u, v, EOS) } else { 0.0 };
                 let s = score[i * prev.len() + j] + end;
                 if (i == 0 && j == 0) || s > best {
                     (best, a, b) = (s, i, j);
@@ -184,7 +232,7 @@ impl<'t> Typing<'t> {
         if id == UNK {
             return typed.clone();
         }
-        tone::apply_case(typed, &tone::with_style(self.table.word(id), style))
+        tone::apply_case(typed, &tone::with_style(self.src.word(id), style))
     }
 
     /// Spellings of each of the last `last` syllables, best first, with how sure the model is of the
@@ -224,8 +272,7 @@ impl<'t> Typing<'t> {
         let mut beta: Vec<f64> = (0..pp.len() * prev.len())
             .map(|c| {
                 if ended {
-                    self.table
-                        .logp(pp[c / prev.len()], prev[c % prev.len()], EOS)
+                    self.src.logp(pp[c / prev.len()], prev[c % prev.len()], EOS)
                 } else {
                     0.0
                 }
@@ -252,7 +299,7 @@ impl<'t> Typing<'t> {
             for (x, &u) in left2.iter().enumerate() {
                 for (a, &v) in left.iter().enumerate() {
                     for (b, &w) in cur.iter().enumerate() {
-                        let s = self.table.logp(u, v, w) + beta[a * width + b];
+                        let s = self.src.logp(u, v, w) + beta[a * width + b];
                         let cell = &mut next[x * left.len() + a];
                         *cell = cell.max(s);
                     }
