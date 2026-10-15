@@ -40,8 +40,8 @@ Every number in this repository says what was measured, on which test set, with 
 - **Track licences.** Every corpus is listed in [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md) with
   its licence and whether counts derived from it may ship. Add the entry in the same PR that adds the
   fetch script.
-- **Data stays out of git.** Corpora, test sets and models live under `DOAN_DAU_DIR` (default
-  `/tmp/doan-dau`, RAM on the dev machine). Released models are attached to GitHub releases.
+- **Data stays out of git.** Corpora, test sets and models live under `DOANDAU_DIR` (default
+  `/tmp/doandau`, RAM on the dev machine). Released models are attached to GitHub releases.
 - **Keep throwaway data in RAM.** Gigabytes of rewritten corpora wear out an SSD. Delete models you
   no longer compare against; watch free memory before a large training run (a 700M-token model peaks
   near 27 GB).
@@ -58,7 +58,10 @@ Every number in this repository says what was measured, on which test set, with 
 
 ## Commits and pull requests
 
-- Every change goes through a PR into `main`; CI (ruff, pytest) must pass.
+- Every change goes through a PR into `main`; CI (ruff, pytest) must pass. GitHub does not enforce
+  this on a private repository, so do not push to `main` directly.
+- Once CI passes on the PR's latest commit, the agent may merge it (merge commit, branch deleted)
+  without waiting for review.
 - Conventional Commits, imperative subject of at most 72 characters: `feat(research): add forum corpus`.
   The body says what changed and why; numbers go one per line with how they were measured.
 - One concern per PR. An experiment's code and its `docs/EXPERIMENTS.md` entry go together.

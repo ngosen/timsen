@@ -17,15 +17,15 @@ user's own typing can be added on top, which matters most for technical and chat
 
 ## Reproducing the measurements
 
-Python 3.11+. Data goes to `DOAN_DAU_DIR` (default `/tmp/doan-dau`); expect a few GB.
+Python 3.11+. Data goes to `DOANDAU_DIR` (default `/tmp/doandau`); expect a few GB.
 
 ```bash
 pip install -e '.[dev]'
 python -m research.fetch_wiki                 # Wikipedia, CC BY-SA
 python -m research.fetch_subs                 # OpenSubtitles, research only
 python -m research.fetch_fineweb forum 1      # forum pages from FineWeb-2 file 1 (repeat for 2-4)
-python -m research.train /tmp/doan-dau/models/wsf.npz wiki subs forum
-python -m research.evaluate /tmp/doan-dau/models/wsf.npz /tmp/doan-dau/test/wiki /tmp/doan-dau/test/forum
+python -m research.train /tmp/doandau/models/wsf.npz wiki subs forum
+python -m research.evaluate /tmp/doandau/models/wsf.npz /tmp/doandau/test/wiki /tmp/doandau/test/forum
 ```
 
 To measure on your own writing, put your messages in a text file (one per line) and run

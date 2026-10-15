@@ -1,5 +1,5 @@
 [project]
-name = "doan-dau-research"
+name = "doandau-research"
 version = "0.0.0"
 description = "Research code for Vietnamese diacritic restoration in the Ngó Sen input method"
 license = "GPL-3.0-or-later"
