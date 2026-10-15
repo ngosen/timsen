@@ -15,7 +15,7 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 ### Added
 
 - `Typing::choices`: up to three spellings for each of the last few words, best first, with a
-  confidence for the first (#).
+  confidence for the first (#15).
 - `Typing` in the `timsen` crate: the best spelling of a run after each syllable, with `pop` for
   backspace; `Table::restore` now goes through it (#14).
 - `timsen` crate: maps a `.timsen` table and restores a run of unmarked syllables, keeping
