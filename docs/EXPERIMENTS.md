@@ -429,3 +429,19 @@ Result:
   comparison does see a difference when one is made (1,260 runs with 3-grams off).
 - Whole-set restore took 10–34 s per set in one thread (about 0.26 ms per word on wiki with the small
   table, 0.32 with the large), on a machine running other jobs at the same time. Not tuned yet.
+
+## 2026-10-15 · Restoring while typing
+
+Question: when the input method asks for the best spelling after every syllable, how many syllables
+must follow a word before its guess is as good as the whole-run restoration, how often does a shown
+word change, and how long does each syllable take? Setup: `Typing` in the crate (the Viterbi lattice
+grows by one step per syllable; an open run has no end-of-run score), `research.crosscheck ... TRUTH`
+for the reference, `cargo run --release --example typing_eval TABLE RUNS TRUTH`. Both trimmed
+tables; wiki, subs, web, forum. "Fixed after k": the word as shown once k more syllables were typed,
+or the final restoration if the run ended first. The chat set is gone, so this has no chat figure.
+Timing follows `.claude/skills/measure-latency`; the machine runs other jobs.
+
+Prediction (small table): fixed after 0, 1, 2, 3, 4 on wiki 88.8%, 93.6%, 94.5%, 94.75%, 94.8%
+(whole run 94.84%); on forum 86.0%, 90.6%, 91.5%, 91.7%, 91.8% (whole run 91.82%). About 6% of words
+change after first shown. Per syllable p50 0.05 ms, p95 0.3 ms, p99 1 ms, max under 10 ms; the
+large table about 1.3 times slower. First syllable after opening under 5 ms.
