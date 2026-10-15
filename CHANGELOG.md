@@ -6,6 +6,8 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Changed
 
+- `docs/DATA_SOURCES.md`: OpenSubtitles counts may ship in released tables, with a link to
+  opensubtitles.org and the OPUS citation (#).
 - `docs/PLAN.md`, `docs/TABLES.md`: the small table ships first; stupid backoff stays after measuring
   Kneser-Ney at the shipped sizes (#11).
 - `docs/PLAN.md`: two shipped tables, 44 MB and 177 MB, chosen by the user (#9).
