@@ -363,3 +363,19 @@ because the table also maps the user's rare marked words to `<unk>`):
 
 Prediction: N = 300 and 1000 keep gaining on chat by about 0.05 points each, wiki and forum unchanged;
 the small table reaches about 24 and 23 MB.
+
+| Table | N | Vocabulary | File | chat | wiki | forum | chat + personal |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 44 MB | 100 | 69,898 | 25.5 MB | 88.56% | 94.84% | 91.83% | 91.89% |
+| 44 MB | 300 | 48,628 | 23.8 MB | 88.58% | 94.85% | 91.84% | 91.95% |
+| 44 MB | 1000 | 39,682 | 22.6 MB | 88.58% | 94.84% | 91.82% | 92.05% |
+| 177 MB | 100 | 69,898 | 143.2 MB | 89.16% | 96.57% | 93.76% | 92.21% |
+| 177 MB | 300 | 48,628 | 137.0 MB | 89.20% | 96.57% | 93.76% | 92.26% |
+| 177 MB | 1000 | 39,682 | 130.7 MB | 89.18% | 96.55% | 93.74% | 92.32% |
+
+- Chat alone stops gaining after N = 100 (missed: predicted +0.05 per step); wiki and forum move by
+  at most 0.03 points, less than 30 words. Sizes held the prediction (23.8 and 22.6 MB).
+- With the personal dictionary chat keeps gaining, +0.16 points from N = 100 to 1000 on both tables.
+  `research.personal` maps the user's own rare words to `<unk>` as well, so part of this may be the
+  shared `<unk>` counts standing in for words the real personal dictionary would learn by name.
+- N = 1000 for both shipped tables: 22.6 MB and 130.7 MB, no measured loss anywhere.
