@@ -130,16 +130,103 @@ impl<'t> Typing<'t> {
         picks
             .iter()
             .enumerate()
-            .map(|(i, &k)| {
-                let id = self.opts[i][k];
-                let typed = &self.typed[i];
-                if id == UNK {
-                    return typed.clone();
+            .map(|(i, &k)| self.spell_one(i, k, style))
+            .collect()
+    }
+
+    /// Candidate k of syllable i, spelled for output.
+    fn spell_one(&self, i: usize, k: usize, style: ToneStyle) -> String {
+        let (id, typed) = (self.opts[i][k], &self.typed[i]);
+        if id == UNK {
+            return typed.clone();
+        }
+        tone::apply_case(typed, &tone::with_style(self.table.word(id), style))
+    }
+
+    /// Spellings of each of the last `last` syllables, best first, with how sure the model is of the
+    /// best one. `ended` says whether the run is over, as for [`Typing::finish`].
+    pub fn choices(&self, last: usize, ended: bool, style: ToneStyle) -> Vec<Choices> {
+        let from = self.opts.len().saturating_sub(last);
+        self.max_marginals(from, ended)
+            .iter()
+            .enumerate()
+            .map(|(j, mm)| {
+                let i = from + j;
+                let mut order: Vec<usize> = (0..mm.len()).collect();
+                order.sort_by(|&x, &y| mm[y].total_cmp(&mm[x]));
+                let top = mm[order[0]];
+                let mass: f64 = mm.iter().map(|&m| (m - top).exp()).sum();
+                Choices {
+                    spellings: order
+                        .iter()
+                        .take(3)
+                        .map(|&k| self.spell_one(i, k, style))
+                        .collect(),
+                    confidence: 1.0 / mass,
                 }
-                tone::apply_case(typed, &tone::with_style(self.table.word(id), style))
             })
             .collect()
     }
+
+    /// For syllables `from..`, the score of the best path through each of their candidates. A
+    /// backward pass over those syllables meets the stored forward scores.
+    fn max_marginals(&self, from: usize, ended: bool) -> Vec<Vec<f64>> {
+        let n = self.opts.len();
+        if from >= n {
+            return Vec::new();
+        }
+        let (pp, prev) = (self.opts_at(n, 2), self.opts_at(n, 1));
+        // beta[a * cur.len() + b]: best score of the rest of the run after candidates a, b
+        let mut beta: Vec<f64> = (0..pp.len() * prev.len())
+            .map(|c| {
+                if ended {
+                    self.table
+                        .logp(pp[c / prev.len()], prev[c % prev.len()], EOS)
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        let mut out = Vec::with_capacity(n - from);
+        for i in (from..n).rev() {
+            let (left, cur) = (self.opts_at(i, 1), &self.opts[i]);
+            let width = cur.len();
+            out.push(
+                (0..width)
+                    .map(|b| {
+                        (0..left.len())
+                            .map(|a| self.scores[i][a * width + b] + beta[a * width + b])
+                            .fold(f64::NEG_INFINITY, f64::max)
+                    })
+                    .collect(),
+            );
+            if i == from {
+                break;
+            }
+            let left2 = self.opts_at(i, 2);
+            let mut next = vec![f64::NEG_INFINITY; left2.len() * left.len()];
+            for (x, &u) in left2.iter().enumerate() {
+                for (a, &v) in left.iter().enumerate() {
+                    for (b, &w) in cur.iter().enumerate() {
+                        let s = self.table.logp(u, v, w) + beta[a * width + b];
+                        let cell = &mut next[x * left.len() + a];
+                        *cell = cell.max(s);
+                    }
+                }
+            }
+            beta = next;
+        }
+        out.reverse();
+        out
+    }
+}
+
+/// The spellings of one syllable, best first (at most three), and the model's confidence in the
+/// first: its share of the probability over all spellings, each scored by its best path.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Choices {
+    pub spellings: Vec<String>,
+    pub confidence: f64,
 }
 
 #[cfg(test)]
@@ -215,6 +302,70 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Best score over all paths that put candidate k at syllable i.
+    fn brute_marginal(t: &Table, opts: &[Vec<u32>], i: usize, k: usize, ended: bool) -> f64 {
+        let mut fixed = opts.to_vec();
+        fixed[i] = vec![opts[i][k]];
+        brute_force(t, &fixed, ended)
+    }
+
+    #[test]
+    fn choices_match_exhaustive_search() {
+        let t = table();
+        let runs = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/tiny.runs"
+        ));
+        for run in runs.unwrap().lines() {
+            let mut typing = Typing::new(&t);
+            for w in run.split(' ') {
+                typing.push(w);
+                for ended in [false, true] {
+                    let from = typing.len().saturating_sub(3);
+                    for (j, mm) in typing.max_marginals(from, ended).iter().enumerate() {
+                        for (k, &m) in mm.iter().enumerate() {
+                            let want = brute_marginal(&t, &typing.opts, from + j, k, ended);
+                            assert!(
+                                (m - want).abs() < 1e-9,
+                                "{run} ended={ended} syllable {} candidate {k}",
+                                from + j
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn choices_lead_with_the_guess() {
+        let t = table();
+        let mut typing = Typing::new(&t);
+        for w in ["nguoi", "ta", "co", "go", "cua"] {
+            typing.push(w);
+        }
+        let choices = typing.choices(3, false, ToneStyle::New);
+        assert_eq!(choices.len(), 3);
+        let guess = typing.guess(ToneStyle::New);
+        for (c, g) in choices.iter().zip(&guess[2..]) {
+            assert_eq!(&c.spellings[0], g);
+            assert!(c.confidence > 0.0 && c.confidence <= 1.0);
+        }
+        assert!(choices[1].spellings.contains(&"gỗ".to_string()));
+    }
+
+    #[test]
+    fn a_word_with_one_spelling_is_certain() {
+        let t = table();
+        let mut typing = Typing::new(&t);
+        for w in ["nha", "xyzzy"] {
+            typing.push(w);
+        }
+        let last = &typing.choices(1, true, ToneStyle::New)[0];
+        assert_eq!(last.spellings, ["xyzzy"]);
+        assert_eq!(last.confidence, 1.0);
     }
 
     #[test]

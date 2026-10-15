@@ -10,7 +10,7 @@ mod typing;
 
 pub use table::{Error, Table};
 pub use tone::ToneStyle;
-pub use typing::Typing;
+pub use typing::{Choices, Typing};
 
 use table::BOS;
 
