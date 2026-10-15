@@ -2,7 +2,7 @@
 
 usage: python -m research.chat_testset MESSAGES.txt
 MESSAGES.txt is any text you wrote, one message per line. The result goes to test/chat under
-DOANDAU_DIR (RAM by default). Never commit it or quote it: it is someone's private writing.
+TIMSEN_DIR (RAM by default). Never commit it or quote it: it is someone's private writing.
 """
 
 import re

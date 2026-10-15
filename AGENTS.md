@@ -4,8 +4,8 @@ Rules for anyone (human or coding agent) changing this repository. Most work her
 coding agent; the output must still read like a careful human wrote it, and the person sending it must
 be able to explain every line.
 
-This repository holds Đoán dấu, the diacritic guesser for the [Ngó Sen](https://github.com/ngosen/ngosen)
-input method: type `toi da go phim`, get `tôi đã gõ phím`. Today it holds the research code that trains
+This repository holds Tim Sen, the diacritic guesser behind the Đoán dấu feature of the
+[Ngó Sen](https://github.com/ngosen/ngosen) input method: type `toi da go phim`, get `tôi đã gõ phím`. Today it holds the research code that trains
 and measures the model (`research/`). A Rust library with a C API, usable from input methods on Linux,
 macOS and Windows, comes once the model is settled.
 
@@ -40,8 +40,8 @@ Every number in this repository says what was measured, on which test set, with 
 - **Track licences.** Every corpus is listed in [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md) with
   its licence and whether counts derived from it may ship. Add the entry in the same PR that adds the
   fetch script.
-- **Data stays out of git.** Corpora, test sets and models live under `DOANDAU_DIR` (default
-  `/tmp/doandau`, RAM on the dev machine). Released models are attached to GitHub releases.
+- **Data stays out of git.** Corpora, test sets and models live under `TIMSEN_DIR` (default
+  `/tmp/timsen`, RAM on the dev machine). Released models are attached to GitHub releases.
 - **Keep throwaway data in RAM.** Gigabytes of rewritten corpora wear out an SSD. Delete models you
   no longer compare against; watch free memory before a large training run (a 700M-token model peaks
   near 27 GB).

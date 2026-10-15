@@ -4,7 +4,7 @@ everything here is regenerated per experiment and gigabytes of rewrites wear out
 import os
 from pathlib import Path
 
-ROOT = Path(os.environ.get("DOANDAU_DIR", "/tmp/doandau"))
+ROOT = Path(os.environ.get("TIMSEN_DIR", "/tmp/timsen"))
 DATA = ROOT / "data"
 TEST = ROOT / "test"
 MODELS = ROOT / "models"
