@@ -6,6 +6,8 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Changed
 
+- `research.personal` adds learned counts to a table file's total instead of recomputing it from the
+  words the file keeps (#18).
 - `docs/DATA_SOURCES.md`: OpenSubtitles counts may ship in released tables, with a link to
   opensubtitles.org and the OPUS citation (#17).
 - `docs/PLAN.md`, `docs/TABLES.md`: the small table ships first; stupid backoff stays after measuring
@@ -16,6 +18,9 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Added
 
+- `Personal` in the `timsen` crate: a personal dictionary that learns runs known to be right,
+  including words the table lacks, and saves them as a text file; `Typing::with_personal` and
+  `Personal::restore` use it (#18).
 - `Typing::push` keeps a word typed with marks as typed, in either tone placement, and uses it as
   context; `Typing::push_either` chooses between an input method's reading of a word and its raw
   letters (#16).

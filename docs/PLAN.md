@@ -60,6 +60,13 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
    user's machine, with clear and pause; nothing is learned in password or private fields. Check:
    rebuilding the five-fold chat measurement through the library gives about the same gain as
    `research.personal`.
+   - Done: `Personal` in the crate learns runs (a word not known to be right breaks the n-grams
+     around it), adds words the table lacks, and saves to a text file of n-grams by spelling. With
+     the same learned text it restores exactly like `research.personal` on both tables ("Personal
+     dictionary in Rust"). Pausing and private fields are the input method's: it simply does not
+     call `learn`.
+   - Left: the five-fold chat measurement through the crate, which needs the user's chat file again,
+     and the time per syllable with a large personal dictionary.
 5. **C API.** A thin C interface and header so input methods on macOS and Windows can use the crate.
 
 Then, in the Ngó Sen repository: an option, off by default. Whether it fills in marks or only suggests

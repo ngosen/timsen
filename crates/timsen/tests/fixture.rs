@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use timsen::{Table, ToneStyle};
+use timsen::{Personal, Table, ToneStyle};
 
 fn fixture(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -55,4 +55,27 @@ fn rejects_files_that_are_not_tables() {
     let mut bytes = std::fs::read(fixture("tiny.timsen")).unwrap();
     bytes.truncate(bytes.len() - 100);
     assert!(Table::from_bytes(bytes).is_err());
+}
+
+#[test]
+fn restores_with_learned_counts_exactly_like_the_python_model() {
+    let t = table();
+    let mut personal = Personal::new(&t);
+    for run in std::fs::read_to_string(fixture("tiny.learned"))
+        .unwrap()
+        .lines()
+    {
+        let words: Vec<Option<&str>> = run.split(' ').map(Some).collect();
+        personal.learn(&words);
+    }
+    let runs = std::fs::read_to_string(fixture("tiny.runs")).unwrap();
+    let expected = std::fs::read_to_string(fixture("tiny.personal.expected")).unwrap();
+    let before = std::fs::read_to_string(fixture("tiny.expected")).unwrap();
+    assert_ne!(expected, before, "the learned text should change some runs");
+    assert_eq!(runs.lines().count(), expected.lines().count());
+    for (run, want) in runs.lines().zip(expected.lines()) {
+        let words: Vec<&str> = run.split(' ').collect();
+        let got = personal.restore(&words, ToneStyle::New).join(" ");
+        assert_eq!(got, want, "run: {run}");
+    }
 }

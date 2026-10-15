@@ -2,12 +2,14 @@
 //!
 //! The table is built by `research.table`. Restoration matches `research.model` exactly on the same
 //! table: 3-grams with stupid backoff, and a Viterbi search over the whole run. [`Typing`] restores a
-//! run while it is typed.
+//! run while it is typed; [`Personal`] adds counts learned from the user's own text.
 
+mod personal;
 mod table;
 mod tone;
 mod typing;
 
+pub use personal::{Personal, WEIGHT};
 pub use table::{Error, Table};
 pub use tone::ToneStyle;
 pub use typing::{Choices, Typing};
@@ -30,9 +32,29 @@ impl Table {
         }
         typing.finish(style)
     }
+}
+
+impl Personal<'_> {
+    /// Restores a run like [`Table::restore`], with the learned counts on top of the table's.
+    pub fn restore(&self, run: &[&str], style: ToneStyle) -> Vec<String> {
+        let mut typing = Typing::with_personal(self);
+        for syllable in run {
+            typing.push(syllable);
+        }
+        typing.finish(style)
+    }
+}
+
+/// N-gram counts a run is scored with: a table, or a table with a personal dictionary.
+pub(crate) trait Counts {
+    fn trigram(&self, u: u32, v: u32, w: u32) -> f64;
+    fn bigram(&self, v: u32, w: u32) -> f64;
+    fn uni(&self, id: u32) -> f64;
+    fn segments(&self) -> f64;
+    fn total(&self) -> f64;
 
     /// Log score of `w` after `u v`, as `Model.logp` computes it.
-    pub(crate) fn logp(&self, u: u32, v: u32, w: u32) -> f64 {
+    fn logp(&self, u: u32, v: u32, w: u32) -> f64 {
         let tri = self.trigram(u, v, w);
         if tri > 0.0 {
             let ctx = if u == BOS && v == BOS {
@@ -49,3 +71,28 @@ impl Table {
         (self.uni(w).max(0.5) / self.total()).ln() + 2.0 * backoff()
     }
 }
+
+macro_rules! counts {
+    ($t:ty) => {
+        impl Counts for $t {
+            fn trigram(&self, u: u32, v: u32, w: u32) -> f64 {
+                <$t>::trigram(self, u, v, w)
+            }
+            fn bigram(&self, v: u32, w: u32) -> f64 {
+                <$t>::bigram(self, v, w)
+            }
+            fn uni(&self, id: u32) -> f64 {
+                <$t>::uni(self, id)
+            }
+            fn segments(&self) -> f64 {
+                <$t>::segments(self)
+            }
+            fn total(&self) -> f64 {
+                <$t>::total(self)
+            }
+        }
+    };
+}
+
+counts!(Table);
+counts!(Personal<'_>);

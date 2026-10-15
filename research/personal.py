@@ -46,7 +46,8 @@ def personalize(m, base, lines, weight):
     m.uni = base[0] + weight * uni
     m.nseg = base[5] + weight * uni[EOS]
     m.uni[BOS] = m.nseg
-    m.total = m.uni[3:].sum() + m.nseg
+    # On top of the base total: a table file's total also counts words it left out.
+    m.total = base[6] + weight * (uni[3:].sum() + uni[EOS])
     m.bk, m.bc = add(base[1], base[2], b, weight)
     m.tk, m.tc = add(base[3], base[4], t, weight)
 

@@ -621,3 +621,38 @@ Fixed / broken / suggestions right / suggestions wrong:
   words; more 3-grams around them are the likely reason, not checked.
 - 146 marked wiki words (0.2%) cannot be typed back, mostly foreign names with accents Telex does
   not have (`Suárez`, `château`); those are left out of the fixed and broken counts.
+
+## 2026-10-15 · Personal dictionary in Rust
+
+Question: does the crate's personal dictionary restore exactly like `research.personal` on the shipped
+tables? Setup: `Personal` in the crate learns runs known to be right and adds them, weight 100, on
+top of a table; words the table lacks get new ids. `python -m research.crosscheck --personal TABLE
+TEXT RUNS LEARNED EXPECTED` learns the lines of TEXT whose words the table knows (a word the table
+lacks is `<unk>` in Python but a new word in the crate, so such lines are left out) and restores
+RUNS; `cargo run --release --example restore TABLE --learn LEARNED < RUNS` does the same in the
+crate. The learned text is the subs test file (public subtitles, used here only as stand-in text);
+the runs are the wiki and forum test sets. Both trimmed tables.
+
+Before this check `research.personal` had a bug: on a table file it recomputed the total from the
+words the file keeps, so learning anything dropped the counts of the words the table leaves out
+(on the test table, 76 became 50 instead of 82). It now adds the learned counts to the table's
+total. The chat figures with personal counts in "Trimming the table vocabulary" (92.05% and 92.32%)
+were measured with the bug and are not rerun: the chat set is gone.
+
+Prediction: the crate and Python agree on every run of both sets with both tables. Learning the subs
+text changes about 3% of the wiki runs and 4% of the forum runs against the table alone, so the check
+can see a difference.
+
+Result (4,904 learned runs: the subs lines whose words both tables know):
+
+| Table, set | Runs | Crate and Python differ | Changed by learning |
+| --- | --- | --- | --- |
+| Small, wiki | 11,765 | 0 | 27 |
+| Small, forum | 10,179 | 0 | 55 |
+| Large, wiki | 11,765 | 0 | 12 |
+| Large, forum | 10,179 | 0 | 51 |
+
+- The crate restores every run exactly like `research.personal`, with both tables.
+- Learning changed far fewer runs than predicted (0.1–0.5%, not 3–4%): subtitles are general text
+  the tables already hold, not one writer's habits. The changed runs are still enough to show the
+  check compares learned counts, not the table alone.

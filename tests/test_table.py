@@ -71,3 +71,13 @@ def test_personal_scores_a_table_file_like_its_model(model_path, tmp_path, monke
         personal.main()
         out.append(capsys.readouterr().out)
     assert "word" in out[0] and out[0] == out[1]
+
+
+def test_personal_counts_add_to_the_table_total(model_path, tmp_path):
+    # The table leaves out gỗ, lim and tôi, so its total is more than the sum of the counts it keeps.
+    table.write(Model(model_path), tmp_path / "t.timsen", min_plain=9)
+    t = table.read(tmp_path / "t.timsen")
+    base = t.snapshot()
+    personal.personalize(t, base, ["tôi gõ phím"], 2)
+    assert "tôi" not in t.id
+    assert t.total == base[6] + 2 * (2 + 1)  # gõ, phím and one end of run; tôi is unknown
