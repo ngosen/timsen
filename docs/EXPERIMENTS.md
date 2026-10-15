@@ -404,3 +404,15 @@ small thresholds, 3.79M and 7.98M for the large; stupid backoff keeps 1.12M/0.91
 
 The frozen chat set was deleted after these runs. Chat figures from a new set are not comparable
 with the ones above; measure a new baseline first.
+
+## 2026-10-15 · Rust restore against the Python model
+
+Question: does the `timsen` crate restore exactly like `research.model` on the shipped tables?
+Setup: `research.crosscheck` writes the unmarked runs of each test set and the Python restoration;
+`cargo run --release --example restore` restores the same runs; the outputs are compared line by
+line. Both tables (small and large, trimmed at N = 1000), test sets wiki, subs, web and forum. As a
+check that the comparison can see a difference, the same run with 3-grams switched off in the crate.
+
+Prediction: 0 differing runs on every set and table. With 3-grams off: more than 1,000 differing runs
+on wiki with the small table. Floating-point logs could differ in the last bit between numpy and
+Rust; if that shows, a handful of runs on near-ties.
