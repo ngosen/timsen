@@ -1,6 +1,7 @@
 """Adds counts from the user's own text to a base model (the personal dictionary), scored 5-fold.
 
-usage: python -m research.personal MODEL.npz CHATFILE WEIGHT... [--fractions 0,0.1,1] [--min-tri N] [--min-bi N]
+usage: python -m research.personal MODEL.npz|TABLE.timsen CHATFILE WEIGHT... [--fractions 0,0.1,1]
+       [--min-tri N] [--min-bi N]
 Each fold is a contiguous fifth of the file, so sentences from one message rarely land on both sides.
 With --fractions, each fold trains on that share of the other four fifths (sampled with a fixed seed).
 --min-tri and --min-bi prune the base table before personal counts are added, as a shipped table would be.
@@ -11,6 +12,7 @@ import random
 
 import numpy as np
 
+from . import table
 from .model import BOS, EOS, SHIFT, UNK, Model
 from .text import same, segments, strip_marks
 
@@ -70,7 +72,7 @@ def main():
     a = ap.parse_args()
     lines = open(a.chat, encoding="utf-8").read().splitlines()
     size = len(lines) // FOLDS + 1
-    m = Model(a.model, a.min_tri, a.min_bi)
+    m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model, a.min_tri, a.min_bi)
     base = m.snapshot()
     for weight in a.weights:
         for frac in (float(x) for x in a.fractions.split(",")):
