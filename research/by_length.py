@@ -26,7 +26,7 @@ def main():
             s[0] += len(run)
             s[1] += sum(hits)
             s[2] += 1
-            s[3] += all(hits)
+            s[3] += len(hits) == len(run) and all(hits)
     print("length    words  word-right   runs  run-all-right")
     for _, name in BUCKETS:
         w, r, n, nr = stats[name]

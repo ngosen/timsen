@@ -17,6 +17,9 @@ def evaluate(model, path, restore):
         ok = True
         for run in segments(line):
             got = restore([strip_marks(w) for w in run])
+            # zip would score only the words returned, so a shortened run would look right.
+            if len(got) != len(run):
+                raise ValueError(f"restore returned {len(got)} words for {len(run)}")
             for truth, g in zip(run, got):
                 hit = same(truth, g)
                 words += 1

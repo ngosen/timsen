@@ -17,12 +17,11 @@ import pyarrow.parquet as pq
 from huggingface_hub import HfFileSystem
 
 from . import paths
-from .text import marked_share, segments
+from .text import SENTENCE_END, marked_share, segments
 
 FILE = "datasets/HuggingFaceFW/fineweb-2/data/vie_Latn/train/000_{:05d}.parquet"
 MIN_MARKED = 0.6
 TEST_SENTENCES = 4000
-SPLIT = re.compile(r"[.!?\n]+")
 FORUM_PATH = re.compile(r"/(threads?|showthread|forums?|diendan|f\d+/|t\d+-|topic|viewtopic)", re.I)
 # Classified-ad, real-estate and SEO boards repeat sales copy rather than conversation.
 NOT_DISCUSSION = re.compile(
@@ -61,7 +60,9 @@ def run(name, file_index, groups, keep, max_words):
                 if share < MIN_MARKED:
                     continue
                 if n % 1000 == 7:
-                    test += [" ".join(s.split()) for s in SPLIT.split(text) if sum(len(r) for r in segments(s)) >= 3]
+                    test += [
+                        " ".join(s.split()) for s in SENTENCE_END.split(text) if sum(len(r) for r in segments(s)) >= 3
+                    ]
                     continue
                 words += count
                 hosts[host] += 1
