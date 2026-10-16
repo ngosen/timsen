@@ -762,3 +762,73 @@ Time per syllable, small table, three runs each against main on the same machine
 ms against 0.050–0.056, p99 2.41–2.86 ms against 2.18–2.47; large table p99 2.63 against 2.41.
 Precomputing each new word's share when it is learned did not move this. The extra time is the
 table's `<unk>` counts, now looked up wherever a new word stands, as `research.personal` does.
+
+## 2026-10-16 · Test sentences that also occur in training text
+
+Question: the fetch scripts hold out whole articles, pages or subtitle lines, but nothing checks the
+held-out sentences against the rest of the training text. How many test sentences occur verbatim in
+a training corpus, and how much do they raise the reported accuracy? Setup: `python -m
+research.overlap OUT` compares each training line whole and split with the fetchers' own sentence
+split (`[.!?\n]+`), whitespace collapsed; a test sentence counts if it equals one of these. It
+writes `OUT/SET.found` and `OUT/SET.clean`, scored with `python -m research.evaluate TABLE
+test/SET OUT/SET.found OUT/SET.clean`. A first version split training lines only at sentence ends
+and so could not see subtitle lines, which keep their final punctuation: it found 80 of the subs
+test lines instead of 1,295. The independent review that raised this found 1,286 subs test lines
+equal to a whole training line, close to the 1,295 here. This is a lower bound: a test sentence
+inside a longer training sentence is not counted (the review, counting such spans, found about
+twice as many on wiki).
+
+Test sentences found in their own corpus: wiki 469 of 4,000, subs 1,295 of 4,000, web 139, forum
+92–195 per forum file. Across corpora: web test in wiki 93, forum-2 test in wiki 56, the rest under
+70.
+
+Prediction, small table, `research.evaluate`, each test set split into the sentences found in any
+training corpus and the rest: the found ones score 2–4 points higher; leaving them out lowers the
+reported word accuracy by about 0.3 on wiki, 1.5 on subs, under 0.3 on web and forum.
+
+Result, small table (word accuracy; whole set, found sentences, the rest):
+
+| Set | Whole | Found | Rest |
+| --- | --- | --- | --- |
+| wiki | 94.84% | 93.36% (518) | 95.03% |
+| subs | 95.11% | 95.01% (1,297) | 95.14% |
+| web | 95.00% | 94.04% (171) | 95.02% |
+| forum | 91.82% | 96.02% (293) | 91.69% |
+
+Missed: the found sentences are not easier, except on forum. Leaving them out moves the reported
+figure by +0.19 (wiki), +0.03 (subs), +0.02 (web) and −0.13 (forum). Likely because the table only
+keeps n-grams seen 50 or 20 times, so one copy of a sentence barely moves it. Why the found wiki
+sentences are harder than the rest was not looked into.
+
+Prediction for the large table (3-grams seen 5+ times, so a few copies can matter): the difference
+stays under 0.5 points on every set.
+
+Result, large table:
+
+| Set | Whole | Found | Rest |
+| --- | --- | --- | --- |
+| wiki | 96.55% | 96.04% | 96.61% |
+| subs | 96.34% | 96.97% | 96.12% |
+| web | 96.20% | 95.84% | 96.20% |
+| forum | 93.74% | 97.58% | 93.62% |
+
+Hit: leaving the found sentences out moves the figure by +0.06, −0.22, 0.00 and −0.12. So the
+reported accuracies are not inflated by more than about a quarter point by verbatim sentences.
+Not measured: test sentences that occur only inside a longer training sentence, and near-duplicates
+that differ by more than whitespace. The test sets are kept as they are, so earlier figures stay
+comparable; a rebuilt, text-disjoint set would start a new series.
+
+The same review raised points that change how results should be read, not the figures:
+
+- The combined forum test set is the first 4,000 lines of forum-1, forum-2 and forum-3 (1,362, 865
+  and 1,773); it has none of forum-4.
+- The chat set has been used to choose table sizes and settings, so chat figures are validation
+  figures, not an independent final estimate.
+- "Kneser-Ney against stupid backoff" compares two whole configurations: the Kneser-Ney model drops
+  candidate spellings outside its own vocabulary, so the difference is not smoothing alone.
+- Word accuracy counts every syllable in a run, including ones with a single spelling (6.8% of wiki
+  tokens on the small table); on the ambiguous ones alone wiki is 94.49% instead of 94.84%.
+- The personal-dictionary folds split the chat set by position, so a message repeated in the set can
+  land in both the learned and the scored part; not measured on chat.
+- `research.evaluate` scored only the words a restore returned, so a shortened run would have
+  looked right. It now raises instead; the measured runs returned every word, so no figure changes.

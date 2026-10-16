@@ -8,6 +8,8 @@ LETTERS = "a-z" + VI_MARKED
 TOKEN = re.compile(f"[{LETTERS}]+|\\S")
 WORD = re.compile(f"^[{LETTERS}]+$")
 MARKED = re.compile(f"[{VI_MARKED}]")
+# Sentence ends, as the fetch scripts split held-out text into test sentences.
+SENTENCE_END = re.compile(r"[.!?\n]+")
 # Old tone placement puts the mark on the first vowel of oa/oe/uy at the end of a syllable (hòa, thủy).
 OLD_STYLE = re.compile("([òóỏõọ])([ae])$|([ùúủũụ])(y)$")
 
