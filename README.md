@@ -39,10 +39,13 @@ in [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md).
 
 See [`AGENTS.md`](AGENTS.md): measurements carry their prediction and test set, private text never
 enters the repository, and every change goes through a pull request with passing CI.
+Contributions are accepted under the [contributor licence agreement](docs/CLA.md), so that the code
+can also be licensed for closed source products.
 
 ## Licence
 
-Code: GPL-3.0-or-later. Released count tables follow the licences of their corpora
+Code: GPL-3.0-or-later. To use Tim Sen in a closed source product, ask `<CONTACT>` for a commercial
+licence. Released count tables follow the licences of their corpora
 ([`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md)). They contain counts from Wikipedia, FineWeb-2 and
 OpenSubtitles (<http://www.opensubtitles.org/>, via [OPUS](https://opus.nlpl.eu/); P. Lison and
 J. Tiedemann, 2016, "OpenSubtitles2016: Extracting Large Parallel Corpora from Movie and TV
