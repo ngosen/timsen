@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 
-use crate::table::{BOS, EOS, SHIFT, UNK};
+use crate::table::{BOS, EOS, MAX_SPELLINGS, SHIFT, UNK};
 use crate::{Error, Table, tone};
 
 /// How much one learned n-gram weighs against one seen in the corpora.
@@ -11,6 +11,9 @@ pub const WEIGHT: f64 = 100.0;
 
 const HEADER: &str = "timsen-personal 1";
 const MAX_ID: u32 = (1 << SHIFT) - 1;
+/// Largest count a saved file may give one n-gram; far more than anyone types, and small enough
+/// that sums of counts stay exact in an `f64`.
+const MAX_COUNT: u64 = 1 << 40;
 
 /// Counts learned from text known to be right, for one table. Words the table lacks get ids after
 /// the table's own, so they can be guessed too; the saved file names words by their spelling, so it
@@ -49,6 +52,19 @@ fn key3(u: u32, v: u32, w: u32) -> u64 {
 
 fn get(map: &HashMap<u64, u64>, k: u64) -> u64 {
     map.get(&k).copied().unwrap_or(0)
+}
+
+fn bump(count: &mut u64, by: u64) {
+    *count = count.saturating_add(by);
+}
+
+/// Whether a word can be learned and saved: one line of the file holds words between tabs, and
+/// `<s>` and `</s>` stand for run boundaries there.
+fn savable(word: &str) -> bool {
+    !word.is_empty()
+        && word != "<s>"
+        && word != "</s>"
+        && !word.chars().any(|c| c.is_whitespace() || c.is_control())
 }
 
 impl<'t> Personal<'t> {
@@ -113,16 +129,16 @@ impl<'t> Personal<'t> {
     fn add(&mut self, ids: &[u32], c: u64) {
         match *ids {
             [w] => {
-                *self.uni.entry(w).or_default() += c;
+                bump(self.uni.entry(w).or_default(), c);
                 if self.own(w) {
-                    self.tokens += c;
+                    bump(&mut self.tokens, c);
                 } else {
-                    self.unk_uni += c;
+                    bump(&mut self.unk_uni, c);
                     self.share(w);
                 }
             }
             [v, w] => {
-                *self.bi.entry(key2(v, w)).or_default() += c;
+                bump(self.bi.entry(key2(v, w)).or_default(), c);
                 let mut keys = Vec::new();
                 if !self.own(v) {
                     keys.push(key2(UNK, w));
@@ -131,11 +147,11 @@ impl<'t> Personal<'t> {
                     keys.push(key2(self.context(v), UNK));
                 }
                 for k in keys {
-                    *self.unk_bi.entry(k).or_default() += c;
+                    bump(self.unk_bi.entry(k).or_default(), c);
                 }
             }
             [u, v, w] => {
-                *self.tri.entry(key3(u, v, w)).or_default() += c;
+                bump(self.tri.entry(key3(u, v, w)).or_default(), c);
                 let mut keys = Vec::new();
                 if !self.own(u) || !self.own(v) {
                     keys.push(key3(self.context(u), self.context(v), w));
@@ -144,7 +160,7 @@ impl<'t> Personal<'t> {
                     keys.push(key3(self.context(u), self.context(v), UNK));
                 }
                 for k in keys {
-                    *self.unk_tri.entry(k).or_default() += c;
+                    bump(self.unk_tri.entry(k).or_default(), c);
                 }
             }
             _ => unreachable!("n-grams are one to three words"),
@@ -195,9 +211,13 @@ impl<'t> Personal<'t> {
         }
     }
 
-    /// The id of a word as typed, adding it if the table lacks it; `None` once ids run out.
+    /// The id of a word as typed, adding it if the table lacks it; `None` for a word that cannot be
+    /// saved, once ids run out, or once its unmarked form has `MAX_SPELLINGS` spellings.
     fn intern(&mut self, word: &str) -> Option<u32> {
         let word = tone::to_new(&word.to_lowercase());
+        if !savable(&word) {
+            return None;
+        }
         let plain = tone::strip(&word);
         let offered: Vec<u32> = self.table.options(&plain).into_iter().flatten().collect();
         if let Some(&id) = offered.iter().find(|&&id| self.table.word(id) == word) {
@@ -207,14 +227,21 @@ impl<'t> Personal<'t> {
             return Some(id);
         }
         let id = u32::try_from(self.table.len() + self.new_words.len()).ok()?;
-        if id > MAX_ID {
+        let learned = self.extra.get(&plain).map_or(0, Vec::len);
+        if id > MAX_ID || offered.len() + learned >= MAX_SPELLINGS {
             return None;
         }
         self.new_ids.insert(word.clone(), id);
         self.new_words.push(word);
         self.new_share.push(offered.is_empty().then_some(0.0));
         self.new_plain.push(plain.clone());
-        self.extra.entry(plain).or_default().push(id);
+        // Ordered by spelling, not by when they were learned, so a reloaded file breaks ties alike.
+        let ids = self.extra.entry(plain).or_default();
+        let at = ids.partition_point(|&i| {
+            self.new_words[i as usize - self.table.len()]
+                < self.new_words[id as usize - self.table.len()]
+        });
+        ids.insert(at, id);
         Some(id)
     }
 
@@ -249,7 +276,7 @@ impl<'t> Personal<'t> {
             0.0
         };
         let unk = if id == UNK { self.unk_uni } else { 0 };
-        base + WEIGHT * (self.uni.get(&id).copied().unwrap_or(0) + unk) as f64
+        base + WEIGHT * self.uni.get(&id).copied().unwrap_or(0).saturating_add(unk) as f64
     }
 
     pub(crate) fn bigram(&self, v: u32, w: u32) -> f64 {
@@ -264,7 +291,7 @@ impl<'t> Personal<'t> {
         } else {
             0
         };
-        base + WEIGHT * (get(&self.bi, k) + unk) as f64
+        base + WEIGHT * get(&self.bi, k).saturating_add(unk) as f64
     }
 
     pub(crate) fn trigram(&self, u: u32, v: u32, w: u32) -> f64 {
@@ -280,7 +307,7 @@ impl<'t> Personal<'t> {
         } else {
             0
         };
-        base + WEIGHT * (get(&self.tri, k) + unk) as f64
+        base + WEIGHT * get(&self.tri, k).saturating_add(unk) as f64
     }
 
     pub(crate) fn total(&self) -> f64 {
@@ -330,7 +357,7 @@ impl<'t> Personal<'t> {
         if lines.next().transpose()?.as_deref() != Some(HEADER) {
             return Err(Error::Format("not a personal dictionary"));
         }
-        for line in lines {
+        'lines: for line in lines {
             let line = line?;
             let fields: Vec<&str> = line.split('\t').collect();
             let (Some(n), Some(c)) = (fields.first(), fields.get(1)) else {
@@ -338,9 +365,11 @@ impl<'t> Personal<'t> {
             };
             let c: u64 = c
                 .parse()
-                .map_err(|_| Error::Format("bad count in personal dictionary"))?;
+                .ok()
+                .filter(|&c| c <= MAX_COUNT)
+                .ok_or(Error::Format("bad count in personal dictionary"))?;
             let words = &fields[2..];
-            if n.parse::<usize>().ok() != Some(words.len()) || words.is_empty() {
+            if n.parse::<usize>().ok() != Some(words.len()) || !(1..=3).contains(&words.len()) {
                 return Err(Error::Format("bad personal dictionary line"));
             }
             let mut ids = Vec::with_capacity(words.len());
@@ -348,13 +377,12 @@ impl<'t> Personal<'t> {
                 ids.push(match *w {
                     "<s>" => BOS,
                     "</s>" => EOS,
-                    w => p
-                        .intern(w)
-                        .ok_or(Error::Format("too many words in personal dictionary"))?,
+                    // A word this table cannot take any more, as `learn` would have dropped it.
+                    w => match p.intern(w) {
+                        Some(id) => id,
+                        None => continue 'lines,
+                    },
                 });
-            }
-            if ids.len() > 3 {
-                return Err(Error::Format("bad personal dictionary line"));
             }
             p.add(&ids, c);
         }
@@ -443,6 +471,69 @@ mod tests {
         assert!(p.bi.keys().all(|&k| k != key2(nha, go)));
         p.learn(&[None, None]);
         assert_eq!(p.uni[&EOS], 1);
+    }
+
+    #[test]
+    fn counts_that_overflow_are_an_error() {
+        let t = table();
+        let text = "timsen-personal 1\n1\t18446744073709551615\t</s>\n1\t1\t</s>\n";
+        assert!(Personal::load(&t, text.as_bytes()).is_err());
+    }
+
+    #[test]
+    fn words_a_saved_file_cannot_hold_are_not_learned() {
+        let t = table();
+        let mut p = Personal::new(&t);
+        p.learn(&[
+            Some("nhà"),
+            Some("a\tb"),
+            Some("ta"),
+            Some("x\ny"),
+            Some("<s>"),
+        ]);
+        p.learn(&[Some("</s>"), Some("có"), Some("<S>")]);
+        let mut file = Vec::new();
+        p.save(&mut file).unwrap();
+        let q = Personal::load(&t, file.as_slice()).unwrap();
+        let mut again = Vec::new();
+        q.save(&mut again).unwrap();
+        assert_eq!(file, again);
+        let text = String::from_utf8(file).unwrap();
+        assert!(text.contains("\tnhà\n") && text.contains("\tcó\n"));
+        // A learned "<s>" would end a line; as a run boundary it never does.
+        assert!(!text.contains("a\tb") && !text.contains("x\n") && !text.contains("\t<s>\n"));
+    }
+
+    #[test]
+    fn saving_and_loading_keeps_ties_between_new_spellings() {
+        let t = table();
+        for words in [["ngó", "ngò"], ["ngò", "ngó"]] {
+            let mut p = Personal::new(&t);
+            for w in words {
+                learn(&mut p, w);
+            }
+            let mut file = Vec::new();
+            p.save(&mut file).unwrap();
+            let q = Personal::load(&t, file.as_slice()).unwrap();
+            let run = ["ngo"];
+            assert_eq!(
+                q.restore(&run, ToneStyle::New),
+                p.restore(&run, ToneStyle::New)
+            );
+        }
+    }
+
+    #[test]
+    fn a_form_keeps_at_most_max_spellings() {
+        let t = table();
+        let mut p = Personal::new(&t);
+        let a: Vec<char> = "aàáảãạăằắẳẵặâầấẩẫậ".chars().collect();
+        for x in &a {
+            for y in &a {
+                learn(&mut p, &format!("{x}{y}"));
+            }
+        }
+        assert!(p.options("aa").unwrap().len() <= crate::table::MAX_SPELLINGS);
     }
 
     #[test]

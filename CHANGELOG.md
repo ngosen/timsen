@@ -53,6 +53,10 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Fixed
 
+- `Personal`: a saved file reloads as it was saved. Words with spaces, tabs or control characters
+  and the run markers `<s>`, `</s>` are no longer learned, since they broke the file; equal-scoring
+  new spellings keep their order; counts saturate instead of overflowing, and `load` rejects counts
+  above 2^40. One unmarked form keeps at most 256 spellings (#).
 - `Table::open` and `Table::from_bytes` return an `Error` for damaged files that could panic: section
   sizes that overflow, unmarked forms with no, repeated or too many spellings. `Table::word` is no
   longer public, since a wrong id panicked (#21).
