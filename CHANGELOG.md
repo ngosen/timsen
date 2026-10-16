@@ -55,4 +55,4 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 - `Table::open` and `Table::from_bytes` return an `Error` for damaged files that could panic: section
   sizes that overflow, unmarked forms with no, repeated or too many spellings. `Table::word` is no
-  longer public, since a wrong id panicked (#).
+  longer public, since a wrong id panicked (#21).
