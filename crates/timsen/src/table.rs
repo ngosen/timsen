@@ -17,6 +17,9 @@ pub const SHIFT: u32 = 21;
 const MAGIC: &[u8; 8] = b"TIMSEN\0\0";
 const VERSION: u32 = 1;
 const HEADER_LEN: usize = 64;
+/// Most spellings one unmarked form may have, far above what real tables use. Typing keeps a score
+/// for every pair of neighbouring spellings, so this bounds its memory per syllable.
+pub(crate) const MAX_SPELLINGS: usize = 256;
 
 #[derive(Debug)]
 pub enum Error {
@@ -101,8 +104,19 @@ impl Cursor<'_> {
         Ok(start)
     }
 
+    /// Claims `n` items of `size` bytes each.
+    fn take_n(&mut self, n: usize, size: usize) -> Result<usize, Error> {
+        let len = n
+            .checked_mul(size)
+            .ok_or(Error::Format("section too large"))?;
+        self.take(len)
+    }
+
     fn strings(&mut self, n: usize) -> Result<Strings, Error> {
-        let offsets = self.take(4 * (n + 1))?;
+        let offsets = self.take_n(
+            n.checked_add(1).ok_or(Error::Format("section too large"))?,
+            4,
+        )?;
         let blob_len = u32_at(self.bytes, offsets, n) as usize;
         let blob = self.take(blob_len)?;
         let mut last = 0;
@@ -123,8 +137,8 @@ impl Cursor<'_> {
 
     fn grams(&mut self, n: usize) -> Result<Grams, Error> {
         Ok(Grams {
-            keys: self.take(8 * n)?,
-            counts: self.take(4 * n)?,
+            keys: self.take_n(n, 8)?,
+            counts: self.take_n(n, 4)?,
             n,
         })
     }
@@ -146,6 +160,42 @@ fn u32_at(bytes: &[u8], pos: usize, i: usize) -> u32 {
 fn u64_at(bytes: &[u8], pos: usize, i: usize) -> u64 {
     let p = pos + 8 * i;
     u64::from_le_bytes(bytes[p..p + 8].try_into().unwrap())
+}
+
+/// Every unmarked form has 1 to `MAX_SPELLINGS` distinct spellings, in ranges that tile the ids.
+fn check_candidates(
+    bytes: &[u8],
+    start: usize,
+    ids: usize,
+    n_plain: usize,
+    n_cand: usize,
+    n_words: usize,
+) -> Result<(), Error> {
+    if u32_at(bytes, start, 0) != 0 || u32_at(bytes, start, n_plain) as usize != n_cand {
+        return Err(Error::Format("candidate ranges do not cover the ids"));
+    }
+    let mut seen = Vec::with_capacity(MAX_SPELLINGS);
+    for i in 0..n_plain {
+        let (a, b) = (
+            u32_at(bytes, start, i) as usize,
+            u32_at(bytes, start, i + 1) as usize,
+        );
+        if b <= a || b - a > MAX_SPELLINGS || b > n_cand {
+            return Err(Error::Format("bad number of spellings"));
+        }
+        seen.clear();
+        for j in a..b {
+            let id = u32_at(bytes, ids, j);
+            if id as usize >= n_words {
+                return Err(Error::Format("candidate id out of bounds"));
+            }
+            if seen.contains(&id) {
+                return Err(Error::Format("repeated spelling"));
+            }
+            seen.push(id);
+        }
+    }
+    Ok(())
 }
 
 fn header_u64(bytes: &[u8], i: usize) -> Result<usize, Error> {
@@ -186,22 +236,14 @@ impl Table {
             pos: HEADER_LEN,
         };
         let words = c.strings(n_words)?;
-        let uni = c.take(4 * n_words)?;
+        let uni = c.take_n(n_words, 4)?;
         let bigrams = c.grams(n_bi)?;
         let trigrams = c.grams(n_tri)?;
         let plain = c.strings(n_plain)?;
-        let cand_start = c.take(4 * (n_plain + 1))?;
-        let cand_ids = c.take(4 * n_cand)?;
-        for i in 0..=n_plain {
-            if u32_at(&bytes, cand_start, i) as usize > n_cand {
-                return Err(Error::Format("candidate range out of bounds"));
-            }
-        }
-        for i in 0..n_cand {
-            if u32_at(&bytes, cand_ids, i) as usize >= n_words {
-                return Err(Error::Format("candidate id out of bounds"));
-            }
-        }
+        // n_plain + 1 cannot overflow: the plain strings section above already needed it.
+        let cand_start = c.take_n(n_plain + 1, 4)?;
+        let cand_ids = c.take_n(n_cand, 4)?;
+        check_candidates(&bytes, cand_start, cand_ids, n_plain, n_cand, n_words)?;
         Ok(Table {
             bytes,
             total,
@@ -229,7 +271,8 @@ impl Table {
         (id, 0.0)
     }
 
-    pub fn word(&self, id: u32) -> &str {
+    /// The spelling of a word id; ids come from the table itself, so they are in range.
+    pub(crate) fn word(&self, id: u32) -> &str {
         std::str::from_utf8(self.words.bytes(&self.bytes, id as usize)).unwrap()
     }
 
