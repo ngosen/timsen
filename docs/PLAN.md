@@ -69,7 +69,8 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
    - Measured through the crate on chat: +3.2 to +3.6 points over the table alone, equal to
      `research.personal` once learned words the table lacks are scored as its `<unk>`; p99 2.4–2.9
      ms per syllable ("New words as `<unk>` in context").
-5. **C API.** A thin C interface and header so input methods on macOS and Windows can use the crate.
+5. **C API.** A thin C interface and header so Linux input methods can use the crate. macOS and
+   Windows are set aside until there is a machine to try typing on them.
 
 Then, in the Ngó Sen repository: an option, off by default. Whether it fills in marks or only suggests
 is decided after using it. Cứu chữ gets a second case: when the text was typed with no marks at all,

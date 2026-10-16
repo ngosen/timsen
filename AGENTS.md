@@ -7,7 +7,8 @@ be able to explain every line.
 This repository holds Tim Sen, the diacritic guesser behind the Đoán dấu feature of the
 [Ngó Sen](https://github.com/ngosen/ngosen) input method: type `toi da go phim`, get `tôi đã gõ phím`. It holds the research code that trains
 and measures the model (`research/`) and the Rust crate that restores marks from a table
-(`crates/timsen`). A C API, usable from input methods on Linux, macOS and Windows, comes later.
+(`crates/timsen`). A C API for Linux input methods comes later; macOS and Windows wait until they
+can be tested.
 
 ## Before you start
 
