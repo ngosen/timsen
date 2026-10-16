@@ -50,3 +50,9 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   instead of guessing (#1).
 - Research code to train a syllable trigram model from Wikipedia, OpenSubtitles and FineWeb-2 and to
   measure diacritic restoration, context spell checking and a personal dictionary.
+
+### Fixed
+
+- `Table::open` and `Table::from_bytes` return an `Error` for damaged files that could panic: section
+  sizes that overflow, unmarked forms with no, repeated or too many spellings. `Table::word` is no
+  longer public, since a wrong id panicked (#).
