@@ -8,17 +8,18 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
 - **Model:** syllable 3-grams with stupid backoff, in two tables of the same format: small (3-grams
   seen 50+ times, 2-grams 20+; 22.6 MB) and large (5+, 3+; 130.7 MB). Both leave out unmarked words
   seen fewer than 1,000 times whose only spelling is themselves. With the personal dictionary they
-  differ by 0.27 points on chat (92.05% and 92.32%); on edited prose by about 1.7 (wiki 94.84% and
-  96.55%). The small table ships first; the large one is added later if users ask for better
-  accuracy on longer writing. Kneser-Ney at the same sizes gains 0.3–0.5 points on edited prose and
-  0–0.3 on chat, but cannot take personal counts by simple addition; revisit only with a measured way
-  to combine it with the personal dictionary.
+  differ by 0.23 points on chat (92.20% and 92.43%, "New words as `<unk>` in context"); on edited
+  prose by about 1.7 (wiki 94.84% and 96.55%). The small table ships first; the large one is added
+  later if users ask for better accuracy on longer writing. Kneser-Ney at the same sizes gains
+  0.3–0.5 points on edited prose and 0–0.3 on chat, but cannot take personal counts by simple
+  addition; revisit only with a measured way to combine it with the personal dictionary.
 - **Corpora:** Wikipedia, OpenSubtitles and FineWeb-2 forum pages. OpenSubtitles has no formal
   licence; the tables ship its counts with attribution, as `wordfreq` does, and are rebuilt without
   it if a takedown request comes (`docs/DATA_SOURCES.md`).
-- **Where the gain is:** the personal dictionary (+2.7 to +3.4 points on chat depending on the table, still rising) and revising the
-  last few words while typing (89% against 80% when each word is fixed as typed). More general text
-  gives about half a point per doubling.
+- **Where the gain is:** the personal dictionary (+3.2 to +3.6 points on chat depending on the
+  table, measured after the total fix; it was still rising with more learned text before that fix,
+  not rerun since) and revising the last few words while typing (89% against 80% when each word is
+  fixed as typed). More general text gives about half a point per doubling.
 - **More general text comes from more forum files, not from users.** Counts donated by users would be
   a small forum with a privacy cost; the personal dictionary gains because the text is the user's own.
   The only thing taken from users is a score measured on their machine (see "From users").
