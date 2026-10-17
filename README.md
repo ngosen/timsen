@@ -28,8 +28,9 @@ pip install -e '.[dev]'
 python -m research.fetch_wiki                 # Wikipedia, CC BY-SA
 python -m research.fetch_subs                 # OpenSubtitles, counts ship with attribution
 python -m research.fetch_fineweb forum 1      # forum pages from FineWeb-2 file 1 (repeat for 2-4)
-python -m research.train /tmp/timsen/models/wsf.npz wiki subs forum
-python -m research.evaluate /tmp/timsen/models/wsf.npz /tmp/timsen/test/wiki /tmp/timsen/test/forum
+python -m research.fetch_fineweb tech 5       # technology forums from file 5 (repeat for 6-29)
+python -m research.train /tmp/timsen/models/wsft.npz wiki subs forum tech
+python -m research.evaluate /tmp/timsen/models/wsft.npz /tmp/timsen/test/wiki /tmp/timsen/test/forum
 ```
 
 To measure on your own writing, put your messages in a text file (one per line) and run

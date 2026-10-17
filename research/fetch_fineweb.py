@@ -2,8 +2,10 @@
 
 usage: python -m research.fetch_fineweb web FILE STEP MAX_WORDS   # every STEP-th row group, all pages
        python -m research.fetch_fineweb forum FILE                # whole file, discussion forums only
+       python -m research.fetch_fineweb tech FILE                 # whole file, technology forums only
 
 Pages with fewer than 60% marked words are dropped: unaccented text would teach the wrong spellings.
+Technology pages mix in English words, which carry no marks, so for them the bar is 50%.
 Pages with index % 1000 == 7 are held out for the test set.
 """
 
@@ -19,8 +21,10 @@ from huggingface_hub import HfFileSystem
 from . import paths
 from .text import SENTENCE_END, marked_share, segments
 
-FILE = "datasets/HuggingFaceFW/fineweb-2/data/vie_Latn/train/000_{:05d}.parquet"
+FILE = "datasets/HuggingFaceFW/fineweb-2/data/vie_Latn/train/{:03d}_{:05d}.parquet"
+FILES_PER_PREFIX = 6  # 000_00000 to 004_00005; FILE index i is the i-th of these 30
 MIN_MARKED = 0.6
+MIN_MARKED_TECH = 0.5
 TEST_SENTENCES = 4000
 FORUM_PATH = re.compile(r"/(threads?|showthread|forums?|diendan|f\d+/|t\d+-|topic|viewtopic)", re.I)
 # Classified-ad, real-estate and SEO boards repeat sales copy rather than conversation.
@@ -29,6 +33,15 @@ NOT_DISCUSSION = re.compile(
     r"quangcao|banhang|thegioidoco|choa37|nhadat|batdongsan|bds",
     re.I,
 )
+
+
+# Vietnamese technology forums and developer Q&A, where English terms sit inside Vietnamese text.
+TECH_HOSTS = {"tinhte.vn", "voz.vn", "daynhauhoc.com", "viblo.asia", "kipalog.com"}
+
+
+def tech_host(url):
+    host = urlparse(url).netloc.removeprefix("www.")
+    return host if host in TECH_HOSTS else None
 
 
 def forum_host(url):
@@ -41,13 +54,13 @@ def forum_host(url):
     return None
 
 
-def run(name, file_index, groups, keep, max_words):
+def run(name, file_index, groups, keep, max_words, min_marked=MIN_MARKED):
     paths.ensure()
-    f = pq.ParquetFile(HfFileSystem().open(FILE.format(file_index), block_size=64 << 20))
+    f = pq.ParquetFile(HfFileSystem().open(FILE.format(*divmod(file_index, FILES_PER_PREFIX)), block_size=64 << 20))
     hosts = Counter()
     n = words = 0
     test = []
-    suffix = f"-{file_index}" if name == "forum" else ""
+    suffix = f"-{file_index}" if name in ("forum", "tech") else ""
     with gzip.open(paths.DATA / f"{name}{suffix}.txt.gz", "wt", encoding="utf-8", compresslevel=3) as out:
         for g in groups(f.num_row_groups):
             t = f.read_row_group(g, columns=["text", "url"])
@@ -57,7 +70,7 @@ def run(name, file_index, groups, keep, max_words):
                 if not host:
                     continue
                 share, count = marked_share(text)
-                if share < MIN_MARKED:
+                if share < min_marked:
                     continue
                 if n % 1000 == 7:
                     test += [
@@ -88,8 +101,10 @@ def main():
         )
     elif kind == "forum":
         run("forum", file_index, range, forum_host, 0)
+    elif kind == "tech":
+        run("tech", file_index, range, tech_host, 0, MIN_MARKED_TECH)
     else:
-        sys.exit("kind must be web or forum")
+        sys.exit("kind must be web, forum or tech")
 
 
 if __name__ == "__main__":
