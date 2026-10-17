@@ -6,10 +6,14 @@ dictionary. The small one ships first; the large one may follow.
 | | Small | Large |
 | --- | --- | --- |
 | File | 22.6 MB | 130.7 MB |
-| Chat + personal | 92.05% | 92.32% |
-| Chat | 88.58% | 89.18% |
+| Chat + personal | 92.19% | 92.42% |
+| Chat | 88.63% | 89.25% |
 | Wikipedia | 94.84% | 96.55% |
 | Forum | 91.82% | 93.74% |
+
+Chat figures are from the rebuilt chat set (3,881 sentences) in "Personal dictionary in Rust",
+measured after a bug in the personal counts was fixed; wiki and forum from "Trimming the table
+vocabulary".
 
 They differ in how many rare word sequences they keep. Both leave out unmarked words seen fewer than
 1,000 times whose only spelling is themselves (English words, typos); those are restored as typed
