@@ -53,7 +53,8 @@ machine; the only thing a user may choose to send is a score (see "From users").
 
 ## Steps
 
-1. **Shipped table.** Done: `research.table` writes the fixed binary format, and both tables are
+1. **Shipped table.** Done: `research.table` writes the fixed binary format (`research.prune`
+   chooses the n-grams to keep), and both tables are
    measured alone on chat, wiki and forum, and on chat with the personal dictionary
    (`docs/EXPERIMENTS.md`, "Pruned table for shipping" and "Trimming the table vocabulary").
 2. **Whole-run restore in Rust.** Done: the `timsen` crate (`crates/timsen`) maps a table and

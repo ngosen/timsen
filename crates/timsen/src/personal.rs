@@ -7,7 +7,7 @@ use crate::table::{BOS, EOS, MAX_SPELLINGS, SHIFT, UNK};
 use crate::{Error, Table, tone};
 
 /// How much one learned n-gram weighs against one seen in the corpora.
-pub const WEIGHT: f64 = 100.0;
+pub const WEIGHT: f64 = 1000.0;
 
 const HEADER: &str = "timsen-personal 1";
 const MAX_ID: u32 = (1 << SHIFT) - 1;

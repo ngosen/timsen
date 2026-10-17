@@ -1052,3 +1052,209 @@ as `lùn`, `dị` as `đi`, `tui` as `túi`, `gòi` as `gọi`, `hong` as `hồn
 counted as truth (`bới` for `bởi`, `gắp` for `gặp`), and `dc`/`đc`, which writers spell both ways.
 So the training corpora do not cover this way of writing; a corpus of informal comments that may be
 trained on would be the fix, and this set could then show whether it worked.
+
+## 2026-10-17 · Where the remaining errors are
+
+Question: before trying to raise accuracy, how many errors can no scoring change fix, and how many
+words sit in short runs that lack context? Setup: `python -m research.coverage TABLE wiki subs
+forum` counts the words whose right spelling is among the candidates restore can pick;
+`python -m research.by_length TABLE FILE` splits accuracy by run length (words between two
+punctuation marks or digits). Small and large tables (trimmed, N = 1000), the test files frozen
+for this series as copies in `test/frozen`.
+
+Prediction: coverage the same for both tables, since they share one vocabulary: wiki 99.0–99.6%,
+subs 99.5–99.8%, forum 99.3–99.7%, so under a tenth of the errors are out of reach. Words in runs
+of at most four words: wiki 10–20%, subs 25–40%, forum 15–25%, and those runs 3–6 points less
+accurate than runs of nine or more. Check that the instrument sees a miss: the unit test scores a
+spelling the model never offers as not covered; and accuracy must stay at or below coverage on
+every set.
+
+Result: coverage missed high. Both tables cover 99.98% on wiki, 99.97% on subs and 99.95% on forum
+(73,604, 31,845 and 92,220 words), so about one error in a hundred is out of reach; the rest are
+wrong choices among candidates the table already has. Accuracy stays below coverage on every set.
+Short runs (small table, `research.by_length`):
+
+| Set | Words in runs of ≤ 4 | Accuracy, runs ≤ 4 / runs ≥ 9 |
+|---|---|---|
+| wiki | 17.84% | 92.39% / 95.63% |
+| subs | 19.31% | 93.33% / 95.74% |
+| forum | 9.18% | 86.86% / 92.78% |
+
+Wiki is inside the predicted share; subs (predicted 25–40%) and forum (15–25%) have fewer short
+runs than predicted. The gap is 3.2 points on wiki and 5.9 on forum, as predicted, but 2.4 on subs,
+under the predicted 3. Two-word runs on wiki are the worst bucket (89.32%). Keeping context across
+commas and digits can reach at most the short runs, about a tenth to a fifth of the words.
+
+## 2026-10-17 · Tuning the backoff weight
+
+Question: stupid backoff multiplies by 0.4 at each step down to a shorter n-gram, the value from
+web-scale models; is another value better for these pruned tables? Setup: `python -m
+research.evaluate TABLE FILE --backoff X` for X in 0.2, 0.3, 0.4, 0.5, 0.6, 0.8 and 1.0, small
+table, on the odd lines of each frozen test file to choose X and the even lines to confirm it.
+
+Prediction: the best X is between 0.3 and 0.6 on every set and gains at most 0.2 points over 0.4
+on the even lines; X = 1.0 (no penalty for backing off) is at least 0.5 points worse than 0.4 on
+wiki, which shows the instrument sees the setting. If the best X gains under 0.05 on the even lines,
+0.4 stays.
+
+Result: missed. Accuracy rises steadily as X falls, and the best value on the odd lines is the
+lowest one tried: 0.2 on wiki and forum, 0.3 on subs (95.21% against 95.18% at 0.2). Word accuracy
+on the even lines:
+
+| X | wiki / subs / forum |
+|---|---|
+| 0.2 | 94.99% / 95.14% / 92.03% |
+| 0.3 | 94.98% / 95.13% / 91.91% |
+| 0.4 | 94.92% / 95.09% / 91.78% |
+| 0.6 | 94.74% / 94.90% / 91.45% |
+| 1.0 | 94.28% / 94.38% / 90.65% |
+
+X = 1.0 is 0.64 points below 0.4 on wiki, so the setting is seen. X = 0.2 gains 0.07, 0.05 and 0.25
+points on the even lines. Since the best value sits at the edge of the range, the sweep goes on
+below 0.2 before choosing.
+
+Prediction for 0.05, 0.1 and 0.15, same files: accuracy peaks between 0.1 and 0.2 on the odd lines
+and the peak gains at most 0.1 points over 0.2 on the even lines; at 0.05 wiki falls below 0.2.
+
+Result: as predicted. On the odd lines the best X is 0.15 on wiki (94.98%) and subs (95.22%), and
+0.1 on forum (92.16%, against 92.12% at 0.15). On the even lines 0.15 gives 94.99%, 95.14% and
+92.09%: no change from 0.2 on wiki and subs, +0.06 on forum. At 0.05 wiki falls to 94.92%. Against
+0.4, X = 0.15 gains 0.07, 0.05 and 0.31 points on the even lines, at or above the 0.05 threshold on
+every set, so the default becomes 0.15, subject to the check on the weighted table below.
+
+## 2026-10-17 · Keeping the n-grams that matter instead of the frequent ones
+
+Question: the small table keeps 3-grams seen 50+ times and 2-grams seen 20+ times, and pruning costs
+2.8 points on wiki against the full model (97.61% → 94.84%). Does choosing n-grams by how much they
+change scores do better with the same number of n-grams? Setup: `python -m research.prune
+wsf-canon.npz OUT --entries 1803455 --min-plain 1000` keeps 1,803,455 bigrams and trigrams in all,
+as many as the small table, weighting each by its count times the gap between its own log score
+and the backoff score restore would use without it (after Stolcke 1998); a bigram that is the
+context of a kept trigram is always kept. Scored with `research.evaluate` on the frozen wiki, subs
+and forum files. As a check that the weights matter, the same number of n-grams chosen at random
+(`--random 1`).
+
+Prediction, against the small table scored on the same frozen files: file size within 1% of its
+22,650,896 bytes. Weighted: wiki +0.3 to +1.0 points, subs and forum +0.1 to +0.8. Random: at least
+2 points below the small table on wiki. If the weighted table gains under 0.2 points on wiki, count pruning stays.
+
+Result: as predicted. Both tables are 22,650,896 bytes. Weighted pruning keeps 614,105 bigrams and
+1,189,350 trigrams, against 945,625 and 857,830: it trades a third of the bigrams for more trigrams.
+Word accuracy on the full frozen files (backoff 0.4):
+
+| Table | wiki / subs / forum |
+|---|---|
+| small (count pruning) | 94.85% / 95.11% / 91.82% |
+| weighted | 95.44% / 95.30% / 92.41% |
+| random, same size | 91.73% / 92.17% / 89.09% |
+
+The weighted table gains 0.59, 0.19 and 0.59 points; the random one loses 3.12 on wiki, so the
+weights carry the gain. Sentence accuracy on wiki rises from 63.10% to 65.92%.
+
+Prediction for the backoff on the weighted table, odd and even lines as before, X in 0.1, 0.15,
+0.2, 0.3 and 0.4: the best X on the odd lines is again between 0.1 and 0.2, and on the even lines
+it gains 0.05 to 0.4 points over 0.4.
+
+Result: missed. On the weighted table the curve is flat and the low values lose their edge:
+
+| X | odd lines, wiki / subs / forum | even lines, wiki / subs / forum |
+|---|---|---|
+| 0.1 | 95.32% / 95.19% / 92.50% | 95.43% / 95.14% / 92.21% |
+| 0.15 | 95.35% / 95.25% / 92.52% | 95.46% / 95.22% / 92.25% |
+| 0.2 | 95.37% / 95.28% / 92.50% | 95.46% / 95.23% / 92.24% |
+| 0.3 | 95.37% / 95.32% / 92.50% | 95.50% / 95.24% / 92.35% |
+| 0.4 | 95.37% / 95.32% / 92.47% | 95.50% / 95.27% / 92.35% |
+
+The odd lines pick 0.3 or 0.4 on wiki and subs and 0.15 on forum, where it leads 0.4 by 0.05; on
+the even lines 0.4 is best or tied on every set. A low backoff helped the count-pruned table because
+it lacked trigrams that the weighted table keeps. The backoff stays 0.4, in Python and in the crate.
+
+Prediction for the personal weight on the weighted table, same chat halves rebuilt, weights 100,
+300, 1000 and 3000: the peak is again 1000 on both halves.
+
+Result: missed; the curve is flatter at the top. First half 91.39%, 91.76%, 92.15% and 92.42%;
+second half 90.88%, 91.33%, 91.69% and 91.73%. The first half picks 3000, but on the second it gains
+only 0.04 over 1000, under the 0.05 used for the backoff, so the weight stays 1000. With weight
+1000 the weighted and the count-pruned tables are within 0.04 points of each other on chat.
+
+## 2026-10-17 · Tuning the personal dictionary weight
+
+Question: the personal dictionary adds the user's own counts times 100, a value never tuned; is
+another weight better? Setup: the chat set rebuilt in RAM from the same source, split into its
+first and second half in time order; `python -m research.personal TABLE HALF 0 10 30 100 300 1000`
+(5-fold within each half) on the small table. The first half chooses the weight, the second
+confirms it. The chat files are deleted after the run.
+
+Prediction: the best weight is between 30 and 300 on the first half and gains at most 0.3 points
+over 100 on the second; 1000 is below 100 on both halves, since the user's few counts then drown
+the table. Weight 0 is at least 2 points below 100, which shows the instrument sees the setting.
+
+Result: missed. The rebuilt chat set has 2,556 sentences (1,278 per half, 14,565 and 14,250 words),
+fewer than the 3,881 of earlier entries, so its figures do not compare with theirs. Accuracy rises
+with the weight all the way to the largest one tried:
+
+| Weight | first half / second half (backoff 0.4) | same at backoff 0.2 |
+|---|---|---|
+| 0 | 89.63% / 88.95% | 90.05% / 89.17% |
+| 100 | 91.43% / 91.08% | 91.69% / 91.08% |
+| 1000 | 92.12% / 91.73% | 92.34% / 91.82% |
+
+Weight 0 is 1.8 and 2.1 points below 100 (backoff 0.4). Backoff 0.2 helps here too, by 0.0 to 0.4
+points. The chat set keeps repeated messages, so a test sentence can also sit in the training folds,
+and a large weight may be rewarded for memorizing it.
+
+Prediction for the follow-up: weights 3000 and 10000 gain under 0.3 points more over 1000; with each
+half reduced to its distinct sentences, the best weight falls to 300 or lower and 1000 gains under
+0.2 points over 100.
+
+Result: the memorizing guess missed. Only 25 and 20 sentences repeat within a half (1,253 and 1,258
+distinct), and the distinct halves give the same curve. Backoff 0.4, small table:
+
+| Weight | all sentences, halves 1 / 2 | distinct sentences, halves 1 / 2 |
+|---|---|---|
+| 100 | 91.43% / 91.08% | 91.47% / 90.88% |
+| 300 | 91.73% / 91.36% | 91.81% / 91.14% |
+| 1000 | 92.12% / 91.73% | 92.18% / 91.54% |
+| 3000 | 92.04% / 91.68% | 92.12% / 91.54% |
+| 10000 | 91.74% / 91.33% | |
+
+The peak is 1000 on both halves, 0.66 to 0.71 points over 100, and accuracy falls beyond it. The
+weight becomes 1000. This is one user's text, about 2,500 sentences; a new user's dictionary starts
+empty and grows, so the value stays provisional until daily use measures it.
+
+## 2026-10-17 · Weighted pruning at the large table's size
+
+Question: does weighted pruning also help the large table (3-grams ≥ 5, 2-grams ≥ 3, N = 1000,
+3,127,619 bigrams and 7,677,041 trigrams)? Setup: `python -m research.prune wsf-canon.npz OUT
+--entries 10804660 --min-plain 1000`, scored with `research.evaluate` on the full frozen files next
+to the large table, backoff 0.4.
+
+Prediction: the gain is smaller than at the small size, since less is pruned: wiki +0.1 to +0.4
+points, subs and forum 0 to +0.3; the file is within 1% of 130,958,840 bytes.
+
+Result: as predicted. The entry count was taken from an older log of the large table; the current
+file holds 3,142,120 bigrams and 7,686,997 trigrams (10,829,117), so the weighted table is 24,457
+n-grams smaller: 130,665,376 bytes, 0.22% under. It keeps 2,524,178 bigrams and 8,280,484 trigrams.
+
+| Table | wiki / subs / forum |
+|---|---|
+| large (count pruning) | 96.55% / 96.34% / 93.74% |
+| weighted, slightly smaller | 96.87% / 96.46% / 93.84% |
+
+The gain is 0.32, 0.12 and 0.10 points, smaller than at 22 MB (0.59, 0.19 and 0.59).
+
+## 2026-10-17 · The crate with weighted tables and weight 1000
+
+Question: does the crate still restore exactly like Python on a weighted table, alone and with the
+personal dictionary at the new weight 1000? Setup as in "Personal dictionary in Rust": `python -m
+research.crosscheck` (and `--personal`, learning the frozen subs file) against `cargo run --release
+--example restore TABLE [--learn LEARNED]` on the frozen wiki and forum files, small weighted table.
+As a check that the comparison sees the weight, the crate's output at 1000 is also compared with
+Python's at the old weight 100.
+
+Prediction: 0 differing runs on both sets, alone and with learning; against Python at weight 100,
+at least 10 runs differ on each set.
+
+Result: as predicted. Wiki: 11,765 runs, 0 differ alone and 0 with learning (4,904 learned runs),
+137 changed by learning, 112 differ from Python at weight 100. Forum: 10,179 runs, 0 and 0, 377
+changed by learning, 332 differ from Python at weight 100.

@@ -6,6 +6,8 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Changed
 
+- `Personal` in the crate and `research.crosscheck` weigh a learned n-gram 1000 times one from the
+  corpora, up from 100: 0.66 to 0.71 points more on chat.
 - `Personal` scores learned words the table lacks as the table's `<unk>`, so a personal dictionary
   learned from text with English or code words guesses the Vietnamese around them as well as
   `research.personal` does (#20).
@@ -21,6 +23,10 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Added
 
+- `research.prune`: builds a table that keeps the n-grams whose removal would change scores most, at a
+  given number of n-grams: +0.59 points on wiki at the small table's size, +0.32 at the large one's.
+- `research.coverage`: the share of words whose right spelling is among restore's candidates.
+- `research.evaluate --backoff X` and `research.personal --backoff X`.
 - `Personal` in the `timsen` crate: a personal dictionary that learns runs known to be right,
   including words the table lacks, and saves them as a text file; `Typing::with_personal` and
   `Personal::restore` use it (#18).
