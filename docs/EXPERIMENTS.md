@@ -1017,3 +1017,38 @@ It is fast enough for an input method, so speed is not the limit. Likely causes,
 one pass over the data is too little for a model that has to learn word pairs the table simply
 counts, and 7M parameters are few next to the table's 22.6 MB of counts. Not worth more CPU time in
 this form; a larger model would need a GPU, and the gain on chat would have to be shown first.
+
+## 2026-10-17 · Social media comments as a test set
+
+Question: the test sets are edited prose, subtitles, forums and one writer's chat. How does restore
+do on many writers' social media comments, abbreviations and all? Setup: `python -m
+research.fetch_vilexnorm` writes `test/social` from ViLexNorm at a fixed revision: 9,780 comments
+as typed, with at least three words and at least half of them marked. Scored with `python -m
+research.evaluate TABLE test/social`; never trained on (CC BY-NC-SA, `docs/DATA_SOURCES.md`).
+
+Prediction: small table 88–91% word accuracy, below forum (91.82%) and close to one writer's chat
+without a personal dictionary; large table 1 to 1.5 points higher. Unmarked words changed (the
+`plain-changed` column) higher than on forum (8.33%), since abbreviations such as `ko`, `k`, `t`
+are common.
+
+Result (`python -m research.evaluate`, forum on the same run for reference):
+
+| table | social | forum |
+|---|---|---|
+| small | 81.18% | 91.82% |
+| large | 83.02% | 93.74% |
+
+Sentences right: 16.34% and 19.78% on social. Plain-changed: 10.95% (small) and 10.11% (large),
+against 8.33% and 6.36% on forum.
+
+The prediction missed by 7 to 10 points: social is 10.6 points below forum, not 1 to 4. The large
+table adds 1.8 points, a little above the 1 to 1.5 predicted, and plain-changed is higher as
+predicted. Where the misses are (small table, a script in the job directory, not committed): 82% are
+known marked words given other marks, 14% plain words given marks, 4% typed forms outside the
+vocabulary. A neighbour outside the vocabulary does not explain it: words whose neighbours are all
+known are right 81.59% of the time (forum 91.82%), and only 4.5% of words have an unknown neighbour.
+The most frequent misses are informal and southern forms the corpora rarely write (`lun` restored
+as `lùn`, `dị` as `đi`, `tui` as `túi`, `gòi` as `gọi`, `hong` as `hồng`), the writers' own typos
+counted as truth (`bới` for `bởi`, `gắp` for `gặp`), and `dc`/`đc`, which writers spell both ways.
+So the training corpora do not cover this way of writing; a corpus of informal comments that may be
+trained on would be the fix, and this set could then show whether it worked.
