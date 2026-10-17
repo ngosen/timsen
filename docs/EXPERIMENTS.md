@@ -1258,3 +1258,77 @@ at least 10 runs differ on each set.
 Result: as predicted. Wiki: 11,765 runs, 0 differ alone and 0 with learning (4,904 learned runs),
 137 changed by learning, 112 differ from Python at weight 100. Forum: 10,179 runs, 0 and 0, 377
 changed by learning, 332 differ from Python at weight 100.
+
+## 2026-10-17 · Backoff that knows how much of a context was pruned
+
+Question: a pruned table still holds each context's full count, so it knows what share of that count
+its kept longer n-grams cover. When a context kept almost all its continuations, an unseen one is
+truly rare; does charging more for backing off from such contexts help? Setup: `research.leftover`
+adds gamma times the log of the unkept share at each step down (gamma 0 is plain stupid backoff);
+`python -m research.evaluate TABLE FILES --leftover GAMMA` for gamma 0.1, 0.25, 0.5 and 1 on the
+weighted small table, backoff 0.4, odd lines to choose and even lines to confirm. Unit tests check
+that gamma 0 gives the plain scores exactly and that the share rises with pruning.
+
+Prediction: the best gamma on the odd lines is 0.25 or 0.5, and on the even lines it gains 0.1 to
+0.4 points over gamma 0 (95.50%, 95.27% and 92.35%) on wiki and forum, less on subs; gamma 1 is
+below the best. If the gain on the even lines is under 0.05 on every set, the idea is dropped.
+
+Result: as predicted. Word accuracy, weighted small table, backoff 0.4:
+
+| gamma | odd lines, wiki / subs / forum | even lines, wiki / subs / forum |
+|---|---|---|
+| 0 | 95.37% / 95.32% / 92.47% | 95.50% / 95.27% / 92.35% |
+| 0.1 | 95.42% / 95.43% / 92.57% | 95.59% / 95.29% / 92.46% |
+| 0.25 | 95.52% / 95.44% / 92.69% | 95.66% / 95.37% / 92.50% |
+| 0.5 | 95.63% / 95.52% / 92.76% | 95.68% / 95.25% / 92.61% |
+| 1 | 95.50% / 95.36% / 92.40% | 95.48% / 95.00% / 92.34% |
+
+The odd lines pick 0.5 on every set. On the even lines it gains 0.18 on wiki and 0.26 on forum, and
+loses 0.02 on subs.
+
+Prediction for three checks before the crate gets it. (1) At gamma 0.5, backoff 0.3, 0.5 and 0.6
+stay within 0.05 points of 0.4 on the even lines. (2) The large weighted table gains 0.05 to 0.3 on
+wiki and forum at gamma 0.5, full frozen files. (3) On the chat halves with the personal dictionary
+at weight 1000, shares taken from the table alone (the user's counts left out, as the crate would
+do), gamma 0.5 changes accuracy by -0.1 to +0.3 points.
+
+Result: (1) missed narrowly. At gamma 0.5 on the even lines, backoff 0.3 gives 95.64%, 95.24% and
+92.52%; 0.5 gives 95.70%, 95.31% and 92.65%; 0.6 gives 95.70%, 95.31% and 92.66%. Subs moves 0.06,
+just past the 0.05 band. These are the confirmation lines, so choosing on them would not be fair;
+the backoff stays 0.4. (2) As predicted: the large weighted table goes from 96.87%, 96.46% and
+93.84% to 97.03%, 96.48% and 94.10%, +0.16 on wiki and +0.26 on forum. (3) Higher than predicted on
+one half. The chat set has grown since the last entry (14,603 and 14,263 words per half). With
+personal weight 1000, gamma 0.5 goes from 92.21% to 92.43% on the first half and from 91.50% to
+91.83% on the second, +0.22 and +0.33; without the personal dictionary, +0.37 and +0.48.
+
+The crate gets the same rule (gamma 0.5, `LEFTOVER` in `crates/timsen/src/lib.rs`), with the shares
+read from the table at load. Prediction for the crosscheck, small weighted table, frozen wiki and
+forum, alone and learning the frozen subs file: 0 runs differ between crate and Python; against
+Python with gamma 0, at least 50 runs differ on each set, so the check sees the change.
+
+Result: as predicted. Wiki: 11,765 runs, 0 differ alone, 0 with learning (136 changed by learning),
+664 differ from Python at gamma 0. Forum: 10,179 runs, 0 and 0 (304 changed by learning), 1,293
+differ from Python at gamma 0. The same figures hold after the speed change below.
+
+Prediction for speed (`.claude/skills/measure-latency`, `typing_eval` on the frozen wiki runs, small
+and large weighted tables, the crate on `main` against this branch, alternately twice each): each
+syllable's p99 rises by at most 10% (one more lookup on the backoff path); opening a table takes
+longer by the pass over its n-grams, under 50 ms for the small table and under 300 ms for the large.
+
+Result: missed at first. Computing the context's share for every candidate triple made each
+syllable about half again slower (p99 1.61–1.92 ms on `main` against 2.39–3.09 ms, small table).
+The share depends only on the two previous words, so the search now computes it once per pair.
+Measured again on the same runs, Xeon E5-2696 v4, load average 17–27, release build, 73,604
+syllables per run, `main` and this branch alternately:
+
+| Table | p99 per syllable, `main` / branch (two rounds) | Opening the table |
+|---|---|---|
+| small | 1.83 / 1.85 ms, 1.86 / 1.82 ms | 2.4–2.7 ms / 44–58 ms |
+| large | 1.98 / 2.27 ms, 2.14 / 2.65 ms | 2.8–3.0 ms / 220–298 ms |
+
+The small table shows no difference per syllable. The large one is 15–24% slower, beyond the 10%
+predicted but under 3 ms. Opening takes the predicted pass over the n-grams; the small table missed
+the 50 ms mark on one of the two rounds. The whole-run accuracy in the same runs (95.65% and 97.03%)
+matches `research.evaluate`. On the full frozen files the small weighted table now scores 95.65%,
+95.38% and 92.68% (wiki, subs, forum), against 94.85%, 95.11% and 91.82% for the count-pruned table
+of the last release plan.

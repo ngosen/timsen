@@ -41,6 +41,20 @@ impl<'t> Source<'t> {
         }
     }
 
+    fn context_left(self, u: u32, v: u32) -> f64 {
+        match self {
+            Source::Table(t) => t.context_left(u, v),
+            Source::Personal(p) => p.context_left(u, v),
+        }
+    }
+
+    fn logp_left(self, u: u32, v: u32, w: u32, left: f64) -> f64 {
+        match self {
+            Source::Table(t) => t.logp_left(u, v, w, left),
+            Source::Personal(p) => p.logp_left(u, v, w, left),
+        }
+    }
+
     /// The id of a word as typed, in either tone placement, or `UNK`.
     fn id_of(self, word: &str) -> u32 {
         let word = tone::to_new(&word.to_lowercase());
@@ -132,11 +146,16 @@ impl<'t> Typing<'t> {
         let score: &[f64] = if n == 0 { &[0.0] } else { &self.scores[n - 1] };
         let mut next = vec![f64::NEG_INFINITY; prev.len() * o.len()];
         let mut bp = vec![0; prev.len() * o.len()];
+        let left: Vec<f64> = (prev.iter())
+            .flat_map(|&v| pp.iter().map(move |&u| (u, v)))
+            .map(|(u, v)| self.src.context_left(u, v))
+            .collect();
         for (b, &v) in prev.iter().enumerate() {
             for (c, &w) in o.iter().enumerate() {
                 let cell = b * o.len() + c;
                 for (a, &u) in pp.iter().enumerate() {
-                    let s = score[a * prev.len() + b] + self.src.logp(u, v, w);
+                    let l = left[b * pp.len() + a];
+                    let s = score[a * prev.len() + b] + self.src.logp_left(u, v, w, l);
                     // Strictly greater keeps the first best, as numpy's argmax does.
                     if a == 0 || s > next[cell] {
                         next[cell] = s;
@@ -298,8 +317,9 @@ impl<'t> Typing<'t> {
             let mut next = vec![f64::NEG_INFINITY; left2.len() * left.len()];
             for (x, &u) in left2.iter().enumerate() {
                 for (a, &v) in left.iter().enumerate() {
+                    let l = self.src.context_left(u, v);
                     for (b, &w) in cur.iter().enumerate() {
-                        let s = self.src.logp(u, v, w) + beta[a * width + b];
+                        let s = self.src.logp_left(u, v, w, l) + beta[a * width + b];
                         let cell = &mut next[x * left.len() + a];
                         *cell = cell.max(s);
                     }

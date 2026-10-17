@@ -83,6 +83,24 @@ pub struct Table {
     plain: Strings,
     cand_start: usize,
     cand_ids: usize,
+    left: Left,
+}
+
+/// How much of each context's count the kept longer n-grams leave uncovered, read once at load.
+struct Left {
+    /// Per bigram, the summed counts of its kept trigram continuations.
+    kept: Vec<u32>,
+    /// Log unkept share of the (`<s>`, `<s>`) context.
+    bos: f64,
+    /// Per word, the log unkept share of its count.
+    uni: Vec<f64>,
+}
+
+/// Smallest unkept share, so a context that kept everything still has a finite cost.
+const FLOOR: f64 = 1e-4;
+
+fn log_share(kept: f64, count: f64) -> f64 {
+    (1.0 - kept / count).clamp(FLOOR, 1.0).ln()
 }
 
 struct Cursor<'a> {
@@ -244,7 +262,7 @@ impl Table {
         let cand_start = c.take_n(n_plain + 1, 4)?;
         let cand_ids = c.take_n(n_cand, 4)?;
         check_candidates(&bytes, cand_start, cand_ids, n_plain, n_cand, n_words)?;
-        Ok(Table {
+        let mut t = Table {
             bytes,
             total,
             words,
@@ -254,7 +272,70 @@ impl Table {
             plain,
             cand_start,
             cand_ids,
-        })
+            left: Left {
+                kept: Vec::new(),
+                bos: 0.0,
+                uni: Vec::new(),
+            },
+        };
+        t.left = t.index_left();
+        Ok(t)
+    }
+
+    /// Trigrams are sorted by key, so each context's continuations are adjacent.
+    fn index_left(&self) -> Left {
+        let (b, g) = (&self.bytes, &self.trigrams);
+        let bos_ctx = (u64::from(BOS) << SHIFT) | u64::from(BOS);
+        let mut kept = vec![0u32; self.bigrams.n];
+        let mut bos_kept = 0u64;
+        let mut i = 0;
+        while i < g.n {
+            let ctx = u64_at(b, g.keys, i) >> SHIFT;
+            let mut sum = 0u64;
+            while i < g.n && u64_at(b, g.keys, i) >> SHIFT == ctx {
+                sum += u64::from(u32_at(b, g.counts, i));
+                i += 1;
+            }
+            if ctx == bos_ctx {
+                bos_kept += sum;
+            } else if let Some(j) = self.find(&self.bigrams, ctx) {
+                kept[j] = kept[j].saturating_add(u32::try_from(sum).unwrap_or(u32::MAX));
+            }
+        }
+        let mut bi_sum = vec![0.0f64; self.len()];
+        for j in 0..self.bigrams.n {
+            let v = (u64_at(b, self.bigrams.keys, j) >> SHIFT) as usize;
+            if let Some(s) = bi_sum.get_mut(v) {
+                *s += f64::from(u32_at(b, self.bigrams.counts, j));
+            }
+        }
+        let uni = (0..self.len())
+            .map(|id| log_share(bi_sum[id], self.uni(id as u32).max(1.0)))
+            .collect();
+        Left {
+            kept,
+            bos: log_share(bos_kept as f64, self.segments().max(1.0)),
+            uni,
+        }
+    }
+
+    /// Log unkept share of context `u v`; a context the table dropped says nothing, so it is 0.
+    pub(crate) fn left(&self, u: u32, v: u32) -> f64 {
+        if u == BOS && v == BOS {
+            return self.left.bos;
+        }
+        match self.find(&self.bigrams, (u64::from(u) << SHIFT) | u64::from(v)) {
+            Some(j) => log_share(
+                f64::from(self.left.kept[j]),
+                f64::from(u32_at(&self.bytes, self.bigrams.counts, j)),
+            ),
+            None => 0.0,
+        }
+    }
+
+    /// Log unkept share of word `v`'s count, as the context of a bigram.
+    pub(crate) fn left_uni(&self, v: u32) -> f64 {
+        self.left.uni.get(v as usize).copied().unwrap_or(0.0)
     }
 
     /// Number of words, counting `<s>`, `</s>` and `<unk>`.
@@ -302,16 +383,21 @@ impl Table {
     }
 
     fn lookup(&self, g: &Grams, key: u64) -> f64 {
+        self.find(g, key)
+            .map_or(0.0, |i| f64::from(u32_at(&self.bytes, g.counts, i)))
+    }
+
+    fn find(&self, g: &Grams, key: u64) -> Option<usize> {
         let (mut lo, mut hi) = (0, g.n);
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
             match u64_at(&self.bytes, g.keys, mid).cmp(&key) {
                 std::cmp::Ordering::Less => lo = mid + 1,
                 std::cmp::Ordering::Greater => hi = mid,
-                std::cmp::Ordering::Equal => return f64::from(u32_at(&self.bytes, g.counts, mid)),
+                std::cmp::Ordering::Equal => return Some(mid),
             }
         }
-        0.0
+        None
     }
 
     /// Ids of the spellings of an unmarked syllable, or `None` if the table does not know it.

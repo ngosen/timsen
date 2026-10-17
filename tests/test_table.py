@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-from research import paths, personal, table, train
+from research import model, paths, personal, table, train
 from research.model import Model
 
 # "gỗ" ends up below the candidate threshold, so the table drops it and the n-grams that use it.
@@ -30,7 +30,9 @@ def model_path(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(("min_tri", "min_bi"), [(1, 1), (5, 1), (5, 5)])
-def test_table_restores_exactly_like_the_pruned_model(model_path, tmp_path, min_tri, min_bi):
+def test_table_restores_exactly_like_the_pruned_model(model_path, tmp_path, min_tri, min_bi, monkeypatch):
+    # The table drops n-grams of words restore never picks, so its unkept shares differ by design.
+    monkeypatch.setattr(model, "LEFTOVER", 0.0)
     m = Model(model_path, min_tri, min_bi)
     table.write(m, tmp_path / "t.timsen")
     t = table.read(tmp_path / "t.timsen")
