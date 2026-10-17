@@ -8,6 +8,8 @@ dependencies = ["numpy>=2.0", "pyarrow>=15", "huggingface_hub>=0.24"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
+# Only research.nn_lm needs it; CI skips its tests.
+nn = ["torch>=2.4"]
 
 [tool.ruff]
 line-length = 120
