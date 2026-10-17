@@ -902,3 +902,43 @@ predicted 5% and 3%, the second barely.
 So on this writing, word suggestions from the table are wrong more than five times in six, and
 offering whole earlier sentences would mostly offer the wrong one. Not measured: messages to
 customers, which likely repeat more.
+
+## 2026-10-17 · Fixing syllables the table does not know
+
+Question: a typo often makes a string that is no Vietnamese syllable (`khogn`, `phmi`). Can such
+syllables be fixed automatically, and at what margin is that safe? Setup: `python -m research.typo
+TABLE test/SET`, input typed without marks. Only a syllable whose unmarked form the table does not
+know is a target; candidates are the known forms one edit away, ranked in context by the restore
+score, and the fix is made when the best beats the runner-up (or keeping the word) by the margin.
+The clean pass counts words that would be changed. The mistyped copy has one typo per sentence in a
+known syllable of two or more letters: a neighbouring key 40%, two letters swapped 20%, a letter left
+out 20%, an extra key 20% (assumed shares, not measured). Typos that land on another known form are
+counted and left out; they are the harder case the context spell check covers.
+
+Auto-fixing needs both: clean text changed for at most 0.05% of words, and at least 98% of fixes
+right. Prediction, small table: 30–50% of typos land on a known form. At margin 0, 1–2% of clean
+words change and 65–80% of scored typos are fixed right; at margin 5, about 0.3% of clean words
+change and 95% of fixes are right. No margin meets both limits on chat; on wiki only at margin 6 or
+more.
+
+Result, small table (clean words changed / typos fixed right / share of fixes that are right; typos
+that landed on a known form are left out of the last two):
+
+| Set | Landed on known | Margin 0 | Margin 4 |
+| --- | --- | --- | --- |
+| wiki | 41.6% | 0.026% / 66.5% / 94.3% | 0.001% / 41.5% / 99.5% |
+| subs | 49.5% | 0.025% / 69.6% / 92.4% | 0.009% / 46.4% / 99.6% |
+| forum | 45.1% | 0.025% / 63.0% / 89.2% | 0.007% / 38.8% / 98.6% |
+| chat | 47.1% | 0.209% / 44.0% / 86.1% | 0.018% / 19.4% / 98.8% |
+
+Large table, margin 4: wiki 0.008% / 44.0% / 99.4%, subs 0.009% / 47.9% / 99.3%, forum 0.009% /
+44.0% / 99.0%, chat 0.021% / 22.0% / 97.9% (margin 5: 0.014% / 17.6% / 99.2%).
+
+The share landing on a known form hit the prediction; the rest missed. Clean text changes far less
+than predicted (0.03–0.21% at margin 0, not 1–2%): most unknown words in clean text, such as names
+and English words, have no known form one edit away. Fixes are also more often right than predicted.
+So both limits are met earlier than predicted: on the small table margin 2 is enough on wiki, and
+margin 4 on every set including chat, where it fixes 19.4% of the scored typos and is right 98.8% of
+the time. Chat stays the hard case: half the fixes of the corpora at the same margin. Not measured:
+real typing, where typos also hit the Telex mark keys, and the share of each kind of typo, which
+here is assumed. A personal dictionary would also take the user's own new words out of the targets.
