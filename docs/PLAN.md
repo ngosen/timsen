@@ -69,8 +69,16 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
    - Measured through the crate on chat: +3.2 to +3.6 points over the table alone, equal to
      `research.personal` once learned words the table lacks are scored as its `<unk>`; p99 2.4–2.9
      ms per syllable ("New words as `<unk>` in context").
-5. **C API.** A thin C interface and header so Linux input methods can use the crate. macOS and
-   Windows are set aside until there is a machine to try typing on them.
+5. **Fix syllables that do not exist.** In the crate, a typed syllable whose unmarked form the
+   table does not know (`khogn`) is replaced by the known form one edit away that scores best in
+   context, when it beats the runner-up by a margin of 4; a word in the personal dictionary is never
+   a target, and one key undoes the fix. On the small table this changes at most 0.018% of clean
+   words and is right 98.6–99.6% of the time, fixing 19% (chat) to 46% (subs) of the typos it can
+   see ("Fixing syllables the table does not know"). Typos that land on another real syllable are
+   left to the spell check below. Check: the crate fixes exactly what `research.typo` fixes.
+6. **C API.** A thin C interface and header so Linux input methods can use the crate: restore while
+   typing, the fix above, the personal dictionary. macOS and Windows are set aside until there is a
+   machine to try typing on them.
 
 Then, in the Ngó Sen repository: an option, off by default. Whether it fills in marks or only suggests
 is decided after using it. Cứu chữ gets a second case: when the text was typed with no marks at all,
@@ -89,6 +97,13 @@ Tab adds them with Đoán dấu instead of re-reading the keys.
 
 ## Later
 
+- **Next-word suggestions.** From the table they are too often wrong to show: the next word is among
+  three suggestions for 27–34% of words on the corpora and 14–15% on chat (18% with the personal
+  dictionary); pairs and whole earlier sentences are right under 9% and 3% of the time ("Next-word
+  suggestions from the table"). Being researched: a very small neural model (a few MB, trained on
+  this machine's CPU) ranking the next word, measured on the same test sets with the same tool. It
+  ships only if it clearly beats the table on chat at a size and speed fit for typing; showing a
+  suggestion only when it is likely right is measured with it.
 - **Spell check:** underline a marked word the context disagrees with and suggest the alternative;
   never auto-correct. On chat it catches about half of realistic errors at 0.9% false alarms, mostly
   technical words; the personal dictionary should lower that.
