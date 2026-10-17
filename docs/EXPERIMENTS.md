@@ -1379,3 +1379,51 @@ Conclusion: the shipped tables keep runs that end at commas. At the small size t
 0.13 points, and it turns into a loss if the input method does not mark the separators. `--breaks`
 stays in `research.train` and `research.evaluate`; worth taking up for the large table once the
 input method passes what was typed before a comma (step 7).
+
+## 2026-10-17 · A denser table file
+
+Question: each bigram and trigram takes 12 bytes, a 64-bit key and a 32-bit count, although a table
+holds under 65,536 words. Version 2 of the format groups bigrams by first word and trigrams by the
+bigram of their first two words, and stores only the last word's id in 16 bits, with the counts
+unchanged: 6 bytes per n-gram plus 4 per bigram for the start of its trigrams. How much more fits
+in the same file, and what does it buy? Setup: `research.prune --entries 1803455` as before (the same
+n-grams as the small weighted table) and `research.prune --bytes 22650896` and `--bytes 130958840`
+(the sizes of the current small and large tables), scored with `research.evaluate` on the full
+frozen files; `research.crosscheck` against the crate; `typing_eval` timing as before.
+
+Prediction: the same n-grams take about 13.5 MB and restore exactly as before (95.65%, 95.38% and
+92.68%), which shows the format loses nothing. At 22,650,896 bytes the table holds 60–70% more
+n-grams and gains +0.2 to +0.4 on wiki and forum and +0.05 to +0.2 on subs; at the large size
++0.1 to +0.3 on wiki. The crate restores exactly like Python, and p99 per syllable stays within
+10% of the version 1 file.
+
+Result: the format loses nothing, and the gains beat the prediction at the small size. The same
+1,803,455 n-grams take 14,445,128 bytes (36% less, more than the predicted 13.5 MB) and score
+95.65%, 95.38% and 92.68%, exactly as the version 1 file.
+
+| Table | n-grams (bigrams + trigrams) | wiki / subs / forum |
+|---|---|---|
+| small, version 1 | 614,105 + 1,189,350 | 95.65% / 95.38% / 92.68% |
+| small, version 2, 22,650,864 bytes | 905,834 + 2,070,759 | 96.08% / 95.75% / 93.25% |
+| large, version 1 | 2,524,178 + 8,280,484 | 97.03% / 96.48% / 94.10% |
+| large, version 2, 130,958,816 bytes | 4,164,603 + 14,690,801 | 97.21% / 96.60% / 94.23% |
+
+At the small size the table holds 65% more n-grams and gains 0.43, 0.37 and 0.57 points, above the
+predicted ranges on every set. The large table gains 0.18, 0.12 and 0.13.
+
+The crate restores the small version 2 table exactly like Python: 0 of 11,765 wiki runs and 0 of
+10,179 forum runs differ, alone and after learning the subs file (103 and 290 runs changed by
+learning). Speed, `typing_eval` on the frozen wiki runs, Xeon E5-2696 v4, load average about 3,
+release build, 73,604 syllables, `main` with version 1 files and this branch with version 2 files,
+alternately twice:
+
+| Table | p99 per syllable, two rounds | Opening |
+|---|---|---|
+| small, version 1 | 1.51, 1.50 ms | 54–56 ms |
+| same n-grams, version 2 | 0.56, 0.58 ms | 15–16 ms |
+| small, version 2 | 0.63, 0.63 ms | 20–21 ms |
+| large, version 1 | 1.77, 1.75 ms | 234 ms |
+| large, version 2 | 0.93, 0.93 ms | 87–108 ms |
+
+Restore got faster instead of staying level: a lookup now searches one word's or one context's
+short list of 16-bit ids instead of the whole sorted key array.
