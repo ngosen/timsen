@@ -26,6 +26,9 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
 - **Abbreviations stay as typed.** `ko`, `e`, `ok`, `j`, `b` are already kept right, since the forum
   text uses them. `a` is marked wrongly 22% of the time, but forcing it would break `ạ` and `à` about
   as often. Expanding them (`ko` → `không`) is the input method's macro table, opt-in.
+- **What others learned** is in [`PRIOR_WORK.md`](PRIOR_WORK.md): n-grams with a user dictionary
+  stay the core of input methods, corrections pay only when rarely wrong, and adding marks while
+  typing exists in the Cốc Cốc browser but sends the text to a server.
 - **Standard Vietnamese first.** The first release restores marks and fixes wrong syllables in
   standard spelling, chat included when it is written in full words. Informal spellings (`lun`,
   `dị` for `vậy`, `gòi`) wait; see "Informal writing" under Later.
