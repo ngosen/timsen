@@ -26,6 +26,9 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
 - **Abbreviations stay as typed.** `ko`, `e`, `ok`, `j`, `b` are already kept right, since the forum
   text uses them. `a` is marked wrongly 22% of the time, but forcing it would break `ạ` and `à` about
   as often. Expanding them (`ko` → `không`) is the input method's macro table, opt-in.
+- **Standard Vietnamese first.** The first release restores marks and fixes wrong syllables in
+  standard spelling, chat included when it is written in full words. Informal spellings (`lun`,
+  `dị` for `vậy`, `gòi`) wait; see "Informal writing" under Later.
 
 ## Steps
 
@@ -110,3 +113,9 @@ Tab adds them with Đoán dấu instead of re-reading the keys.
 - **Spell check:** underline a marked word the context disagrees with and suggest the alternative;
   never auto-correct. On chat it catches about half of realistic errors at 0.9% false alarms, mostly
   technical words; the personal dictionary should lower that.
+- **Informal writing.** On social media comments restore is right 81% of the time against 92% on
+  forums, mostly on informal and southern spellings the corpora rarely write (`lun`, `dị`, `tui`,
+  `gòi`), which writers choose on purpose ("Social media comments as a test set"). Fixing it needs
+  informal text that may be trained on; ViLexNorm may only test. Ngó Sen already reads the program
+  name and the text around the cursor, which could tell a chat box from a document; whether a
+  browser tab can be told apart from the browser is not checked yet.
