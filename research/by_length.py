@@ -1,11 +1,12 @@
 """Word and whole-run accuracy by run length (words between two punctuation marks).
 
-usage: python -m research.by_length MODEL.npz TESTFILE
+usage: python -m research.by_length MODEL.npz|TABLE.timsen TESTFILE
 """
 
 import sys
 from collections import defaultdict
 
+from . import table
 from .model import Model
 from .text import same, segments, strip_marks
 
@@ -17,7 +18,7 @@ def bucket(n):
 
 
 def main():
-    m = Model(sys.argv[1])
+    m = table.read(sys.argv[1]) if sys.argv[1].endswith(".timsen") else Model(sys.argv[1])
     stats = defaultdict(lambda: [0, 0, 0, 0])  # words, right, runs, runs all right
     for line in open(sys.argv[2], encoding="utf-8"):
         for run in segments(line):
