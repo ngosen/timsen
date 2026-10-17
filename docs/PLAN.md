@@ -26,15 +26,16 @@ machine; the only thing a user may choose to send is a score (see "From users").
 
 ## Decisions
 
-- **Model:** syllable 3-grams with stupid backoff, in two tables of the same format: small (3-grams
-  seen 50+ times, 2-grams 20+; 22.6 MB) and large (5+, 3+; 130.7 MB). Both leave out unmarked words
-  seen fewer than 1,000 times whose only spelling is themselves. With the personal dictionary they
-  differ by 0.23 points on chat (92.20% and 92.43%, "New words as `<unk>` in context"); on edited
-  prose by about 1.7 (wiki 94.84% and 96.55%). The small table ships first; the large one is added
-  later if users ask for better accuracy on longer writing. Kneser-Ney at the same sizes gains
-  0.3–0.5 points on edited prose and 0–0.3 on chat, but cannot take personal counts by simple
-  addition; revisit only with a measured way to combine it with the personal dictionary. No neural
-  restore model was trained; an off-the-shelf XLM-R marker scored 86.9% on wiki.
+- **Model:** syllable 3-grams with stupid backoff, in two tables of the same format, built by
+  `research.prune --bytes`: small (22.65 MB), **the default**, and large (130.96 MB). Both leave out
+  unmarked words seen fewer than 1,000 times whose only spelling is themselves. With the personal
+  dictionary the small one is ahead on chat (92.58% and 92.21%); on edited prose the large one leads
+  by about one point (wiki 96.08% and 97.21%), `docs/TABLES.md`. The small table ships first; the
+  large one is added later if users ask for better accuracy on longer writing. Kneser-Ney at the
+  same sizes gained 0.3–0.5 points on edited prose and 0–0.3 on chat over the count-pruned tables,
+  but cannot take personal counts by simple addition; revisit only with a measured way to combine it
+  with the personal dictionary. No neural restore model was trained; an off-the-shelf XLM-R marker
+  scored 86.9% on wiki.
 - **Corpora:** Wikipedia, OpenSubtitles and FineWeb-2 forum pages. OpenSubtitles has no formal
   licence; the tables ship its counts with attribution, as `wordfreq` does, and are rebuilt without
   it if a takedown request comes (`docs/DATA_SOURCES.md`).

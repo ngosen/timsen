@@ -1427,3 +1427,18 @@ alternately twice:
 
 Restore got faster instead of staying level: a lookup now searches one word's or one context's
 short list of 16-bit ids instead of the whole sorted key array.
+
+## 2026-10-17 · The version 2 tables on chat
+
+Question: what do the two version 2 tables give on chat, alone and with the personal dictionary, for
+`docs/TABLES.md`? Setup: the chat set rebuilt in RAM and deleted after; `python -m research.personal
+TABLE CHAT 0 1000` (5-fold over the whole set; weight 0 is the table alone), both tables. The set has
+grown since "Personal dictionary in Rust", so its figures do not compare with the 3,881-sentence ones.
+
+Prediction: the large table leads the small one by under 0.5 points with the personal dictionary and
+by 0.3 to 1 point alone; the personal dictionary adds 2 to 3.5 points to each.
+
+Result: missed; the small table is ahead on chat. The set has 2,583 sentences, 29,092 words. Alone:
+small 89.96%, large 89.86%. With the personal dictionary: small 92.58%, large 92.21%. The personal
+dictionary adds 2.62 and 2.35 points. Why is not measured; one guess is that the large table's
+extra n-grams come from edited prose, which chat does not resemble.
