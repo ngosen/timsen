@@ -9,6 +9,7 @@ the licence question is answered.
 | Vietnamese Wikipedia, `wikimedia/wikipedia` 20231101.vi | `research.fetch_wiki` | CC BY-SA 4.0 | Yes, with attribution; the released count table is CC BY-SA 4.0 |
 | OpenSubtitles 2018, monolingual vi (OPUS) | `research.fetch_subs` | No formal licence; OPUS asks for a link to opensubtitles.org and a citation (see below) | Yes, as counts only, with attribution |
 | FineWeb-2 `vie_Latn` (Common Crawl, filtered by Hugging Face) | `research.fetch_fineweb` | ODC-By 1.0, plus the Common Crawl terms of use | Yes, with attribution |
+| ViLexNorm social media comments (UIT), `test/social` | `research.fetch_vilexnorm` | CC BY-NC-SA 4.0, research only | Never; test only, never trained on |
 | Your own messages (`test/chat`) | `research.chat_testset` | Private | Never; test only, never committed |
 
 ## OpenSubtitles
@@ -24,6 +25,17 @@ the text. A release therefore ships only counts, never text: three-syllable sequ
 50 times (small table) or 5 times (large table) across the corpora, not sentences. `wordfreq` ships word frequencies from the same
 corpus on the same terms. Every release names OpenSubtitles with the link and the citation above. If
 a takedown request reaches OPUS or us, rebuild the tables without this corpus.
+
+## ViLexNorm
+
+10,467 comments from Facebook, YouTube and TikTok, collected for lexical normalization by UIT
+(Nguyen et al., "ViLexNorm: A Lexical Normalization Corpus for Vietnamese Social Media Text", EACL
+2024; <https://github.com/ngxtnhi/ViLexNorm>). The authors release it under CC BY-NC-SA 4.0 and for
+research only. NonCommercial rules out a table that may be sold under a commercial licence, and
+ShareAlike would put anything trained on it under CC BY-NC-SA, which GPL does not allow; so it is a
+test set and nothing else. It is also small (about 100,000 words against hundreds of millions in
+the training corpora). Only the comments as typed are used; the authors' normalized versions spell
+out abbreviations (`ko` → `không`), which restore deliberately keeps as typed.
 
 ## Considered and not used
 
