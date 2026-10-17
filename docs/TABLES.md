@@ -15,6 +15,13 @@ Chat figures are from the rebuilt chat set (3,881 sentences) in "Personal dictio
 measured after a bug in the personal counts was fixed; wiki and forum from "Trimming the table
 vocabulary".
 
+The figures above are for tables pruned by count. Built with `research.prune` instead, which keeps
+the n-grams whose removal would change scores most, the same sizes give wiki 95.44% and 96.87% and
+forum 92.41% and 93.84% ("Keeping the n-grams that matter instead of the frequent ones" and
+"Weighted pruning at the large table's size"); chat on the weighted tables is not yet measured on
+the set above. The personal dictionary now weighs a learned n-gram 1000 times one from the corpora,
+up from 100 ("Tuning the personal dictionary weight").
+
 They differ in how many rare word sequences they keep. Both leave out unmarked words seen fewer than
 1,000 times whose only spelling is themselves (English words, typos); those are restored as typed
 either way, and leaving them out cost nothing measurable ("Trimming the table vocabulary" in

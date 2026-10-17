@@ -17,7 +17,7 @@ import sys
 from . import personal, table
 from .text import segments, strip_marks
 
-WEIGHT = 100
+WEIGHT = 1000
 
 
 def runs(path):

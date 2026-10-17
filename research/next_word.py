@@ -73,7 +73,7 @@ def main():
     ap.add_argument("tests", nargs="+")
     ap.add_argument("--k", type=int, default=3)
     ap.add_argument("--learn")
-    ap.add_argument("--weight", type=float, default=100.0)
+    ap.add_argument("--weight", type=float, default=1000.0)
     a = ap.parse_args()
     m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model)
     if a.learn:
