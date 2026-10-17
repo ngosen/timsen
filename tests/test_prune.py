@@ -51,3 +51,13 @@ def test_a_byte_budget_bounds_the_file(model_path, tmp_path):
     small = tmp_path / "small.timsen"
     prune.table.write(m, small)
     assert budget - 100 < small.stat().st_size <= budget
+
+
+def test_min_candidate_leaves_rare_spellings_out_of_the_table(model_path, tmp_path, monkeypatch):
+    out = tmp_path / "t.timsen"
+    argv = ["prune", str(model_path), str(out), "--bytes", "100000", "--min-candidate", "15"]
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setattr(prune.model_mod, "MIN_CANDIDATE", prune.model_mod.MIN_CANDIDATE)
+    prune.main()
+    # `êm` is seen 10 times, `gõ` 30.
+    assert prune.table.read(out).restore(["go", "rat", "em"]) == ["gõ", "rất", "em"]

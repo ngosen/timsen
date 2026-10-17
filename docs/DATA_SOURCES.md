@@ -53,6 +53,7 @@ out abbreviations (`ko` → `không`), which restore deliberately keeps as typed
 - Forum pages are picked by URL (`/threads/`, `/showthread`, `forum` in the host, …); classified-ad,
   real-estate and SEO hosts are dropped (`NOT_DISCUSSION` in `research/fetch_fineweb.py`).
 - Technology pages (`research.fetch_fineweb tech`) are picked by host (`TECH_HOSTS`: tinhte.vn,
-  voz.vn, daynhauhoc.com, viblo.asia, kipalog.com) from FineWeb-2 files the forum corpus does not
-  use, with a 50% marked-word bar, since their English terms carry no marks.
+  voz.vn, daynhauhoc.com, viblo.asia, kipalog.com) from FineWeb-2 files 1 to 29, with a 50%
+  marked-word bar, since their English terms carry no marks. The forum corpus leaves these hosts
+  out, so no page is counted twice.
 - Tone placement is normalized to the new style (`hoà`, `thuỷ`) before counting.
