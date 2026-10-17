@@ -880,3 +880,25 @@ two words is the one typed.
 Prediction, chat, small table: top 3 between 25% and 35% from the table alone, and 3 to 8 points
 higher with the learned part. Under 5% of sentences repeat an earlier one; the offered whole sentence
 is right for under 3%.
+
+Result, chat (2,508 sentences from 2,417 messages; 2,006 learned, 502 scored, 5,364 words, 94.09%
+in vocabulary):
+
+| Table | Top 1 | Top 3 | Pair in top 3 |
+| --- | --- | --- | --- |
+| small | 7.77% | 14.45% | 0.97% |
+| small + learned | 10.87% | 18.18% | 1.58% |
+| large | 8.50% | 15.10% | 1.01% |
+| large + learned | 11.39% | 18.59% | 1.68% |
+
+Missed: the table alone puts the next chat word in its top 3 for 14–15% of words, half the 25–35%
+predicted and half its rate on the corpora. The learned part adds 3.7 (small) and 3.5 (large) points,
+inside the predicted 3–8. `research.personal` learns only words the table knows, while the crate
+also learns new ones, so the learned rows may be low. Repeats: 3.78% of the scored sentences repeat
+an earlier one; after the first two words an earlier sentence is offered for 44.22% of them and is
+the one typed for 2.99% (after three words: 13.56% offered, 1.48% right). Both are under the
+predicted 5% and 3%, the second barely.
+
+So on this writing, word suggestions from the table are wrong more than five times in six, and
+offering whole earlier sentences would mostly offer the wrong one. Not measured: messages to
+customers, which likely repeat more.
