@@ -41,3 +41,15 @@ def test_fixes_a_swapped_pair_in_context(model):
 
 def test_no_fix_without_a_known_form_nearby(model):
     assert typo.best_fix(model, ["toi", "go", "xyzzy"], 2) is None
+
+
+def test_labeled_scores_typos_and_real_words_apart(model, tmp_path):
+    labels = tmp_path / "labels"
+    labels.write_text("phmi\tphim\tvi\nzzz\t?\t-\n", encoding="utf-8")
+    msgs = tmp_path / "msgs"
+    msgs.write_text("toi go phmi rat nhanh\nban phim xyzzy\nzzz\n", encoding="utf-8")
+    out = typo.labeled(model, msgs, typo.read_labels(labels))
+    assert out["typo-vi"][0] == 1 and out["typo-vi"][2][0] == 1
+    # xyzzy is a real word the table lacks; zzz is left out.
+    assert out["real"][0] == 1 and out["real"][1][0] == 0
+    assert set(out) == {"typo-vi", "real"}
