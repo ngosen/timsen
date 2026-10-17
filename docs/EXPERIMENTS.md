@@ -1499,3 +1499,59 @@ The large table with the tech slice is 130,958,808 bytes, 4,209,188 bigrams and 
 Same chat set as the small-table run. Chat gains 0.81 alone and 0.53 with the personal dictionary,
 more than in the small table; why is not measured, one guess is that the small table has less room
 for the tech n-grams.
+
+## 2026-10-17 · Forum pages from every FineWeb-2 file
+
+Question: the forum corpus reads FineWeb-2 files 1 to 4. Do forum pages from files 5 to 29 help
+chat, and do they cost edited prose? Setup: technology hosts now leave the forum corpus
+(`forum_host` drops `TECH_HOSTS`), so a page is counted once; `research.fetch_fineweb forum` for
+files 1 to 29 and `tech` for files 1 to 4 (files 5 to 29 as before; file 0 stays out, it holds the
+`web` test set); `research.train MODEL wiki subs forum tech`; small and large tables at the same
+byte sizes, scored against the tables from "A technology-forum slice" on the frozen wiki, subs and
+forum files, the social set and chat (rebuilt in RAM, `research.personal` 5-fold, weights 0 and
+1000, deleted after). As a check that the change took, the forum word count and the model's token
+count and vocabulary against that entry's.
+
+Prediction: forum words at least 5 times the current, about 168 million; tokens and vocabulary
+both up. Small table: chat alone and chat with the personal dictionary 0 to +0.3; forum +0.1 to +0.5; wiki
+and subs -0.2 to 0; social 0 to +0.5. Large table: chat alone 0 to +0.4, forum +0.2 to +0.6, wiki
+and subs -0.2 to 0.
+
+Setup change before any table was scored: the model has 1,343,270,620 tokens and 783,052 words, and
+its table vocabulary is 97,236 words, more than the 65,536 a table holds; 75,982 of them are marked
+spellings, against 28,418 in the tech-slice model. Both thresholds are scaled with the token count
+(2.87 times): `research.prune --min-candidate 15 --min-plain 3000` instead of the defaults 5 and
+1000. The prediction above stands.
+
+Result: missed. Forum words are about 1.04 billion, 6 times as before, and the check passed; the
+scores did not move as predicted. Same run, chat set of 2,604 sentences:
+
+| Set | small, tech slice → all forums | large, tech slice → all forums |
+|---|---|---|
+| wiki | 96.05% → 95.10% | 97.15% → 96.61% |
+| subs | 95.73% → 95.41% | 96.58% → 96.32% |
+| forum | 93.25% → 93.21% | 94.31% → 94.88% |
+| social | 83.11% → 83.97% | 84.20% → 85.67% |
+| chat alone | 90.56% → 90.19% | 90.67% → 90.78% |
+| chat + personal (1000) | 92.90% → 92.49% | 92.74% → 92.73% |
+
+Forum text is now three quarters of the tokens, and wiki loses up to 0.95 while chat does not gain:
+chat resembles the technology slice more than general forums. The raised thresholds are a second
+change in the same run and are not separated from the data. The extra forum files are not used.
+
+Prediction for the tables rebuilt with the new filter (forum files 1 to 4 without the technology
+hosts, tech files 1 to 29, default thresholds), against the tech-slice tables: every set within 0.1.
+
+Result: as predicted; every set within 0.05. The model has 470,558,538 tokens and 592,158 words,
+the tables keep 40,801 words. Same run as above:
+
+| Set | small, tech slice → rebuilt | large, tech slice → rebuilt |
+|---|---|---|
+| wiki | 96.05% → 96.03% | 97.15% → 97.15% |
+| subs | 95.73% → 95.73% | 96.58% → 96.59% |
+| forum | 93.25% → 93.26% | 94.31% → 94.30% |
+| social | 83.11% → 83.13% | 84.20% → 84.23% |
+| chat alone | 90.56% → 90.61% | 90.67% → 90.65% |
+| chat + personal (1000) | 92.90% → 92.91% | 92.74% → 92.78% |
+
+These rebuilt tables are the ones `docs/TABLES.md` describes from now on.

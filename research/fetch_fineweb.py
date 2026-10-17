@@ -47,7 +47,8 @@ def tech_host(url):
 def forum_host(url):
     p = urlparse(url)
     host = p.netloc.removeprefix("www.")
-    if NOT_DISCUSSION.search(host):
+    # Technology forums go to their own corpus, so a page is never counted twice.
+    if NOT_DISCUSSION.search(host) or host in TECH_HOSTS:
         return None
     if FORUM_PATH.search(p.path) or "forum" in host or "diendan" in host:
         return host

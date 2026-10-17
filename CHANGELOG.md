@@ -9,6 +9,10 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 - The tables are trained with a technology-forum slice of FineWeb-2 (`research.fetch_fineweb
   tech`, 30 million words from tinhte.vn, voz.vn, viblo.asia and others): +0.31 points on chat with
   the personal dictionary for the small table, +0.53 for the large one, edited prose within 0.08.
+  The forum corpus leaves those hosts out, so no page is counted twice; forum pages from FineWeb-2
+  files 5 to 29 are not used, since they cost up to 0.95 points on wiki and nothing on chat.
+- `research.prune --min-candidate N`: how often a spelling must be seen to be offered, for corpora
+  large enough to bring more rare spellings than a table has word ids.
 - Table format version 2: n-grams grouped by their first words, 6 bytes each plus 4 per bigram
   instead of 12, counts unchanged. Version 1 files are no longer read. The small table holds 65% more
   n-grams in the same 22.65 MB (+0.43 points on wiki, +0.57 on forum), and restore is faster (p99

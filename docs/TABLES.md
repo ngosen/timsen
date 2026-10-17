@@ -7,30 +7,30 @@ who mostly write long edited text.
 | | Small (default) | Large |
 | --- | --- | --- |
 | File | 22.65 MB | 130.96 MB |
-| Chat + personal | 92.90% | 92.76% |
-| Chat | 90.53% | 90.65% |
-| Wikipedia | 96.05% | 97.15% |
-| Subtitles | 95.73% | 96.58% |
-| Forum | 93.25% | 94.31% |
+| Chat + personal | 92.91% | 92.78% |
+| Chat | 90.61% | 90.65% |
+| Wikipedia | 96.03% | 97.15% |
+| Subtitles | 95.73% | 96.59% |
+| Forum | 93.26% | 94.30% |
 
 On chat the small table is as good as the large one; on edited prose the large one gets about one
 more word in 100 right.
 
-Both are built from the model trained on Wikipedia, subtitles, forum pages and technology forums
-(`python -m research.train MODEL.npz wiki subs forum tech`), in format version 2:
+Both are built from the model trained on Wikipedia, subtitles, forum pages from FineWeb-2 files 1
+to 4 and technology forums from files 1 to 29 (`python -m research.train MODEL.npz wiki subs forum
+tech`), in format version 2:
 
 ```
 python -m research.prune MODEL.npz small.timsen --bytes 22650896 --min-plain 1000
 python -m research.prune MODEL.npz large.timsen --bytes 130958840 --min-plain 1000
 ```
 
-All figures are from "A technology-forum slice" in [`EXPERIMENTS.md`](EXPERIMENTS.md); chat is
-2,595 sentences from one writer, so it may differ for other people, the others are the frozen test
-files. How each step got here, from the count-pruned tables of 2026-10-15:
-choosing n-grams by weight ("Keeping the n-grams that matter instead of the frequent ones"), the
+All figures are from "Forum pages from every FineWeb-2 file" in [`EXPERIMENTS.md`](EXPERIMENTS.md);
+chat is 2,604 sentences from one writer, so it may differ for other people, the others are the
+frozen test files. How each step got here, from the count-pruned tables of 2026-10-15: choosing n-grams by weight ("Keeping the n-grams that matter instead of the frequent ones"), the
 leftover backoff ("Backoff that knows how much of a context was pruned"), the personal weight 1000
 ("Tuning the personal dictionary weight"), the denser format ("A denser table file") and the
-technology forums.
+technology forums ("A technology-forum slice"; forum pages from the other files made it worse).
 
 They differ in how many rare word sequences they keep. Both leave out unmarked words seen fewer than
 1,000 times whose only spelling is themselves (English words, typos); those are restored as typed
