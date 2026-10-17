@@ -10,6 +10,8 @@ WORD = re.compile(f"^[{LETTERS}]+$")
 MARKED = re.compile(f"[{VI_MARKED}]")
 # Sentence ends, as the fetch scripts split held-out text into test sentences.
 SENTENCE_END = re.compile(r"[.!?\n]+")
+# Stands for a comma, digit or symbol inside a sentence when runs keep their context across it.
+BREAK = "<p>"
 # Old tone placement puts the mark on the first vowel of oa/oe/uy at the end of a syllable (hòa, thủy).
 OLD_STYLE = re.compile("([òóỏõọ])([ae])$|([ùúủũụ])(y)$")
 
@@ -39,15 +41,23 @@ def same(a, b):
     return a == b or canon(a) == canon(b)
 
 
-def segments(line, tone_style=False):
-    """Runs of consecutive words; punctuation, digits and symbols end a run."""
+def segments(line, tone_style=False, breaks=False):
+    """Runs of consecutive words; punctuation, digits and symbols end a run.
+
+    With breaks, only . ! ? end a run; any other non-word tokens in a row become one BREAK inside it.
+    """
     run = []
     for tok in TOKEN.findall(normalize(line)):
         if WORD.match(tok):
             run.append(canon(tok) if tone_style else tok)
+        elif breaks and tok not in ".!?":
+            if run and run[-1] != BREAK:
+                run.append(BREAK)
         elif run:
-            yield run
+            yield run[:-1] if run[-1] == BREAK else run
             run = []
+    if run and run[-1] == BREAK:
+        run.pop()
     if run:
         yield run
 

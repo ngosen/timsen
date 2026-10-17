@@ -1,9 +1,10 @@
 """Counts syllable 1/2/3-grams (and 4-grams with --order 4) from prepared corpora.
 
-usage: python -m research.train [--order 4] OUT.npz CORPUS...
+usage: python -m research.train [--order 4] [--breaks] OUT.npz CORPUS...
 
 A corpus NAME reads every data/NAME*.txt.gz (one paragraph per line, held-out text already removed by
-the fetch script). Words are mapped to the new tone placement before counting.
+the fetch script). Words are mapped to the new tone placement before counting. With --breaks, runs go
+on across commas, digits and symbols, which become one <p> word (see text.segments).
 """
 
 import gzip
@@ -25,6 +26,7 @@ WORKERS = 8
 MERGE_EVERY = 40
 MIN_QUAD = 2  # 4-grams seen once are most of the table and add little
 ORDER = 3
+BREAKS = False
 
 
 def chunks(names):
@@ -47,7 +49,7 @@ def chunks(names):
 def count_words(lines):
     c = Counter()
     for text in lines:
-        for run in segments(text, tone_style=True):
+        for run in segments(text, tone_style=True, breaks=BREAKS):
             c.update(run)
     return c
 
@@ -64,7 +66,7 @@ def count_ngrams(lines):
     seq = []
     get = VOCAB.get
     for text in lines:
-        for run in segments(text, tone_style=True):
+        for run in segments(text, tone_style=True, breaks=BREAKS):
             seq += [BOS, BOS]
             seq += [get(w, UNK) for w in run]
             seq.append(EOS)
@@ -87,10 +89,13 @@ def merge(parts):
 
 
 def main():
-    global ORDER
+    global ORDER, BREAKS
     args = sys.argv[1:]
     if args[0] == "--order":
         ORDER, args = int(args[1]), args[2:]
+    BREAKS = args[0] == "--breaks"
+    if BREAKS:
+        args = args[1:]
     out, names = args[0], args[1:]
     t0 = time.time()
     with Pool(WORKERS) as pool:

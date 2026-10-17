@@ -1,4 +1,4 @@
-from research.text import canon, marked_share, same, segments, strip_marks
+from research.text import BREAK, canon, marked_share, same, segments, strip_marks
 
 
 def test_strip_marks_removes_tones_hooks_and_d_bar():
@@ -19,6 +19,11 @@ def test_same_accepts_both_tone_placements_only():
 
 def test_segments_split_on_punctuation_and_digits():
     assert list(segments("Gõ phím, 2 lần nữa")) == [["gõ", "phím"], ["lần", "nữa"]]
+
+
+def test_segments_with_breaks_keep_runs_across_commas_and_digits():
+    got = list(segments(", Gõ phím, 2 (lần) nữa. Xong!", breaks=True))
+    assert got == [["gõ", "phím", BREAK, "lần", BREAK, "nữa"], ["xong"]]
 
 
 def test_segments_can_normalize_tone_style():
