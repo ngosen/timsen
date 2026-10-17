@@ -1442,3 +1442,60 @@ Result: missed; the small table is ahead on chat. The set has 2,583 sentences, 2
 small 89.96%, large 89.86%. With the personal dictionary: small 92.58%, large 92.21%. The personal
 dictionary adds 2.62 and 2.35 points. Why is not measured; one guess is that the large table's
 extra n-grams come from edited prose, which chat does not resemble.
+
+## 2026-10-17 · A technology-forum slice
+
+Question: the largest error groups on chat are English and project words inside Vietnamese text.
+Does adding pages from Vietnamese technology forums and developer Q&A (tinhte.vn, voz.vn,
+daynhauhoc.com, viblo.asia, kipalog.com) help? Setup: `python -m research.fetch_fineweb tech FILE`
+for FineWeb-2 files 5 to 29, all those the forum corpus (files 1 to 4) does not use, keeping pages
+with at least 50% marked words instead of 60%, since English words carry no marks; `research.train
+MODEL wiki subs forum tech`; small tables at 22,650,896 bytes (`research.prune --bytes`) from this model and from
+the current one, scored on the frozen wiki, subs and forum files, the social set and chat (rebuilt
+in RAM, `research.personal` 5-fold, weights 0 and 1000, deleted after). As a check that the slice
+holds what it is meant to, the share of words made of ASCII letters only, in the tech data against
+the forum data.
+
+Prediction: the tech data has at least twice the forum data's share of ASCII-only words. Chat alone
++0.3 to +1.0 points, chat with the personal dictionary +0.1 to +0.3; wiki, subs and forum within 0.1
+of the current small table; social 0 to +0.5.
+
+Result: the gains are as predicted or a little above; the check on the slice missed. Files 5 to 29
+give 50,756 pages, 30,469,666 words, mostly tinhte.vn and voz.vn, then viblo.asia; the model now
+sees 468,270,670 tokens and keeps 591,048 words. ASCII-only words are 21.10% of the tech data
+against 16.16% of forum-1, 1.3 times, not the predicted 2: unmarked Vietnamese syllables (`anh`,
+`em`, `ban`) count as ASCII too, so the measure is coarse. The small table (22,650,864 bytes, both)
+keeps 40,736 words instead of 39,629.
+
+| Set | small, current | small, with tech |
+|---|---|---|
+| wiki | 96.08% | 96.05% |
+| subs | 95.75% | 95.73% |
+| forum | 93.25% | 93.25% |
+| social | 82.56% | 83.11% |
+| chat alone | 89.92% | 90.53% |
+| chat + personal (1000) | 92.59% | 92.90% |
+
+The chat set has 2,595 sentences, 29,249 words, rebuilt in RAM and deleted after the run. Chat
+gains 0.61 alone and 0.31 with the personal dictionary, social 0.55; edited prose moves by at most
+0.03. The tables are built with the tech slice from now on.
+
+Prediction for the large table with the tech slice (`--bytes 130958840`, against 97.21%, 96.60%,
+94.23% and the large table's chat figures in the same run): wiki, subs and forum within 0.1; chat
+alone +0.2 to +0.6.
+
+Result: edited prose as predicted, chat above the range, so the prediction missed on the high side.
+The large table with the tech slice is 130,958,808 bytes, 4,209,188 bigrams and 14,610,839 trigrams.
+
+| Set | large, current | large, with tech |
+|---|---|---|
+| wiki | 97.21% | 97.15% |
+| subs | 96.60% | 96.58% |
+| forum | 94.23% | 94.31% |
+| social | 83.42% | 84.20% |
+| chat alone | 89.84% | 90.65% |
+| chat + personal (1000) | 92.23% | 92.76% |
+
+Same chat set as the small-table run. Chat gains 0.81 alone and 0.53 with the personal dictionary,
+more than in the small table; why is not measured, one guess is that the small table has less room
+for the tech n-grams.

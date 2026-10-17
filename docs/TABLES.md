@@ -7,29 +7,30 @@ who mostly write long edited text.
 | | Small (default) | Large |
 | --- | --- | --- |
 | File | 22.65 MB | 130.96 MB |
-| Chat + personal | 92.58% | 92.21% |
-| Chat | 89.96% | 89.86% |
-| Wikipedia | 96.08% | 97.21% |
-| Subtitles | 95.75% | 96.60% |
-| Forum | 93.25% | 94.23% |
+| Chat + personal | 92.90% | 92.76% |
+| Chat | 90.53% | 90.65% |
+| Wikipedia | 96.05% | 97.15% |
+| Subtitles | 95.73% | 96.58% |
+| Forum | 93.25% | 94.31% |
 
-On chat the small table is as good as the large one, a little better in this measurement; on
-edited prose the large one gets about one more word in 100 right.
+On chat the small table is as good as the large one; on edited prose the large one gets about one
+more word in 100 right.
 
-Both are built from the model trained on Wikipedia, subtitles and forum pages
-(`python -m research.train MODEL.npz wiki subs forum`), in format version 2:
+Both are built from the model trained on Wikipedia, subtitles, forum pages and technology forums
+(`python -m research.train MODEL.npz wiki subs forum tech`), in format version 2:
 
 ```
 python -m research.prune MODEL.npz small.timsen --bytes 22650896 --min-plain 1000
 python -m research.prune MODEL.npz large.timsen --bytes 130958840 --min-plain 1000
 ```
 
-Chat figures are from "The version 2 tables on chat" in [`EXPERIMENTS.md`](EXPERIMENTS.md) (2,583
-sentences from one writer, so they may differ for other people), the others from "A denser table
-file" (the frozen test files). How each step got here, from the count-pruned tables of 2026-10-15:
+All figures are from "A technology-forum slice" in [`EXPERIMENTS.md`](EXPERIMENTS.md); chat is
+2,595 sentences from one writer, so it may differ for other people, the others are the frozen test
+files. How each step got here, from the count-pruned tables of 2026-10-15:
 choosing n-grams by weight ("Keeping the n-grams that matter instead of the frequent ones"), the
 leftover backoff ("Backoff that knows how much of a context was pruned"), the personal weight 1000
-("Tuning the personal dictionary weight") and the denser format.
+("Tuning the personal dictionary weight"), the denser format ("A denser table file") and the
+technology forums.
 
 They differ in how many rare word sequences they keep. Both leave out unmarked words seen fewer than
 1,000 times whose only spelling is themselves (English words, typos); those are restored as typed
