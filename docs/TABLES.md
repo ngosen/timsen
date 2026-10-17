@@ -1,38 +1,46 @@
 # Choosing a table
 
-Tim Sen has two tables of word counts in the same file format, used with the same personal
-dictionary. The small one ships first; the large one may follow.
+Tim Sen has two tables in the same file format, used with the same personal dictionary. **The small
+table is the default**, and the one the first release ships; the large one is an option for people
+who mostly write long edited text.
 
-| | Small | Large |
+| | Small (default) | Large |
 | --- | --- | --- |
-| File | 22.6 MB | 130.7 MB |
-| Chat + personal | 92.19% | 92.42% |
-| Chat | 88.63% | 89.25% |
-| Wikipedia | 94.84% | 96.55% |
-| Forum | 91.82% | 93.74% |
+| File | 22.65 MB | 130.96 MB |
+| Chat + personal | 92.58% | 92.21% |
+| Chat | 89.96% | 89.86% |
+| Wikipedia | 96.08% | 97.21% |
+| Subtitles | 95.75% | 96.60% |
+| Forum | 93.25% | 94.23% |
 
-Chat figures are from the rebuilt chat set (3,881 sentences) in "Personal dictionary in Rust",
-measured after a bug in the personal counts was fixed; wiki and forum from "Trimming the table
-vocabulary".
+On chat the small table is as good as the large one, a little better in this measurement; on
+edited prose the large one gets about one more word in 100 right.
 
-The figures above are for tables pruned by count. Built with `research.prune` instead, which keeps
-the n-grams whose removal would change scores most, the same sizes give wiki 95.44% and 96.87% and
-forum 92.41% and 93.84% ("Keeping the n-grams that matter instead of the frequent ones" and
-"Weighted pruning at the large table's size"). Backing off costs more from contexts the table kept
-nearly whole: then wiki 95.65% and 97.03%, forum 92.68% and 94.10% ("Backoff that knows how much
-of a context was pruned"). Version 2 of the file format fits 65% more n-grams in the same bytes;
-built with `research.prune --bytes`, the small table gives wiki 96.08%, subs 95.75% and forum
-93.25%, and the large one 97.21%, 96.60% and 94.23% ("A denser table file"). Chat on these tables
-is not yet measured on the set above. The personal dictionary now weighs a learned n-gram 1000 times one from the corpora,
-up from 100 ("Tuning the personal dictionary weight").
+Both are built from the model trained on Wikipedia, subtitles and forum pages
+(`python -m research.train MODEL.npz wiki subs forum`), in format version 2:
+
+```
+python -m research.prune MODEL.npz small.timsen --bytes 22650896 --min-plain 1000
+python -m research.prune MODEL.npz large.timsen --bytes 130958840 --min-plain 1000
+```
+
+Chat figures are from "The version 2 tables on chat" in [`EXPERIMENTS.md`](EXPERIMENTS.md) (2,583
+sentences from one writer, so they may differ for other people), the others from "A denser table
+file" (the frozen test files). How each step got here, from the count-pruned tables of 2026-10-15:
+choosing n-grams by weight ("Keeping the n-grams that matter instead of the frequent ones"), the
+leftover backoff ("Backoff that knows how much of a context was pruned"), the personal weight 1000
+("Tuning the personal dictionary weight") and the denser format.
 
 They differ in how many rare word sequences they keep. Both leave out unmarked words seen fewer than
 1,000 times whose only spelling is themselves (English words, typos); those are restored as typed
 either way, and leaving them out cost nothing measurable ("Trimming the table vocabulary" in
 [`EXPERIMENTS.md`](EXPERIMENTS.md)).
 
-The table below compares the pruning levels measured to choose them, before that trimming, so the
-sizes are larger than the shipped files; the two chosen levels are in bold.
+## How the sizes were chosen
+
+The two sizes were chosen on 2026-10-15 from tables pruned by count, in format version 1 and before
+the trimming above, so the sizes and figures below are older than the ones at the top; the two
+chosen levels are in bold.
 
 | File | 3-word ≥ | 2-word ≥ | Chat + personal | Chat | Wikipedia | Forum |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -57,8 +65,8 @@ What the table shows:
 - **Edited prose does.** Each step up adds about half a point on Wikipedia and forum text, where the
   personal dictionary helps less.
 
-So: the small table for mostly chatting; the large one for articles, documents or long emails, where
-it gets about 1.7 more words in 100 right.
+At the time the large table got about 1.7 more words in 100 right on edited prose; since weighted
+pruning and the denser format, the gap is about one word in 100.
 
 The file is mapped from disk, so only the parts in use are read into memory; the size mainly affects
 the download.
