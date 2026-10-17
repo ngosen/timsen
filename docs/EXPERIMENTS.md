@@ -832,3 +832,51 @@ The same review raised points that change how results should be read, not the fi
   land in both the learned and the scored part; not measured on chat.
 - `research.evaluate` scored only the words a restore returned, so a shortened run would have
   looked right. It now raises instead; the measured runs returned every word, so no figure changes.
+
+## 2026-10-17 · Next-word suggestions from the table
+
+Question: the table already holds which words follow which. If the input method offered the K most
+likely next words after each word, how often would the word typed next be among them? Setup:
+`python -m research.next_word TABLE test/SET --k 3`. The context is the two words before, as typed
+with marks; a run starts after punctuation, as in restore. Suggestions are ranked by the same
+stupid-backoff score restore uses and never include sentence markers or `<unk>`. A word the table
+does not know is always a miss. A pair counts when one of the three suggested pairs (each suggested
+word followed by its best next word) equals the next two words. The corpora and tables were rebuilt
+after the RAM disk was cleared, with the commands in the README and `--min-tri 50 --min-bi 20
+--min-plain 1000` (small) and `--min-tri 5 --min-bi 3 --min-plain 1000` (large); the rebuild counts
+only if the small table scores wiki at 94.84% again with `research.evaluate`.
+
+Prediction, small table: top 1 between 15% and 27%, top 3 between 25% and 42% on wiki, subs and
+forum, subs highest. Pair in top 3: 10–18%. Large table: top 3 two to four points higher.
+
+Rebuild check: the rebuilt counts are close to the earlier ones, not identical (vocabulary 577,397
+instead of 577,794; 15.29M bigrams and 73.48M trigrams instead of 15.21M and 73.09M; small table
+22,650,896 bytes). `research.evaluate` on the small table gives wiki 94.85% (was 94.84%), subs
+95.11% and forum 91.82% (unchanged). The figures below are a new series on the rebuilt tables.
+
+Result (share of words; in-vocab is the ceiling, since an unknown word is never suggested):
+
+| Set | In vocab | Top 1 | Top 3 | Pair in top 3 |
+| --- | --- | --- | --- | --- |
+| wiki, small | 96.81% | 22.32% | 33.94% | 7.92% |
+| subs, small | 98.85% | 16.20% | 27.65% | 3.60% |
+| forum, small | 98.86% | 17.37% | 27.08% | 4.08% |
+| wiki, large | 96.81% | 23.99% | 36.50% | 8.77% |
+| subs, large | 98.85% | 17.26% | 29.40% | 3.95% |
+| forum, large | 98.86% | 18.93% | 29.65% | 4.77% |
+
+Top 1 and top 3 hit the predicted ranges; subs is not the highest but among the lowest, with wiki
+highest. Pairs missed: 3.6–8.8% instead of 10–18%. The large table adds 2.6 (wiki), 1.8 (subs) and
+2.6 (forum) points to top 3, so subs missed the predicted two to four. About one word in three is
+among three suggestions, and two words in a row rarely are.
+
+The same on the chat set, now kept in the order typed with repeats (earlier chat sets dropped
+repeated messages): learn from the first 80% of its sentences (`--learn`, weight 100) and score the
+last 20%. The chat messages are written to a coding assistant, not to customers, so they repeat less
+than a shop's replies would. `python -m research.repeats test/chat --prefix 2` also counts how often a
+scored sentence repeats an earlier one, and how often the earlier sentence offered after its first
+two words is the one typed.
+
+Prediction, chat, small table: top 3 between 25% and 35% from the table alone, and 3 to 8 points
+higher with the learned part. Under 5% of sentences repeat an earlier one; the offered whole sentence
+is right for under 3%.
