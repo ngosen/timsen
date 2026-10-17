@@ -10,6 +10,9 @@ BOS, EOS, UNK = 0, 1, 2
 SHIFT = 21  # bits per word id in packed n-gram keys
 MIN_CANDIDATE = 5  # rarer spellings are mostly typos in the corpus
 BACKOFF = np.log(0.4)
+# Extra backoff cost per unit of log unkept share of the context; see Model.index_leftover.
+LEFTOVER = 0.5
+FLOOR = 1e-4
 MIX = np.uint64(0x9E3779B97F4A7C15)
 
 
@@ -43,6 +46,26 @@ class Model:
             if self.uni[i] >= MIN_CANDIDATE:
                 self.cand[strip_marks(w)].append(i)
         self.entries = len(self.words) + len(self.bk) + len(self.tk) + (len(self.qk) if self.qk is not None else 0)
+        self.index_leftover()
+
+    def index_leftover(self):
+        """Log share of each context's count that the kept longer n-grams do not cover.
+
+        A context that kept almost all of its continuations makes an unseen one truly rare, so backing
+        off from it costs more. Taken from the counts at load time: personal counts added later leave
+        it as the table's.
+        """
+        ctx, start = np.unique(self.tk >> SHIFT, return_index=True)
+        kept = np.add.reduceat(self.tc, start) if len(start) else np.zeros(0)
+        tri_sum = np.zeros(len(self.bk))
+        pos = np.minimum(np.searchsorted(self.bk, ctx), max(len(self.bk) - 1, 0))
+        found = self.bk[pos] == ctx
+        np.add.at(tri_sum, pos[found], kept[found])
+        bi_sum = np.bincount(self.bk >> SHIFT, weights=self.bc, minlength=len(self.words))
+        self.left_keys = self.bk
+        self.left_bi = np.log(np.clip(1 - tri_sum / self.bc, FLOOR, 1))
+        self.left_bos = np.log(np.clip(1 - kept[ctx == (BOS << SHIFT) | BOS].sum() / max(self.nseg, 1), FLOOR, 1))
+        self.left_uni = np.log(np.clip(1 - bi_sum / np.maximum(self.uni, 1), FLOOR, 1))
 
     def snapshot(self):
         return (self.uni.copy(), self.bk, self.bc, self.tk, self.tc, self.nseg, self.total)
@@ -64,9 +87,18 @@ class Model:
         tri = self.lookup((u << (2 * SHIFT)) | (v << SHIFT) | w, self.tk, self.tc)
         ctx = self.lookup((u << SHIFT) | v, self.bk, self.bc)
         ctx = np.where((u == BOS) & (v == BOS), self.nseg, ctx)
+        # A context the table dropped says nothing about its continuations: no extra cost.
+        left = np.where(
+            (u == BOS) & (v == BOS), self.left_bos, self.lookup((u << SHIFT) | v, self.left_keys, self.left_bi)
+        )
         bi = self.lookup((v << SHIFT) | w, self.bk, self.bc)
-        p_uni = np.log(np.maximum(self.uni[w], 0.5) / self.total) + 2 * BACKOFF
-        p_bi = np.log(np.maximum(bi, 1e-9) / np.maximum(self.uni[v], 1)) + BACKOFF
+        p_uni = (
+            np.log(np.maximum(self.uni[w], 0.5) / self.total)
+            + 2 * BACKOFF
+            + LEFTOVER * left
+            + LEFTOVER * self.left_uni[v]
+        )
+        p_bi = np.log(np.maximum(bi, 1e-9) / np.maximum(self.uni[v], 1)) + BACKOFF + LEFTOVER * left
         p_tri = np.log(np.maximum(tri, 1e-9) / np.maximum(ctx, 1))
         return np.where(tri > 0, p_tri, np.where(bi > 0, p_bi, p_uni))
 

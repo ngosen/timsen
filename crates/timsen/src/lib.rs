@@ -1,8 +1,9 @@
 //! Restores Vietnamese diacritics from a syllable n-gram table: `toi da go phim` → `tôi đã gõ phím`.
 //!
 //! The table is built by `research.table`. Restoration matches `research.model` exactly on the same
-//! table: 3-grams with stupid backoff, and a Viterbi search over the whole run. [`Typing`] restores a
-//! run while it is typed; [`Personal`] adds counts learned from the user's own text.
+//! table: 3-grams with stupid backoff, costlier from contexts the table kept nearly whole, and a
+//! Viterbi search over the whole run. [`Typing`] restores a run while it is typed; [`Personal`] adds
+//! counts learned from the user's own text.
 
 mod personal;
 mod table;
@@ -20,6 +21,10 @@ use table::BOS;
 fn backoff() -> f64 {
     0.4f64.ln()
 }
+
+/// Extra backoff cost per unit of the log share of a context's count that the table's longer n-grams
+/// leave uncovered: backing off from a context that kept almost everything costs more.
+const LEFTOVER: f64 = 0.5;
 
 impl Table {
     /// Restores a run of syllables typed without marks, such as the words between two punctuation
@@ -52,6 +57,9 @@ pub(crate) trait Counts {
     fn uni(&self, id: u32) -> f64;
     fn segments(&self) -> f64;
     fn total(&self) -> f64;
+    /// Log unkept share of context `u v` and of word `v`; see `Table::left`.
+    fn left(&self, u: u32, v: u32) -> f64;
+    fn left_uni(&self, v: u32) -> f64;
     /// The id a word is looked up by when it is a context.
     fn context(&self, id: u32) -> u32;
     /// The id a word is looked up by when it is the word being scored, and the log share it gets of
@@ -60,11 +68,22 @@ pub(crate) trait Counts {
 
     /// Log score of `w` after `u v`, as `Model.logp` computes it.
     fn logp(&self, u: u32, v: u32, w: u32) -> f64 {
-        let (w, share) = self.predicted(w);
-        share + self.logp_of(self.context(u), self.context(v), w)
+        self.logp_left(u, v, w, self.context_left(u, v))
     }
 
-    fn logp_of(&self, u: u32, v: u32, w: u32) -> f64 {
+    /// The part of the backoff cost that depends only on `u v`, so a search can compute it once per
+    /// pair instead of once per candidate `w`.
+    fn context_left(&self, u: u32, v: u32) -> f64 {
+        self.left(self.context(u), self.context(v))
+    }
+
+    /// `logp` with `context_left(u, v)` given.
+    fn logp_left(&self, u: u32, v: u32, w: u32, left: f64) -> f64 {
+        let (w, share) = self.predicted(w);
+        share + self.logp_of(self.context(u), self.context(v), w, left)
+    }
+
+    fn logp_of(&self, u: u32, v: u32, w: u32, left: f64) -> f64 {
         let tri = self.trigram(u, v, w);
         if tri > 0.0 {
             let ctx = if u == BOS && v == BOS {
@@ -76,9 +95,12 @@ pub(crate) trait Counts {
         }
         let bi = self.bigram(v, w);
         if bi > 0.0 {
-            return (bi.max(1e-9) / self.uni(v).max(1.0)).ln() + backoff();
+            return (bi.max(1e-9) / self.uni(v).max(1.0)).ln() + backoff() + LEFTOVER * left;
         }
-        (self.uni(w).max(0.5) / self.total()).ln() + 2.0 * backoff()
+        (self.uni(w).max(0.5) / self.total()).ln()
+            + 2.0 * backoff()
+            + LEFTOVER * left
+            + LEFTOVER * self.left_uni(v)
     }
 }
 
@@ -99,6 +121,12 @@ macro_rules! counts {
             }
             fn total(&self) -> f64 {
                 <$t>::total(self)
+            }
+            fn left(&self, u: u32, v: u32) -> f64 {
+                <$t>::left(self, u, v)
+            }
+            fn left_uni(&self, v: u32) -> f64 {
+                <$t>::left_uni(self, v)
             }
             fn context(&self, id: u32) -> u32 {
                 <$t>::context(self, id)

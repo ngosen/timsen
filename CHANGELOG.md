@@ -6,6 +6,9 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Changed
 
+- Restore, in `research.model` and the crate, charges more for backing off from a context whose
+  continuations the table kept nearly whole: +0.21 on wiki and +0.27 on forum with the small
+  weighted table. Opening a table takes one pass over its n-grams (about 50 ms for the small one).
 - `Personal` in the crate and `research.crosscheck` weigh a learned n-gram 1000 times one from the
   corpora, up from 100: 0.66 to 0.71 points more on chat.
 - `Personal` scores learned words the table lacks as the table's `<unk>`, so a personal dictionary

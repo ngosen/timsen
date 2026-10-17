@@ -314,6 +314,23 @@ impl<'t> Personal<'t> {
         self.table.total() + WEIGHT * self.tokens as f64
     }
 
+    /// The table's shares: learned counts do not change them.
+    pub(crate) fn left(&self, u: u32, v: u32) -> f64 {
+        if self.own(u) && self.own(v) {
+            self.table.left(u, v)
+        } else {
+            0.0
+        }
+    }
+
+    pub(crate) fn left_uni(&self, v: u32) -> f64 {
+        if self.own(v) {
+            self.table.left_uni(v)
+        } else {
+            0.0
+        }
+    }
+
     pub(crate) fn segments(&self) -> f64 {
         self.uni(EOS)
     }

@@ -1,7 +1,7 @@
 """Strips marks from held-out sentences, restores them and scores the result.
 
 usage: python -m research.evaluate MODEL.npz|TABLE.timsen TESTFILE... [--min-tri N] [--min-bi N]
-       [--backoff X]
+       [--backoff X] [--leftover GAMMA]
 Test files hold one sentence per line. hoà/hòa count as the same word.
 """
 
@@ -54,8 +54,10 @@ def main():
     ap.add_argument("--min-tri", type=int, default=1)
     ap.add_argument("--min-bi", type=int, default=1)
     ap.add_argument("--backoff", type=float, default=0.4, help="weight of each step down to a shorter n-gram")
+    ap.add_argument("--leftover", type=float, default=0.5, help="see Model.index_leftover; 0 is plain backoff")
     a = ap.parse_args()
     model_mod.BACKOFF = np.log(a.backoff)
+    model_mod.LEFTOVER = a.leftover
     m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model, a.min_tri, a.min_bi)
     print(
         f"{a.model}: vocab {len(m.words):,} bigrams {len(m.bk):,} trigrams {len(m.tk):,} "

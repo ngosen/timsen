@@ -1,7 +1,7 @@
 """Adds counts from the user's own text to a base model (the personal dictionary), scored 5-fold.
 
 usage: python -m research.personal MODEL.npz|TABLE.timsen CHATFILE WEIGHT... [--fractions 0,0.1,1]
-       [--min-tri N] [--min-bi N] [--backoff X]
+       [--min-tri N] [--min-bi N] [--backoff X] [--leftover GAMMA]
 Each fold is a contiguous fifth of the file, so sentences from one message rarely land on both sides.
 With --fractions, each fold trains on that share of the other four fifths (sampled with a fixed seed).
 --min-tri and --min-bi prune the base table before personal counts are added, as a shipped table would be.
@@ -72,8 +72,10 @@ def main():
     ap.add_argument("--min-tri", type=int, default=1)
     ap.add_argument("--min-bi", type=int, default=1)
     ap.add_argument("--backoff", type=float, default=0.4)
+    ap.add_argument("--leftover", type=float, default=0.5, help="see Model.index_leftover; 0 is plain backoff")
     a = ap.parse_args()
     model_mod.BACKOFF = np.log(a.backoff)
+    model_mod.LEFTOVER = a.leftover
     lines = open(a.chat, encoding="utf-8").read().splitlines()
     size = len(lines) // FOLDS + 1
     m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model, a.min_tri, a.min_bi)

@@ -129,6 +129,7 @@ def read(path):
     m.cand = defaultdict(list, {p: list(ids[a:b]) for p, a, b in zip(plain, start[:-1], start[1:])})
     m.qk = m.qc = None
     m.entries = n_words + n_bi + n_tri
+    m.index_leftover()
     return m
 
 
