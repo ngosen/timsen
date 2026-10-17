@@ -6,6 +6,11 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Changed
 
+- Table format version 2: n-grams grouped by their first words, 6 bytes each plus 4 per bigram
+  instead of 12, counts unchanged. Version 1 files are no longer read. The small table holds 65% more
+  n-grams in the same 22.65 MB (+0.43 points on wiki, +0.57 on forum), and restore is faster (p99
+  per syllable 0.63 ms against 1.50).
+- `research.prune --bytes N`: keeps as many n-grams as fit in a file of that size.
 - Restore, in `research.model` and the crate, charges more for backing off from a context whose
   continuations the table kept nearly whole: +0.21 on wiki and +0.27 on forum with the small
   weighted table. Opening a table takes one pass over its n-grams (about 50 ms for the small one).

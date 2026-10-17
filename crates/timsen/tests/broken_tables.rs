@@ -23,17 +23,28 @@ fn put_u32(b: &mut [u8], pos: usize, v: u32) {
     b[pos..pos + 4].copy_from_slice(&v.to_le_bytes());
 }
 
-/// Where the candidate ranges and ids start, following the layout in `research/table.py`.
+fn pad(x: usize) -> usize {
+    x.next_multiple_of(8)
+}
+
+fn strings(b: &[u8], pos: usize, n: usize) -> usize {
+    pad(pad(pos + 4 * (n + 1)) + u32_at(b, pos + 4 * n))
+}
+
+/// Where the bigram starts are, following the layout in `research/table.py`.
+fn bigram_starts(b: &[u8]) -> usize {
+    let n_words = u64_at(b, 16);
+    pad(strings(b, 64, n_words) + 4 * n_words)
+}
+
+/// Where the candidate ranges and ids start.
 fn candidates(b: &[u8]) -> (usize, usize, usize) {
-    let pad = |x: usize| x.next_multiple_of(8);
     let (n_words, n_bi, n_tri, n_plain) =
         (u64_at(b, 16), u64_at(b, 24), u64_at(b, 32), u64_at(b, 40));
-    let strings = |pos: usize, n: usize| pad(pad(pos + 4 * (n + 1)) + u32_at(b, pos + 4 * n));
-    let mut pos = strings(64, n_words);
-    pos = pad(pos + 4 * n_words);
-    pos = pad(pad(pos + 8 * n_bi) + 4 * n_bi);
-    pos = pad(pad(pos + 8 * n_tri) + 4 * n_tri);
-    pos = strings(pos, n_plain);
+    let mut pos = bigram_starts(b);
+    pos = pad(pad(pad(pos + 4 * (n_words + 1)) + 2 * n_bi) + 4 * n_bi);
+    pos = pad(pad(pad(pos + 4 * (n_bi + 2)) + 2 * n_tri) + 4 * n_tri);
+    pos = strings(b, pos, n_plain);
     (pos, pad(pos + 4 * (n_plain + 1)), n_plain)
 }
 
@@ -65,6 +76,18 @@ fn huge_section_counts_are_errors() {
             b[field..field + 8].copy_from_slice(&n.to_le_bytes());
             assert!(Table::from_bytes(b).is_err(), "field {field} = {n}");
         }
+    }
+}
+
+#[test]
+fn n_gram_groups_out_of_order_are_errors() {
+    let start = bigram_starts(&fixture());
+    let n_words = u64_at(&fixture(), 16);
+    // A group start beyond the section, a first start that is not 0, and a group that ends early.
+    for (i, v) in [(5, u32::MAX), (0, 1), (n_words, 0)] {
+        let mut b = fixture();
+        put_u32(&mut b, start + 4 * i, v);
+        assert!(Table::from_bytes(b).is_err(), "start {i} = {v}");
     }
 }
 

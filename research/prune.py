@@ -1,12 +1,13 @@
 """Writes a table that keeps the n-grams whose removal would change scores the most, instead of the
-most frequent ones, at a fixed number of n-grams.
+most frequent ones, at a fixed number of n-grams or file size.
 
-usage: python -m research.prune MODEL.npz OUT.timsen --entries N [--min-plain N] [--random SEED]
+usage: python -m research.prune MODEL.npz OUT.timsen --entries N|--bytes N [--min-plain N] [--random SEED]
 
 An n-gram's weight is its count times how far its own log score is from the score restore would use
 without it (the next shorter n-gram, with the backoff penalty), after Stolcke (1998). A bigram that is
 the context of a kept trigram is always kept, since the trigram's score divides by its count.
---random keeps the same number of n-grams chosen at random, to show the weights matter.
+--bytes keeps as many n-grams as fit in a file of that size. --random keeps the same number of
+n-grams chosen at random, to show the weights matter.
 """
 
 import argparse
@@ -48,8 +49,9 @@ def bigram_weights(m):
     return m.bc * np.abs(own - back), v, w
 
 
-def select(m, entries, min_plain, seed=None):
-    """Keeps `entries` n-grams in all, among those whose words the table keeps."""
+def select(m, entries, min_plain, seed=None, max_bytes=None):
+    """Keeps `entries` n-grams in all, among those whose words the table keeps, or with max_bytes as
+    many as fit in a table file of that size."""
     words = kept_words(m, min_plain)
     tw, u, v, w = trigram_weights(m)
     bw, bv, bwd = bigram_weights(m)
@@ -64,23 +66,40 @@ def select(m, entries, min_plain, seed=None):
     ctx_pos = np.minimum(np.searchsorted(m.bk, ctx_key), len(m.bk) - 1)
     assert (m.bk[ctx_pos] == ctx_key).all(), "a trigram's context is not a bigram"
     np.maximum.at(bw, ctx_pos, tw[has_ctx])
-    cut = np.sort(np.concatenate([tw, bw]))[::-1][entries - 1]
+    weights = np.concatenate([tw, bw])
+    order = np.argsort(-weights, kind="stable")
+    if max_bytes is not None:
+        entries = fitting(m, order >= len(tw), max_bytes, min_plain)
+    cut = weights[order[entries - 1]]
     keep_t, keep_b = tw >= cut, bw >= cut
     assert keep_b[ctx_pos[keep_t[has_ctx]]].all(), "a kept trigram lost its context"
     m.tk, m.tc = m.tk[keep_t], m.tc[keep_t]
     m.bk, m.bc = m.bk[keep_b], m.bc[keep_b]
 
 
+def fitting(m, is_bigram, max_bytes, min_plain):
+    """Most n-grams, taken in weight order, whose table fits in max_bytes."""
+    n_bi = np.cumsum(is_bigram)
+    n_tri = np.arange(1, len(is_bigram) + 1) - n_bi
+    n_words = int(kept_words(m, min_plain).sum())
+    free = max_bytes - table.fixed_bytes(m, min_plain)
+    # Two start arrays, two id arrays and two count arrays, each padded by at most 7 bytes.
+    size = 10 * n_bi + 6 * n_tri + 4 * (n_words + 1) + 4 * 2 + 6 * 7
+    return int(np.searchsorted(size, free, side="right"))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("model")
     ap.add_argument("out")
-    ap.add_argument("--entries", type=int, required=True, help="bigrams plus trigrams to keep")
+    size = ap.add_mutually_exclusive_group(required=True)
+    size.add_argument("--entries", type=int, help="bigrams plus trigrams to keep")
+    size.add_argument("--bytes", type=int, help="largest table file to write")
     ap.add_argument("--min-plain", type=int, default=0)
     ap.add_argument("--random", type=int, default=None, metavar="SEED")
     a = ap.parse_args()
     m = Model(a.model)
-    select(m, a.entries, a.min_plain, a.random)
+    select(m, a.entries, a.min_plain, a.random, a.bytes)
     print(f"kept {len(m.bk):,} bigrams and {len(m.tk):,} trigrams", flush=True)
     table.write(m, a.out, a.min_plain)
 

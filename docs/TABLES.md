@@ -20,7 +20,10 @@ the n-grams whose removal would change scores most, the same sizes give wiki 95.
 forum 92.41% and 93.84% ("Keeping the n-grams that matter instead of the frequent ones" and
 "Weighted pruning at the large table's size"). Backing off costs more from contexts the table kept
 nearly whole: then wiki 95.65% and 97.03%, forum 92.68% and 94.10% ("Backoff that knows how much
-of a context was pruned"). Chat on these tables is not yet measured on the set above. The personal dictionary now weighs a learned n-gram 1000 times one from the corpora,
+of a context was pruned"). Version 2 of the file format fits 65% more n-grams in the same bytes;
+built with `research.prune --bytes`, the small table gives wiki 96.08%, subs 95.75% and forum
+93.25%, and the large one 97.21%, 96.60% and 94.23% ("A denser table file"). Chat on these tables
+is not yet measured on the set above. The personal dictionary now weighs a learned n-gram 1000 times one from the corpora,
 up from 100 ("Tuning the personal dictionary weight").
 
 They differ in how many rare word sequences they keep. Both leave out unmarked words seen fewer than

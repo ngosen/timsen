@@ -39,3 +39,15 @@ def test_writes_a_table_that_restores(model_path, tmp_path):
     out = tmp_path / "t.timsen"
     prune.table.write(m, out)
     assert prune.table.read(out).restore(["toi", "go", "phim"]) == ["tôi", "gõ", "phím"]
+
+
+def test_a_byte_budget_bounds_the_file(model_path, tmp_path):
+    full = Model(model_path)
+    out = tmp_path / "full.timsen"
+    prune.table.write(full, out)
+    budget = out.stat().st_size - 200
+    m = Model(model_path)
+    prune.select(m, None, 0, max_bytes=budget)
+    small = tmp_path / "small.timsen"
+    prune.table.write(m, small)
+    assert budget - 100 < small.stat().st_size <= budget

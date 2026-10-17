@@ -8,6 +8,7 @@ across commas, digits and symbols (see text.segments), for a model trained with 
 """
 
 import argparse
+import os
 
 import numpy as np
 
@@ -66,7 +67,7 @@ def main():
     m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model, a.min_tri, a.min_bi)
     print(
         f"{a.model}: vocab {len(m.words):,} bigrams {len(m.bk):,} trigrams {len(m.tk):,} "
-        f"({m.entries * 12 / 1e6:.0f} MB at 12 B/entry)",
+        f"({os.path.getsize(a.model) / 1e6:.1f} MB file)",
         flush=True,
     )
     for test in a.tests:

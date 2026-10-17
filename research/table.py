@@ -6,12 +6,15 @@ Layout, little-endian, each section padded to a multiple of 8 bytes:
   header    8s magic, u32 version, u32 0, u64 n_words n_bigrams n_trigrams n_plain n_cand, f64 total
   words     u32 offsets[n_words + 1], UTF-8 bytes; ids 0, 1, 2 are <s>, </s>, <unk>
   uni       u32 counts[n_words]; the count of <s> is not stored, it equals the count of </s>
-  bigrams   u64 keys[n_bigrams] (ascending), u32 counts[n_bigrams]
-  trigrams  u64 keys[n_trigrams] (ascending), u32 counts[n_trigrams]
+  bigrams   u32 start[n_words + 1], u16 next[n_bigrams], u32 counts[n_bigrams]; the bigrams starting
+            with word v are next[start[v]:start[v + 1]], ascending
+  trigrams  u32 start[n_bigrams + 2], u16 next[n_trigrams], u32 counts[n_trigrams]; the trigrams whose
+            first two words are bigram j are next[start[j]:start[j + 1]], ascending, and the last
+            range holds the trigrams after (<s>, <s>)
   plain     u32 offsets[n_plain + 1], UTF-8 bytes; unmarked forms, ascending by bytes
   cand      u32 start[n_plain + 1], u32 ids[n_cand]; spellings of plain form i are ids[start[i]:start[i + 1]]
-An n-gram key packs its word ids 21 bits each, oldest word highest. A plain form missing from the table
-restores as itself (<unk>).
+Ids fit in 16 bits, so a table holds at most 65,536 words. Every trigram's first two words are a
+bigram of the table. A plain form missing from the table restores as itself (<unk>).
 """
 
 import argparse
@@ -24,7 +27,8 @@ import numpy as np
 from .model import BOS, EOS, SHIFT, UNK, Model
 
 MAGIC = b"TIMSEN\0\0"
-VERSION = 1
+VERSION = 2
+MAX_WORDS = 1 << 16
 HEADER = struct.Struct("<8sII5Qd")
 MASK = (1 << SHIFT) - 1
 
@@ -71,13 +75,45 @@ def u32(a):
     return a.astype("<u4").tobytes()
 
 
-def write(m, path, min_plain=0):
+def padded(n):
+    return n + -n % 8
+
+
+def ngram_bytes(n_words, n_bi, n_tri):
+    """Bytes the bigram and trigram sections take in a file."""
+    return sum(padded(n) for n in (4 * (n_words + 1), 2 * n_bi, 4 * n_bi, 4 * (n_bi + 2), 2 * n_tri, 4 * n_tri))
+
+
+def u16(a):
+    a = np.asarray(a)
+    assert a.size == 0 or a.max() < MAX_WORDS, "word id does not fit in 16 bits"
+    return a.astype("<u2").tobytes()
+
+
+def ngram_sections(bk, bc, tk, tc, n_words):
+    """Groups bigrams by first word and trigrams by first two words, as the file stores them."""
+    bi_start = np.searchsorted(bk >> np.uint64(SHIFT), np.arange(n_words + 1, dtype=np.uint64))
+    ctx = tk >> np.uint64(SHIFT)
+    at_start = ctx == 0  # (<s>, <s>): BOS is 0, and its range goes last
+    order = np.concatenate([np.flatnonzero(~at_start), np.flatnonzero(at_start)])
+    pos = np.searchsorted(bk, ctx[~at_start])
+    found = pos < len(bk)
+    found[found] = bk[pos[found]] == ctx[~at_start][found]
+    assert found.all(), "a trigram's first two words are not a bigram of the table"
+    ctx_index = np.concatenate([pos, np.full(int(at_start.sum()), len(bk))])
+    tri_start = np.searchsorted(ctx_index, np.arange(len(bk) + 2))
+    mask = np.uint64(MASK)
+    return [u32(bi_start), u16(bk & mask), u32(bc), u32(tri_start), u16(tk[order] & mask), u32(tc[order])]
+
+
+def kept_words(m, min_plain):
     opts = options_table(m, min_plain)
     keep = sorted({BOS, EOS, UNK, *(i for ids in opts.values() for i in ids)})
-    new_id = np.full(len(m.words), -1, dtype=np.int64)
-    new_id[keep] = np.arange(len(keep))
-    bk, bc = remap_keys(m.bk.astype(np.uint64), m.bc, new_id, 2)
-    tk, tc = remap_keys(m.tk.astype(np.uint64), m.tc, new_id, 3)
+    assert len(keep) <= MAX_WORDS, f"{len(keep)} words do not fit in a table"
+    return opts, keep
+
+
+def other_sections(m, opts, keep, new_id):
     uni = m.uni[keep].copy()
     uni[BOS] = 0
     start = np.zeros(len(opts) + 1, dtype=np.uint32)
@@ -85,9 +121,27 @@ def write(m, path, min_plain=0):
     cand = new_id[[i for ids in opts.values() for i in ids]]
     w_off, w_blob = strings(m.words[i] for i in keep)
     p_off, p_blob = strings(opts)
-    header = HEADER.pack(MAGIC, VERSION, 0, len(keep), len(bk), len(tk), len(opts), len(cand), m.total)
-    sections = [header, u32(w_off), w_blob, u32(uni), bk.astype("<u8").tobytes(), u32(bc)]
-    sections += [tk.astype("<u8").tobytes(), u32(tc), u32(p_off), p_blob, u32(start), u32(cand)]
+    return [u32(w_off), w_blob, u32(uni)], [u32(p_off), p_blob, u32(start), u32(cand)], len(cand)
+
+
+def fixed_bytes(m, min_plain=0):
+    """Bytes a table of m takes apart from its bigrams and trigrams."""
+    opts, keep = kept_words(m, min_plain)
+    new_id = np.full(len(m.words), -1, dtype=np.int64)
+    new_id[keep] = np.arange(len(keep))
+    head, tail, _ = other_sections(m, opts, keep, new_id)
+    return padded(HEADER.size) + sum(padded(len(s)) for s in head + tail)
+
+
+def write(m, path, min_plain=0):
+    opts, keep = kept_words(m, min_plain)
+    new_id = np.full(len(m.words), -1, dtype=np.int64)
+    new_id[keep] = np.arange(len(keep))
+    bk, bc = remap_keys(m.bk.astype(np.uint64), m.bc, new_id, 2)
+    tk, tc = remap_keys(m.tk.astype(np.uint64), m.tc, new_id, 3)
+    head, tail, n_cand = other_sections(m, opts, keep, new_id)
+    header = HEADER.pack(MAGIC, VERSION, 0, len(keep), len(bk), len(tk), len(opts), n_cand, m.total)
+    sections = [header, *head, *ngram_sections(bk, bc, tk, tc, len(keep)), *tail]
     with open(path, "wb") as f:
         for s in sections:
             f.write(pad(s))
@@ -122,8 +176,15 @@ def read(path):
     m.uni = r.array("<u4", n_words).astype(np.float64)
     m.nseg = m.uni[BOS] = m.uni[EOS]
     m.total = total
-    m.bk, m.bc = r.array("<u8", n_bi).astype(np.int64), r.array("<u4", n_bi).astype(np.float64)
-    m.tk, m.tc = r.array("<u8", n_tri).astype(np.int64), r.array("<u4", n_tri).astype(np.float64)
+    bi_start, bi_next = r.array("<u4", n_words + 1), r.array("<u2", n_bi).astype(np.int64)
+    m.bc = r.array("<u4", n_bi).astype(np.float64)
+    m.bk = (np.repeat(np.arange(n_words, dtype=np.int64), np.diff(bi_start)) << SHIFT) | bi_next
+    tri_start, tri_next = r.array("<u4", n_bi + 2), r.array("<u2", n_tri).astype(np.int64)
+    tc = r.array("<u4", n_tri).astype(np.float64)
+    tk = (np.repeat(np.append(m.bk, 0), np.diff(tri_start)) << SHIFT) | tri_next
+    # The (<s>, <s>) range is stored last but sorts first.
+    first = int(tri_start[n_bi])
+    m.tk, m.tc = np.concatenate([tk[first:], tk[:first]]), np.concatenate([tc[first:], tc[:first]])
     plain = r.strings(n_plain)
     start, ids = r.array("<u4", n_plain + 1), r.array("<u4", n_cand)
     m.cand = defaultdict(list, {p: list(ids[a:b]) for p, a, b in zip(plain, start[:-1], start[1:])})
