@@ -942,3 +942,38 @@ margin 4 on every set including chat, where it fixes 19.4% of the scored typos a
 the time. Chat stays the hard case: half the fixes of the corpora at the same margin. Not measured:
 real typing, where typos also hit the Telex mark keys, and the share of each kind of typo, which
 here is assumed. A personal dictionary would also take the user's own new words out of the targets.
+## 2026-10-17 · Fixing unknown syllables on real typos
+
+Question: "Fixing syllables the table does not know" used typos drawn by an assumed model. What does
+the fix do with real typos and with the real unknown words of one writer? Setup: the time-ordered
+chat messages (2,431, typed with Telex), every syllable whose unmarked form the small table does not
+know: 747 forms, 2,506 occurrences. Each form was labelled by hand: a typo of a Vietnamese syllable
+with its intended unmarked form, a typo of a foreign word, a typo with no single intended word (two
+words run together), unclear (left out), or a real word the table lacks (names, English, product
+names, codes). `python -m research.typo TABLE --labels LABELS MESSAGES` scores each occurrence in its
+own context; the labels and messages stay on the writer's machine.
+
+The labelling list showed the fix and margin of each form in its first context, so this prediction
+is not blind. Prediction, margin 4: under 0.2% of real-word occurrences changed (`sku` → `sau` is one
+such case); 3 to 6 of the 15 Vietnamese typos with one intended word fixed right and none fixed wrong; no foreign-word typo
+fixed, since their intended words are mostly unknown to the table.
+
+Result (30,700 words in the messages; 2,430 real-word occurrences, 42 foreign-word typos, 17
+Vietnamese typos including one with no single intended word, 17 unclear left out):
+
+| Margin | Real words changed | Vietnamese typos fixed right |
+| --- | --- | --- |
+| 0 | 53 | 7 of 17 (1 wrong) |
+| 2 | 8 | 5 |
+| 4 | 2 | 3 |
+| 6 | 0 | 1 |
+
+Hit, at the low end: at margin 4 two real-word occurrences change (0.08% of them, 1 in 15,000 words
+typed; one is `sku` → `sau`, the other was not identified before the messages were deleted), three
+Vietnamese typos are fixed right (`nhwung`, `quarn`, `laj` → `nhung`, `quan`, `la`, then marked by
+restore) and none wrong, and no foreign-word typo is touched at any margin. Typos that make a
+syllable the table does not know are rare in this writing: 17 in 30,700 words, against 2,430 real
+words the table lacks. So on this writer the fix is safe but saves little, about one typo per 10,000
+words; most of what it would see is real words to leave alone. Several typos missed are Telex keys
+left as letters (`aays`, `vieejt`, `ddne`), two edits away from the intended syllable; reading them
+as Telex is the input method's job (Cứu chữ). One writer, one labeller.

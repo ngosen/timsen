@@ -75,7 +75,10 @@ tests, and each measurement goes into [`EXPERIMENTS.md`](EXPERIMENTS.md) with it
    a target, and one key undoes the fix. On the small table this changes at most 0.018% of clean
    words and is right 98.6–99.6% of the time, fixing 19% (chat) to 46% (subs) of the typos it can
    see ("Fixing syllables the table does not know"). Typos that land on another real syllable are
-   left to the spell check below. Check: the crate fixes exactly what `research.typo` fixes.
+   left to the spell check below. On one writer's real messages it fixed 3 of 17 typos and changed
+   2 of 2,430 real words the table lacks, so it is safe but rare ("Fixing unknown syllables on real
+   typos"); it ships off by default until daily use shows how often a fix is undone. Check: the crate
+   fixes exactly what `research.typo` fixes.
 6. **C API.** A thin C interface and header so Linux input methods can use the crate: restore while
    typing, the fix above, the personal dictionary. macOS and Windows are set aside until there is a
    machine to try typing on them.

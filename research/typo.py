@@ -1,6 +1,7 @@
 """Fixes a mistyped syllable the table does not know (khogn -> khong), scored on clean and mistyped text.
 
 usage: python -m research.typo MODEL.npz|TABLE.timsen TESTFILE...
+       python -m research.typo MODEL.npz|TABLE.timsen MESSAGES... --labels LABELS
 Input is typed without marks, as for restore. A syllable is a fix target only when the table does not
 know its unmarked form; candidates are the known forms one edit away (a letter replaced, removed,
 added, or two neighbours swapped), ranked in context by the restore score. A fix is made when the best
@@ -112,12 +113,60 @@ def evaluate(m, path):
     return r, changed, fixed, right
 
 
+def read_labels(path):
+    """FORM, INTENDED, KIND per line, tab-separated. INTENDED is the unmarked form meant, ! for a typo
+    with no single intended word, ? to leave the form out. Forms not listed are real words."""
+    labels = {}
+    for line in open(path, encoding="utf-8"):
+        form, intended, kind = line.rstrip("\n").split("\t")
+        labels[form] = (intended, kind)
+    return labels
+
+
+def labeled(m, path, labels):
+    """For each kind of unknown word: occurrences, and per margin how many were changed and changed right."""
+    out = {}
+    for line in open(path, encoding="utf-8"):
+        for run in segments(line, tone_style=True):
+            plain = [strip_marks(w) for w in run]
+            for i, p in enumerate(plain):
+                if known(m, p):
+                    continue
+                intended, kind = labels.get(p, (None, "real"))
+                if intended == "?":
+                    continue
+                if intended is not None:
+                    kind = f"typo-{kind}"
+                n, changed, right = out.setdefault(kind, [0, np.zeros(len(MARGINS)), np.zeros(len(MARGINS))])
+                out[kind][0] = n + 1
+                f = best_fix(m, plain, i)
+                if f:
+                    hit = np.array([f[0] >= t for t in MARGINS])
+                    changed += hit
+                    right += hit & (f[1] == intended)
+    return out
+
+
+def print_labeled(out):
+    for kind, (n, changed, right) in sorted(out.items()):
+        print(f"{kind}: {n} occurrences")
+        print("  margin  changed  changed-right")
+        for k, t in enumerate(MARGINS):
+            print(f"  {t:6}  {int(changed[k]):7}  {int(right[k]):13}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("model")
     ap.add_argument("tests", nargs="+")
+    ap.add_argument("--labels", help="score the unknown words of message files against these labels")
     a = ap.parse_args()
     m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model)
+    if a.labels:
+        labels = read_labels(a.labels)
+        for test in a.tests:
+            print_labeled(labeled(m, test, labels))
+        return
     for test in a.tests:
         r, changed, fixed, right = evaluate(m, test)
         scored = r["typos"] - r["typo_known"]
