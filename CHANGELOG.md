@@ -26,6 +26,9 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Added
 
+- `research.train --breaks` and `research.evaluate --breaks`: runs that go on across commas, digits
+  and symbols, which become one `<p>` word. Not used for the shipped tables (+0.01 to +0.13 points at
+  the small size).
 - `research.prune`: builds a table that keeps the n-grams whose removal would change scores most, at a
   given number of n-grams: +0.59 points on wiki at the small table's size, +0.32 at the large one's.
 - `research.coverage`: the share of words whose right spelling is among restore's candidates.

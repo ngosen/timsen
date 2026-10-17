@@ -1332,3 +1332,50 @@ the 50 ms mark on one of the two rounds. The whole-run accuracy in the same runs
 matches `research.evaluate`. On the full frozen files the small weighted table now scores 95.65%,
 95.38% and 92.68% (wiki, subs, forum), against 94.85%, 95.11% and 91.82% for the count-pruned table
 of the last release plan.
+
+## 2026-10-17 · Keeping context across commas and digits
+
+Question: every comma, digit or symbol starts a new run, so the word after it is guessed with no
+context; runs of at most four words are 9–19% of words and 2.4–5.9 points less accurate ("Where
+the remaining errors are"). Does keeping the run going, with the separator as one `<p>` word, help?
+Only `.`, `!` and `?` still end a run. Setup: `python -m research.train --breaks wsfb.npz wiki subs
+forum`, the same corpora as `wsf-canon.npz`; a weighted table at the small size (`research.prune
+--entries 1803455 --min-plain 1000`); `research.evaluate --breaks` on the full frozen files, which
+skips `<p>` when scoring, against the current small weighted table without `--breaks` (95.65%,
+95.38% and 92.68%), both with the leftover backoff. Also the two unpruned models. The word counts
+must be the same both ways (73,604, 31,845 and 92,220), and `<p>` must be among the most frequent
+words of the new model, which shows the change was applied.
+
+Prediction: at the small size, +0.1 to +0.4 points on each set; unpruned, a larger gain, +0.2 to
++0.6, since the `<p>` n-grams do not compete for the budget there. If the small table gains under
+0.1 on every set, runs stay as they are.
+
+Result: mostly missed. Training saw 474,954,566 tokens, and `<p>` is the second most frequent word
+(37,153,562). Word counts match both ways. Word accuracy, full frozen files, leftover backoff:
+
+| Model | wiki / subs / forum |
+|---|---|
+| small weighted, runs end at commas | 95.65% / 95.38% / 92.68% |
+| small weighted, `--breaks` (22,650,928 bytes) | 95.68% / 95.51% / 92.69% |
+| unpruned, runs end at commas | 97.54% / 96.89% / 94.26% |
+| unpruned, `--breaks` | 97.70% / 97.12% / 94.41% |
+
+At the small size only subs gains more than 0.1 (+0.13); wiki gains 0.03 and forum 0.01. Unpruned,
+the gain is 0.16, 0.23 and 0.15, at the low end of or under the predicted range. The pruned table
+spends its budget on `<p>` n-grams (it keeps 591,106 bigrams, against 614,105).
+
+Prediction for the large size (`--entries 10804660`, against the large weighted table's 97.03%,
+96.48% and 94.10%): +0.1 to +0.2 on each set.
+
+Result: as predicted. The large `--breaks` table (2,367,864 bigrams and 8,436,796 trigrams) scores
+97.17%, 96.61% and 94.28%, +0.14, +0.13 and +0.18.
+
+A table trained with `--breaks` also needs the input method to send `<p>` where the user typed a
+comma or digit. Scored on runs that end at commas instead, as an input method that does not would
+give it, the small `--breaks` table falls to 95.11%, 95.39% and 92.39%, below the current table on
+wiki (-0.54) and forum (-0.29).
+
+Conclusion: the shipped tables keep runs that end at commas. At the small size the gain is 0.01 to
+0.13 points, and it turns into a loss if the input method does not mark the separators. `--breaks`
+stays in `research.train` and `research.evaluate`; worth taking up for the large table once the
+input method passes what was typed before a comma (step 7).
