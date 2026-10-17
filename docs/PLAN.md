@@ -18,10 +18,11 @@ Standard Vietnamese only: chat is covered when it is written in full words, abbr
 `dc`) stay as typed, and informal spellings (`lun`, `dị` for `vậy`, `gòi`) wait (see Later). Not in
 the first release: next-word suggestions, the spell check underline, macOS and Windows.
 
-Why this shape ([`PRIOR_WORK.md`](PRIOR_WORK.md)): input methods keep n-grams and a user dictionary
-at their core, an automatic correction pays only when it is rarely wrong and cheap to undo, and the
-one existing tool that adds marks while typing, the Cốc Cốc browser, works only in its own text
-fields and sends them to a server. Nothing here leaves the machine.
+Why this shape ([`PRIOR_WORK.md`](PRIOR_WORK.md)): input methods keep n-grams at their core, and an
+automatic correction pays only when it is rarely wrong and cheap to undo. Adding marks while typing
+already exists in the Cốc Cốc browser (its own text fields only, sent to its servers until 2018) and
+in TocKyVNKey on Windows, but no open-source input method on Linux does it. Nothing typed leaves the
+machine; the only thing a user may choose to send is a score (see "From users").
 
 ## Decisions
 
@@ -32,16 +33,17 @@ fields and sends them to a server. Nothing here leaves the machine.
   prose by about 1.7 (wiki 94.84% and 96.55%). The small table ships first; the large one is added
   later if users ask for better accuracy on longer writing. Kneser-Ney at the same sizes gains
   0.3–0.5 points on edited prose and 0–0.3 on chat, but cannot take personal counts by simple
-  addition; revisit only with a measured way to combine it with the personal dictionary. A small
-  LSTM gains 1 point on chat (see Later), so no neural model for now.
+  addition; revisit only with a measured way to combine it with the personal dictionary. No neural
+  restore model was trained; an off-the-shelf XLM-R marker scored 86.9% on wiki.
 - **Corpora:** Wikipedia, OpenSubtitles and FineWeb-2 forum pages. OpenSubtitles has no formal
   licence; the tables ship its counts with attribution, as `wordfreq` does, and are rebuilt without
   it if a takedown request comes (`docs/DATA_SOURCES.md`).
 - **Where the gain is:** the personal dictionary (+3.2 to +3.6 points on chat depending on the
-  table, measured after the total fix; it was still rising with more learned text before that fix,
-  not rerun since) and revising the last few words while typing (89% against 80% when each word is
-  fixed as typed). More general text gives about half a point per doubling. After that, the gain is
-  in how cheap a wrong guess is to fix: at 92%, one word in twelve.
+  table: 88.63% → 92.19% small, 89.25% → 92.42% large, "Personal dictionary in Rust", after the
+  total fix; it was still rising with more learned text before that fix, not rerun since) and revising the last few words
+  while typing (89% against 80% when each word is fixed as typed). More general text gives about
+  half a point per doubling. After that, the gain is in how cheap a wrong guess is to fix: at 92%,
+  one word in twelve.
 - **More general text comes from more forum files, not from users.** Counts donated by users would be
   a small forum with a privacy cost; the personal dictionary gains because the text is the user's own.
   The only thing taken from users is a score measured on their machine (see "From users").
@@ -52,13 +54,13 @@ fields and sends them to a server. Nothing here leaves the machine.
 ## Steps
 
 1. **Shipped table.** Done: `research.table` writes the fixed binary format, and both tables are
-   measured on all test sets, alone and with the personal dictionary (`docs/EXPERIMENTS.md`, "Pruned
-   table for shipping" and "Trimming the table vocabulary").
+   measured alone on chat, wiki and forum, and on chat with the personal dictionary
+   (`docs/EXPERIMENTS.md`, "Pruned table for shipping" and "Trimming the table vocabulary").
 2. **Whole-run restore in Rust.** Done: the `timsen` crate (`crates/timsen`) maps a table and
    restores a run, keeping the user's capitalization and following the tone placement setting. It
-   restores every run of every test set exactly like `research.model` on both tables
-   (`docs/EXPERIMENTS.md`, "Rust restore against the Python model"); CI checks it on a small fixture
-   table.
+   restores every run of the wiki, subs, web and forum sets exactly like `research.model` on both
+   tables (`docs/EXPERIMENTS.md`, "Rust restore against the Python model"); CI checks it on a small
+   fixture table.
 3. **Restore while typing.** Done.
    - `Typing` in the crate gives the best spelling after each syllable in under 2 ms at p99; words
      three syllables back are as good as final ("Restoring while typing").
@@ -91,7 +93,9 @@ fields and sends them to a server. Nothing here leaves the machine.
    see ("Fixing syllables the table does not know"). Typos that land on another real syllable are
    left to the spell check (Later). On one writer's real messages it fixed 3 of 17 typos and changed
    2 of 2,430 real words the table lacks, so it is safe but rare ("Fixing unknown syllables on real
-   typos"). Check: the crate fixes exactly what `research.typo` fixes.
+   typos"). It runs when a word ends (space or punctuation), since a syllable still being typed
+   (`khon` on the way to `không`) is unknown too. Checks: the crate fixes exactly what
+   `research.typo` fixes, and p99 per syllable stays under 3 ms with the fix on.
 6. **C API.** A thin C interface and header so Linux input methods can use the crate: restore while
    typing, the fix above, the personal dictionary.
 7. **Daily use in Ngó Sen.** In the Ngó Sen repository: Đoán dấu as an option, off by default, and
@@ -99,7 +103,8 @@ fields and sends them to a server. Nothing here leaves the machine.
    re-reading the keys). Then type with it every day. Counted on the machine, never sent: words
    guessed, guesses changed with Tab, fixes undone. Decided from those counts: whether Đoán dấu fills
    in marks or only suggests them, the confidence below which a guess is shown as unsure, and
-   whether the syllable fix can be on by default.
+   whether the syllable fix can be on by default. These come from one writer, so they stay
+   provisional until "measure on my text" results from others agree.
 
 ## Before the first public release
 
@@ -132,11 +137,12 @@ fields and sends them to a server. Nothing here leaves the machine.
   name and the text around the cursor, which could tell a chat box from a document; whether a
   browser tab can be told apart from the browser is not checked yet.
 - **Next-word suggestions.** From the table they are too often wrong to show: the next word is among
-  three suggestions for 27–34% of words on the corpora and 14–15% on chat (18% with the personal
-  dictionary); pairs and whole earlier sentences are right under 9% and 3% of the time ("Next-word
-  suggestions from the table"). A 7 MB LSTM trained for 4 hours on this machine's CPU is fast enough
-  (1.4 ms a word) but adds only 1 point on chat and loses on wiki and subs ("A small LSTM for
-  next-word suggestions"). Even Gboard has the next word in its top 3 for only 27% of words, and
-  suggestions have been measured to slow typing (`PRIOR_WORK.md`). Next try, if any: a larger model
-  trained on a rented GPU, which ships only if it clearly beats the table on chat.
+  three suggestions for 27–34% of words on the corpora (small table; the large reaches 36.5%) and
+  14–15% on chat (18% with the personal dictionary); pairs and whole earlier sentences are right
+  under 9% and 3% of the time ("Next-word suggestions from the table"). A 7 MB LSTM trained for 4
+  hours on this machine's CPU is fast enough (1.4 ms a word) but adds only 1 point on chat and loses
+  on wiki and subs ("A small LSTM for next-word suggestions"). Even Gboard has the next word in its
+  top 3 for only 27% of words, and suggestions have been measured to slow typing (`PRIOR_WORK.md`).
+  Next try, if any: a larger model trained on a rented GPU, which ships only if it clearly beats the
+  table on chat.
 - **macOS and Windows,** once there is a machine to try typing on them.
