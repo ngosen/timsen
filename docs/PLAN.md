@@ -103,10 +103,10 @@ Tab adds them with Đoán dấu instead of re-reading the keys.
 - **Next-word suggestions.** From the table they are too often wrong to show: the next word is among
   three suggestions for 27–34% of words on the corpora and 14–15% on chat (18% with the personal
   dictionary); pairs and whole earlier sentences are right under 9% and 3% of the time ("Next-word
-  suggestions from the table"). Being researched: a very small neural model (a few MB, trained on
-  this machine's CPU) ranking the next word, measured on the same test sets with the same tool. It
-  ships only if it clearly beats the table on chat at a size and speed fit for typing; showing a
-  suggestion only when it is likely right is measured with it.
+  suggestions from the table"). A 7 MB LSTM trained for 4 hours on this machine's CPU is fast enough
+  (1.4 ms a word) but adds only 1 point on chat and loses on wiki and subs ("A small LSTM for
+  next-word suggestions"). Next try, if any: a larger model trained on a rented GPU, which ships only
+  if it clearly beats the table on chat at a size and speed fit for typing.
 - **Spell check:** underline a marked word the context disagrees with and suggest the alternative;
   never auto-correct. On chat it catches about half of realistic errors at 0.9% false alarms, mostly
   technical words; the personal dictionary should lower that.

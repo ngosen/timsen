@@ -977,3 +977,43 @@ words the table lacks. So on this writer the fix is safe but saves little, about
 words; most of what it would see is real words to leave alone. Several typos missed are Telex keys
 left as letters (`aays`, `vieejt`, `ddne`), two edits away from the intended syllable; reading them
 as Telex is the input method's job (Cứu chữ). One writer, one labeller.
+
+## 2026-10-17 · A small LSTM for next-word suggestions
+
+Question: the table puts the next word among three suggestions for 27–34% of words on the corpora
+and 14–15% on chat. Does a small neural model, trained on this machine's CPU, do clearly better at a
+size fit for an input method? Setup: `research.nn_lm`, one LSTM layer (embedding 128, hidden 256)
+with an adaptive softmax over the small table's 39,629 words, 7.0M parameters (about 7 MB at one
+byte each). It sees the whole line typed so far, not just two words. Training data: 239,664,610
+tokens (the build stops when the shortest corpus runs out), lines taken in turn from wiki, subs and
+the four forum files (test sentences were already removed by the fetch scripts), 4 hours on 8
+threads, which saw 215,449,600 tokens (under one pass), sequences of 64, batch 64, Adam 2e-3.
+`python -m research.nn_lm score` counts the same words as `research.next_word` (checked: 2,880 words
+on the first 200 forum lines for both), with `<unk>` always a miss. Chat is the last 20% of the
+time-ordered set, as before.
+
+Prediction, top 3: wiki 38–42%, subs 32–36%, forum 31–35% (4 to 8 points over the small table),
+chat 17–21% (3 to 6 points over the table alone). It counts as clearly better only with at least 5
+points over the table alone on chat.
+
+Result (`python -m research.nn_lm score` with the small table's vocabulary; training loss 4.45 at
+the end, about 14,900 tokens a second):
+
+| test, top 3 | small table | LSTM |
+|---|---|---|
+| wiki | 33.94% | 31.70% |
+| subs | 27.65% | 26.28% |
+| forum | 27.08% | 28.93% |
+| chat | 14.62% | 15.66% |
+
+Top 1: wiki 21.50%, subs 15.09%, forum 18.61%, chat 9.45% (table on chat 7.98%). The chat set was
+rebuilt from newer messages (2,543 sentences, the last 509 scored, 5,473 words), so the table was
+scored again on it: 14.62% instead of the earlier 14.45%. One step plus the top 3 over the vocabulary
+takes 1.31 ms (p50) and 1.42 ms (p99) on one thread, measured over 340 steps.
+
+The prediction missed on every set. The LSTM is below the table on wiki and subs, 1.9 points above it
+on forum and 1.0 point above it on chat, far from the 5 points that would count as clearly better.
+It is fast enough for an input method, so speed is not the limit. Likely causes, not tested: under
+one pass over the data is too little for a model that has to learn word pairs the table simply
+counts, and 7M parameters are few next to the table's 22.6 MB of counts. Not worth more CPU time in
+this form; a larger model would need a GPU, and the gain on chat would have to be shown first.
