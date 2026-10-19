@@ -6,8 +6,18 @@ use std::io::{BufRead, Write};
 use crate::table::{BOS, EOS, MAX_SPELLINGS, SHIFT, UNK};
 use crate::{Error, Table, tone};
 
-/// How much one learned n-gram weighs against one seen in the corpora.
-pub const WEIGHT: f64 = 1000.0;
+/// The most one learned n-gram weighs against one seen in the corpora.
+pub const MAX_WEIGHT: f64 = 3000.0;
+
+/// How much one learned n-gram weighs: at most `MAX_WEIGHT`, and less once the learned text would
+/// outweigh the whole table, so a large dictionary does not drown it.
+pub fn weight(table_total: f64, tokens: u64) -> f64 {
+    if tokens == 0 {
+        MAX_WEIGHT
+    } else {
+        (table_total / tokens as f64).min(MAX_WEIGHT)
+    }
+}
 
 const HEADER: &str = "timsen-personal 1";
 const MAX_ID: u32 = (1 << SHIFT) - 1;
@@ -276,7 +286,7 @@ impl<'t> Personal<'t> {
             0.0
         };
         let unk = if id == UNK { self.unk_uni } else { 0 };
-        base + WEIGHT * self.uni.get(&id).copied().unwrap_or(0).saturating_add(unk) as f64
+        base + self.weight() * self.uni.get(&id).copied().unwrap_or(0).saturating_add(unk) as f64
     }
 
     pub(crate) fn bigram(&self, v: u32, w: u32) -> f64 {
@@ -291,7 +301,7 @@ impl<'t> Personal<'t> {
         } else {
             0
         };
-        base + WEIGHT * get(&self.bi, k).saturating_add(unk) as f64
+        base + self.weight() * get(&self.bi, k).saturating_add(unk) as f64
     }
 
     pub(crate) fn trigram(&self, u: u32, v: u32, w: u32) -> f64 {
@@ -307,11 +317,15 @@ impl<'t> Personal<'t> {
         } else {
             0
         };
-        base + WEIGHT * get(&self.tri, k).saturating_add(unk) as f64
+        base + self.weight() * get(&self.tri, k).saturating_add(unk) as f64
     }
 
     pub(crate) fn total(&self) -> f64 {
-        self.table.total() + WEIGHT * self.tokens as f64
+        self.table.total() + self.weight() * self.tokens as f64
+    }
+
+    pub fn weight(&self) -> f64 {
+        weight(self.table.total(), self.tokens)
     }
 
     /// The table's shares: learned counts do not change them.
@@ -579,7 +593,16 @@ mod tests {
         let mut p = Personal::new(&t);
         learn(&mut p, "nhà ta");
         learn(&mut p, "ngó");
-        assert_eq!(p.total(), t.total() + WEIGHT * (3.0 + 1.0));
+        // The tiny table's total is small, so four learned tokens already lower the weight.
+        assert_eq!(p.weight(), t.total() / 4.0);
+        assert_eq!(p.total(), t.total() + p.weight() * (3.0 + 1.0));
+    }
+
+    #[test]
+    fn the_weight_falls_once_learned_text_outweighs_the_table() {
+        assert_eq!(weight(1e9, 0), MAX_WEIGHT);
+        assert_eq!(weight(1e9, 10), MAX_WEIGHT);
+        assert_eq!(weight(6e8, 2_000_000), 300.0);
     }
 
     #[test]

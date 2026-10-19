@@ -1609,3 +1609,71 @@ been pasted into messages, which would inflate this gain; not checked.
 The crate's weight stays 1000 for now. With a dictionary of years of text, 300 is as good on
 messages and better on posts; a weight that falls as the dictionary grows is the next thing to
 measure. The messages and posts were deleted from RAM after the run.
+
+## 2026-10-19 · A personal weight that falls as the dictionary grows
+
+Question: weight 1000 was chosen on a dictionary of about 12,000 words; with 1.6 million, 300 did
+better on messages and 100 on posts. What weight is best at each size, and does one rule fit them
+all? Setup: the same messages and posts, rebuilt in RAM from the export and deleted after the run;
+small table (`v2u`, total 534,537,603 tokens); `research.personal TABLE TEST WEIGHTS --learn FILE`.
+Message test, last year. Learned from: one year at 10%, 25% and 100% (`--fractions`), three years,
+five years, everything, at weights 100, 200, 300, 500, 1000, 2000, 3000 and 10000. Posts, learned
+from everything, at 30, 50, 100, 200 and 300. The rule to test: weight = min(1000, T / n), with T
+the table's total and n the tokens learned, so that the dictionary never outweighs the table.
+
+Prediction: best weight 1000 to 3000 for one year and its fractions; 1000 to 2000 for three years;
+500 to 1000 for five; 200 to 500 for everything; 30 to 100 for posts. The rule scores within 0.1
+points of the best weight tried on every message window; on posts it is 0.1 to 0.5 below the best,
+since posts are a different register from what it learned.
+
+Result: the falling weight held, the small end missed high. Message test, small table:
+
+| Learned from (words) | Best weight tried | Its score / weight 1000 |
+|---|---|---|
+| 1 year at 10% (about 6,400) | 10000 | 86.05% / 85.40% |
+| 1 year at 25% (about 16,000) | 10000 | 87.19% / 86.62% |
+| 1 year (64,133) | 10000, 3000 within 0.01 | 89.37% / 88.88% |
+| 3 years (366,370) | 1000 | 91.20% / 91.20% |
+| 5 years (766,954) | 1000, 500 within 0.02 | 91.72% / 91.72% |
+| everything (1,626,109) | 500, 300 within 0.02 | 92.24% / 92.14% |
+| posts, from everything | 100, 30 and 50 within 0.03 | 95.70% / not run |
+
+Three years, five years, everything and posts fall inside their predicted ranges; one year and its
+fractions want 10000, not 1000 to 3000. From three years up, the best weight times the words learned
+is 3.7 to 8.1 × 10^8, close to the table's total, so the T / n part of the rule fits. Its cap of
+1000 does not: it costs 0.5 to 0.65 points on the one-year windows. The chat set from Claude Code
+sessions disagrees at the small end ("Tuning the personal dictionary weight": 1000 best, 3000 -0.05
+to -0.08, 10000 -0.4). The cap becomes 3000 as a compromise between the two, chosen after seeing
+these numbers, so it needs the run below: `auto` in `research.personal` is min(3000, T / n).
+
+Prediction for `auto`: on the message windows from three years up, within 0.1 of the best weight
+tried; on one year and its fractions, within 0.05 of weight 3000, so 0.3 to 0.7 above 1000; posts
+0.1 to 0.3 below 95.70%. On the chat set from Claude Code sessions (rebuilt in RAM, 5-fold, deleted
+after), `auto` within 0.1 below weight 1000.
+
+Speed prediction, written before timing: the weight is now one division per lookup instead of a
+constant. `personal_eval` on the frozen wiki runs (`research.crosscheck --lines`), small table,
+`main` against this branch, release builds, alternately twice: p99 per syllable with the personal
+dictionary differs by less than 10%, within the run-to-run spread.
+
+Result: as predicted on messages and posts; chat missed high. Small table:
+
+| Test, learned from | weight 1000 | `auto` |
+|---|---|---|
+| messages, 1 year at 10% / 25% / 100% | 85.40% / 86.62% / 88.88% | 85.83% / 86.97% / 89.36% |
+| messages, 3 / 5 years | 91.20% / 91.72% | 91.21% / 91.72% |
+| messages, everything | 92.14% | 92.22% |
+| posts, everything | 95.12% | 95.51% |
+| chat, 5-fold (2,750 sentences) | 93.10% | 93.32% |
+
+`auto` equals weight 3000 on the one-year windows (0.35 to 0.48 over 1000), is within 0.02 of the
+best weight tried from three years up, and 0.19 below the best on posts. On chat it gains 0.22
+instead of losing up to 0.1: the chat set has grown to 2,750 sentences and now agrees with the
+messages at the small end. The crate gives the same: `personal_eval` on the chat set (one message
+more, 30,834 words) scores 93.32%, as `research.personal ... auto` does on the same file.
+
+Speed, as predicted. Frozen wiki runs, 73,604 syllables, small table, load average 6 to 11 (a
+ceiling, not a typical value), p99 per syllable with the personal dictionary: `main` 2.05 and 1.78
+ms, this branch 1.87 and 1.99 ms; the difference is inside the spread between rounds. On wiki the
+dictionary learned from the other folds scores 96.06% at 1000 and 96.01% at `auto` (3000 there).
+The messages, posts and chat set were deleted from RAM after the runs.

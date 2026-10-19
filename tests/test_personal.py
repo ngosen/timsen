@@ -56,3 +56,15 @@ def test_learn_scores_the_whole_chat_file_against_another_file(model_path, tmp_p
     monkeypatch.setattr(sys, "argv", ["personal", str(model_path), str(chat), "1", "--learn", str(learned)])
     personal.main()
     assert "(6 words)" in capsys.readouterr().out
+
+
+def test_auto_weight_keeps_a_large_dictionary_below_the_table(model_path):
+    assert personal.auto_weight(1e9, 10) == personal.MAX_WEIGHT
+    assert personal.auto_weight(6e8, 2e6) == 300
+    m = Model(model_path)
+    base = m.snapshot()
+    personal.personalize(m, base, ["tôi gõ phím"], None)
+    auto = m.total
+    tokens = 4  # tôi gõ phím </s>
+    personal.personalize(m, base, ["tôi gõ phím"], personal.auto_weight(base[6], tokens))
+    assert auto == m.total
