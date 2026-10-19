@@ -10,7 +10,7 @@ mod table;
 mod tone;
 mod typing;
 
-pub use personal::{Personal, WEIGHT};
+pub use personal::{MAX_WEIGHT, Personal};
 pub use table::{Error, Table};
 pub use tone::ToneStyle;
 pub use typing::{Choices, Typing};

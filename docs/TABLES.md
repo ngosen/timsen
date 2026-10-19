@@ -28,8 +28,8 @@ python -m research.prune MODEL.npz large.timsen --bytes 130958840 --min-plain 10
 All figures are from "Forum pages from every FineWeb-2 file" in [`EXPERIMENTS.md`](EXPERIMENTS.md);
 chat is 2,604 sentences from one writer, so it may differ for other people, the others are the
 frozen test files. How each step got here, from the count-pruned tables of 2026-10-15: choosing n-grams by weight ("Keeping the n-grams that matter instead of the frequent ones"), the
-leftover backoff ("Backoff that knows how much of a context was pruned"), the personal weight 1000
-("Tuning the personal dictionary weight"), the denser format ("A denser table file") and the
+leftover backoff ("Backoff that knows how much of a context was pruned"), the personal weight, now
+min(3000, table total / tokens learned) ("A personal weight that falls as the dictionary grows"), the denser format ("A denser table file") and the
 technology forums ("A technology-forum slice"; forum pages from the other files made it worse).
 
 They differ in how many rare word sequences they keep. Both leave out unmarked words seen fewer than

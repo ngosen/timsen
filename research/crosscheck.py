@@ -7,7 +7,7 @@ usage: python -m research.crosscheck TABLE.timsen TESTFILE RUNS EXPECTED [TRUTH]
 RUNS gets one unmarked run per line, EXPECTED the restored run on the same line, and TRUTH the run as
 written, with tone marks in the new placement (the table's), for scoring another implementation.
 With --personal, the table first learns the lines of TEXT whose words it knows, as research.personal
-does with weight WEIGHT; LEARNED gets their runs, one per line, for the other implementation to learn.
+does with its auto weight; LEARNED gets their runs, one per line, for the other implementation to learn.
 RUNS must already exist. With --lines, OUT keeps the lines of TESTFILE, each as its runs separated by
 tabs, every run written twice: as written (new tone placement), then unmarked.
 """
@@ -16,8 +16,6 @@ import sys
 
 from . import personal, table
 from .text import segments, strip_marks
-
-WEIGHT = 1000
 
 
 def runs(path):
@@ -55,7 +53,7 @@ def write_personal(table_path, text_path, runs_path, learned_path, expected_path
         for line in open(text_path, encoding="utf-8").read().splitlines()
         if all(w in m.id for run in segments(line, tone_style=True) for w in run)
     ]
-    personal.personalize(m, m.snapshot(), lines, WEIGHT)
+    personal.personalize(m, m.snapshot(), lines, None)
     with open(learned_path, "w", encoding="utf-8") as f:
         for line in lines:
             for run in segments(line, tone_style=True):

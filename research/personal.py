@@ -1,6 +1,6 @@
 """Adds counts from the user's own text to a base model (the personal dictionary), scored 5-fold.
 
-usage: python -m research.personal MODEL.npz|TABLE.timsen CHATFILE WEIGHT... [--fractions 0,0.1,1]
+usage: python -m research.personal MODEL.npz|TABLE.timsen CHATFILE WEIGHT|auto... [--fractions 0,0.1,1]
        [--min-tri N] [--min-bi N] [--backoff X] [--leftover GAMMA] [--learn FILE]
 Each fold is a contiguous fifth of the file, so sentences from one message rarely land on both sides.
 With --learn, the counts come from FILE instead and the whole CHATFILE is scored once, as an input
@@ -20,6 +20,13 @@ from .model import BOS, EOS, SHIFT, UNK, Model
 from .text import same, segments, strip_marks
 
 FOLDS = 5
+MAX_WEIGHT = 3000
+
+
+def auto_weight(table_total, tokens):
+    """Learned counts weigh at most as much as the whole table, and each at most MAX_WEIGHT corpus
+    counts: a large dictionary would otherwise drown the table, a small one barely moves it."""
+    return min(MAX_WEIGHT, table_total / tokens) if tokens else MAX_WEIGHT
 
 
 def counts(model, lines):
@@ -46,6 +53,8 @@ def personalize(m, base, lines, weight):
     if not lines:
         return
     uni, b, t = counts(m, lines)
+    if weight is None:
+        weight = auto_weight(base[6], uni[3:].sum() + uni[EOS])
     m.uni = base[0] + weight * uni
     m.nseg = base[5] + weight * uni[EOS]
     m.uni[BOS] = m.nseg
@@ -77,7 +86,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("model")
     ap.add_argument("chat")
-    ap.add_argument("weights", nargs="+", type=float)
+    ap.add_argument("weights", nargs="+", type=lambda x: None if x == "auto" else float(x), help="or auto")
     ap.add_argument("--fractions", default="1")
     ap.add_argument("--min-tri", type=int, default=1)
     ap.add_argument("--min-bi", type=int, default=1)
@@ -100,7 +109,8 @@ def main():
                 w, r = score(m, test)
                 words += w
                 right += r
-            print(f"weight {weight:g} share {frac:.0%}: word {right / words:.2%} ({words} words)", flush=True)
+            label = "auto" if weight is None else f"{weight:g}"
+            print(f"weight {label} share {frac:.0%}: word {right / words:.2%} ({words} words)", flush=True)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,11 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Changed
 
+- `Personal` in the crate, `research.crosscheck` and `research.personal auto` weigh a learned n-gram
+  min(3000, table total / tokens learned) times one from the corpora instead of a fixed 1000, so a
+  dictionary of years of text no longer drowns the table: on the user's messages +0.35 to +0.48 points
+  with up to a year learned, the same as the best fixed weight with more; +0.22 on chat. `WEIGHT` is
+  replaced by `MAX_WEIGHT` and `Personal::weight`.
 - The tables are trained with a technology-forum slice of FineWeb-2 (`research.fetch_fineweb
   tech`, 30 million words from tinhte.vn, voz.vn, viblo.asia and others): +0.31 points on chat with
   the personal dictionary for the small table, +0.53 for the large one, edited prose within 0.08.
