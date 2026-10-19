@@ -1555,3 +1555,57 @@ the tables keep 40,801 words. Same run as above:
 | chat + personal (1000) | 92.90% → 92.91% | 92.74% → 92.78% |
 
 These rebuilt tables are the ones `docs/TABLES.md` describes from now on.
+
+## 2026-10-19 · A personal dictionary from years of messages
+
+Question: the user's own Messenger messages are now available, about 2.2 million words from 2011 to
+2026. How much does a personal dictionary learned from them help, and do old messages, written when
+habits were different, still help or start to hurt? Setup: the user's own messages only, kept when
+they have at least 3 words and at least 60% marked words (1.63 million words before the test year);
+held in RAM and deleted after the run. The test is the last year of messages (4,918 messages,
+33,973 words); the dictionary learns from the 1, 3 or 5 years before it (64,133, 366,370 and 766,954
+words) or from everything before it (1,626,109 words). `research.personal TABLE TEST 0 100 300 1000
+--learn FILE`, small table. As a check that the windows differ, the word counts above; weight 0 must
+score the same for every window.
+
+Prediction: weight 0 89 to 92%. One year at weight 1000: +2 to +4 points. Three years against one,
+best weight for each: +0.3 to +1.0. Five against three: -0.2 to +0.3. Everything against five years:
+-0.3 to +0.2, so old messages neither help nor hurt much. The best weight falls as the dictionary
+grows: with everything, 100 or 300 beats 1000.
+
+Second test, written before the first one's numbers were read: the user's own Facebook posts (on
+their profile and on other pages; comments are not in the export), same filter, all years: 2,697
+posts, 113,072 words. The dictionary learns from all messages before the message test year
+(`--learn` with the everything window), at weights 0, 100, 300 and 1000. Posts are text written for
+others to read, closer to web and social content than messages.
+
+Prediction: weight 0 90 to 94%, above chat since posts are longer and more edited; the dictionary
+learned from messages +1 to +3 points at its best weight, less than on messages, since posts are a
+different register.
+
+Result, messages: the base missed low and every gain missed high; old messages help. Weight 0 scores
+83.90% for every window, as it must (33,387 words: the 33,973 above count whitespace-separated tokens, including numbers and symbols).
+
+| Learned from | Weight 100 / 300 / 1000 |
+|---|---|
+| nothing | 83.90% |
+| 1 year | 87.33% / 88.07% / 88.88% |
+| 3 years | 90.11% / 90.85% / 91.20% |
+| 5 years | 91.12% / 91.59% / 91.72% |
+| everything | 91.98% / 92.22% / 92.14% |
+
+One year adds 4.98 points (predicted 2 to 4); three against one +2.32 (predicted 0.3 to 1.0); five
+against three +0.52 (predicted -0.2 to +0.3); everything against five +0.50 (predicted -0.3 to
++0.2). Messages ten years old still add to the dictionary instead of misleading it, so the
+dictionary keeps all history. The base is 6.7 points below the chat set from Claude Code sessions
+(90.61%): Messenger text is harder for the table. Weight 300 beats 1000 only with everything, by
+0.08, as predicted.
+
+Result, posts: weight 0 94.34% (105,157 words), a little above the predicted 90 to 94%. The
+dictionary from messages adds 1.36 at weight 100 (95.70%), 1.16 at 300 and 0.78 at 1000, inside the
+predicted +1 to +3. For posts the best weight is lower than for messages. Some posts may also have
+been pasted into messages, which would inflate this gain; not checked.
+
+The crate's weight stays 1000 for now. With a dictionary of years of text, 300 is as good on
+messages and better on posts; a weight that falls as the dictionary grows is the next thing to
+measure. The messages and posts were deleted from RAM after the run.

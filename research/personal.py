@@ -1,8 +1,10 @@
 """Adds counts from the user's own text to a base model (the personal dictionary), scored 5-fold.
 
 usage: python -m research.personal MODEL.npz|TABLE.timsen CHATFILE WEIGHT... [--fractions 0,0.1,1]
-       [--min-tri N] [--min-bi N] [--backoff X] [--leftover GAMMA]
+       [--min-tri N] [--min-bi N] [--backoff X] [--leftover GAMMA] [--learn FILE]
 Each fold is a contiguous fifth of the file, so sentences from one message rarely land on both sides.
+With --learn, the counts come from FILE instead and the whole CHATFILE is scored once, as an input
+method that learned from older messages and is tested on newer ones.
 With --fractions, each fold trains on that share of the other four fifths (sampled with a fixed seed).
 --min-tri and --min-bi prune the base table before personal counts are added, as a shipped table would be.
 """
@@ -63,6 +65,14 @@ def score(m, lines):
     return words, right
 
 
+def splits(lines, learned=None):
+    """(test, train) pairs: five contiguous folds, or all of lines against the learned file."""
+    if learned is not None:
+        return [(lines, learned)]
+    size = len(lines) // FOLDS + 1
+    return [(lines[f * size : (f + 1) * size], lines[: f * size] + lines[(f + 1) * size :]) for f in range(FOLDS)]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("model")
@@ -73,20 +83,19 @@ def main():
     ap.add_argument("--min-bi", type=int, default=1)
     ap.add_argument("--backoff", type=float, default=0.4)
     ap.add_argument("--leftover", type=float, default=0.5, help="see Model.index_leftover; 0 is plain backoff")
+    ap.add_argument("--learn", help="learn from this file and score all of CHATFILE")
     a = ap.parse_args()
     model_mod.BACKOFF = np.log(a.backoff)
     model_mod.LEFTOVER = a.leftover
     lines = open(a.chat, encoding="utf-8").read().splitlines()
-    size = len(lines) // FOLDS + 1
+    learned = open(a.learn, encoding="utf-8").read().splitlines() if a.learn else None
     m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model, a.min_tri, a.min_bi)
     base = m.snapshot()
     for weight in a.weights:
         for frac in (float(x) for x in a.fractions.split(",")):
             rng = random.Random(3)
             words = right = 0
-            for f in range(FOLDS):
-                test = lines[f * size : (f + 1) * size]
-                train = lines[: f * size] + lines[(f + 1) * size :]
+            for test, train in splits(lines, learned):
                 personalize(m, base, rng.sample(train, int(len(train) * frac)), weight)
                 w, r = score(m, test)
                 words += w

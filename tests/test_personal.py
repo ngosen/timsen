@@ -46,3 +46,13 @@ def test_main_prunes_the_base_table(model_path, tmp_path, monkeypatch, capsys):
     personal.main()
     assert seen == [(7, 3)]
     assert "weight 1 share 100%" in capsys.readouterr().out
+
+
+def test_learn_scores_the_whole_chat_file_against_another_file(model_path, tmp_path, monkeypatch, capsys):
+    chat, learned = tmp_path / "chat", tmp_path / "learned"
+    chat.write_text("bàn phím này gõ rất êm\n", encoding="utf-8")
+    learned.write_text("tôi gõ phím\n", encoding="utf-8")
+    assert personal.splits(["a", "b"], ["c"]) == [(["a", "b"], ["c"])]
+    monkeypatch.setattr(sys, "argv", ["personal", str(model_path), str(chat), "1", "--learn", str(learned)])
+    personal.main()
+    assert "(6 words)" in capsys.readouterr().out

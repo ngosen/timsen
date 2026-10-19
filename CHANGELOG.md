@@ -11,6 +11,8 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   the personal dictionary for the small table, +0.53 for the large one, edited prose within 0.08.
   The forum corpus leaves those hosts out, so no page is counted twice; forum pages from FineWeb-2
   files 5 to 29 are not used, since they cost up to 0.95 points on wiki and nothing on chat.
+- `research.personal --learn FILE`: learns the personal dictionary from one file and scores another,
+  for a split by time instead of 5 folds.
 - `research.prune --min-candidate N`: how often a spelling must be seen to be offered, for corpora
   large enough to bring more rare spellings than a table has word ids.
 - Table format version 2: n-grams grouped by their first words, 6 bytes each plus 4 per bigram
