@@ -1677,3 +1677,73 @@ ceiling, not a typical value), p99 per syllable with the personal dictionary: `m
 ms, this branch 1.87 and 1.99 ms; the difference is inside the spread between rounds. On wiki the
 dictionary learned from the other folds scores 96.06% at 1000 and 96.01% at `auto` (3000 there).
 The messages, posts and chat set were deleted from RAM after the runs.
+
+## 2026-11-02 · Two readings on mixed Vietnamese and English text
+
+Question: chat in Vietnamese with English words is what makes an input method change `is` into `í`.
+On text that dense in English, how many of those words does the small table take back, and how many
+Vietnamese words does it break? The 0.99 threshold fixed 138 of 223, 21 of 54, 36 of 98 and 73 of 141
+known words and broke none on ordinary text ("Marked words and two readings"), on an older table.
+
+Setup: the small table rebuilt from the recipe in `TABLES.md`. Text: the two reference columns
+`chat_lazy` and `synthetic_lazy` of Vikey (github.com/tonyminibot/Vikey, GPL-3), read as data from
+outside this repository and not copied into it; none of its code is run. They are the sentences its
+author tunes against, so they favour it. Their own output column is 99.81% and 99.92% by whitespace
+words, self-published and not reproduced. `research.mixed_readings` types each word in Telex with a
+tone at a random place through Ngó Sen's core at default settings (auto-restore on) and
+`crates/timsen/examples/mixed_eval` lets the table choose between the core's reading and the raw keys.
+Scored lower-cased, by words between punctuation, ignoring tone placement, so the scale is close to
+but not the same as the whitespace-word figures 97.63% and 96.17% measured for the core on the same
+sentences. A word that only lost a doubled letter (`issue` → `isue`) is the core's bug and is
+counted apart; `--core-fixed` scores the text as if the core had fixed it. Personal dictionary off.
+
+Checks: a threshold of 2 never switches, so it must score the core alone, within 0.2 points of the
+figures above. The rebuilt table must score within 0.02 of 96.03% on wiki. `readings_eval` runs on
+the same text and on wiki, for a figure comparable with the old ones.
+
+Prediction, small table at 0.99. Other changes known to the table: 85 to 95% (common English words),
+against 62 to 69% on ordinary text. Of those, 30 to 60% fixed on chat, 40 to 70% on synthetic.
+Broken: unlike ordinary text not zero, since a Vietnamese word's keys are often an English word (`có`
+as `cos`): 1 to 5 on chat, 5 to 30 on synthetic. Doubled letters: 50 to 80% known, 30 to 60% of those
+fixed. Right: chat 98.2 to 98.8%, synthetic 97.2 to 98.2%, and +0.3 to +0.6 more with `--core-fixed`,
+so not reaching 99.81% and 99.92%. At 0.9, 10 to 25% more fixes and up to 3 times the breaks.
+
+Result: most held; doubled letters missed low and breaks at 0.9 missed high. Both checks passed: the
+rebuilt table has the documented 40,801 words and scores 96.03% on wiki, and a threshold of 2 gives
+97.61% and 96.19% against 97.63% and 96.17% by whitespace words. `--core-fixed` at that threshold
+gives 98.43% and 96.87%.
+
+| | chat (20,676 words) | synthetic (87,038 words) |
+|---|---|---|
+| Core alone | 97.61% | 96.19% |
+| Doubled letter lost (known to the table) | 169 (103) | 589 (274) |
+| Other change (known) | 323 (293) | 2,717 (2,517) |
+| 0.5: other fixed / doubled fixed / broken / right | 259 / 14 / 12 / 98.87% | 2,311 / 28 / 18 / 98.86% |
+| 0.9 | 216 / 11 / 9 / 98.67% | 1,910 / 13 / 13 / 98.39% |
+| 0.99 | 182 / 7 / 1 / 98.52% | 1,633 / 7 / 5 / 98.07% |
+| 0.999 | 145 / 4 / 0 / 98.33% | 1,378 / 4 / 3 / 97.78% |
+| 0.99, doubled letters fixed in the core | 182 / - / 1 / 99.30% | 1,631 / - / 5 / 98.74% |
+| 0.5, doubled letters fixed in the core | 259 / - / 12 / 99.62% | 2,310 / - / 18 / 99.50% |
+
+Against the prediction, at 0.99: known other changes 91% and 93% (held). Fixed of those known, 62%
+on chat (just above 30 to 60%) and 65% on synthetic (held). Broken 1 and 5 (held). Right 98.52% and
+98.07% (held), and neither reaches the published 99.81% and 99.92%, on a slightly different scale.
+Doubled letters: 61% known on chat (held), 47% on synthetic (below 50 to 80%), and only 7% and 3% of
+those known fixed, far below 30 to 60%. One guess, not measured: the core's misspelling (`sory`)
+scores as `<unk>`, whose pooled count is large, so the real word rarely wins with confidence. The
+table is no substitute for fixing this in the core, which gains 0.78 and 0.67 points at 0.99, above
+the predicted 0.3 to 0.6. At 0.9, fixes rise 19% and 17% (held); breaks 9 times on chat (missed, up
+to 3 times) and 2.6 times on synthetic.
+
+Broken at 0.99: `lát` → `last` once; `mã` → `max` twice, `bú` → `bus`, `lơ` → `low`, `sẽ` → `sex`
+once each. Rare, but `sẽ` → `sex` would embarrass, so a stop list or suggestion-only for such words
+needs thought before any switch ships. Most common still wrong: `is` → `í` (214 on synthetic, 7 on
+chat), `this` → `thí`, `now` → `nơ`, `too` → `tô`, `there` → `thể`.
+
+`readings_eval`, bare engine with no auto-restore, 0.99, comparable with the older entry: wiki fixes
+151 of 225 known and breaks 0 on this table (138 of 223 on the older one); chat 242 of 508, broken
+0; synthetic 1,719 of 3,189, broken 5. So dense English does not lower the share much at 0.99, but
+synthetic is the first text where 0.99 breaks words.
+
+Not measured: a real app, the personal dictionary, the time a switch takes, or how a change to an
+already committed word looks to the user. The sentences favour Vikey; they are not typical chat.
