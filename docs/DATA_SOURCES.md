@@ -10,6 +10,7 @@ the licence question is answered.
 | OpenSubtitles 2018, monolingual vi (OPUS) | `research.fetch_subs` | No formal licence; OPUS asks for a link to opensubtitles.org and a citation (see below) | Yes, as counts only, with attribution |
 | FineWeb-2 `vie_Latn` (Common Crawl, filtered by Hugging Face) | `research.fetch_fineweb` | ODC-By 1.0, plus the Common Crawl terms of use | Yes, with attribution |
 | ViLexNorm social media comments (UIT), `test/social` | `research.fetch_vilexnorm` | CC BY-NC-SA 4.0, research only | Never; test only, never trained on |
+| Vikey `chat_lazy` and `synthetic_lazy` (github.com/tonyminibot/Vikey), read from a local checkout, not fetched or copied here | Repository GPL-3; the files' own terms not reviewed | Never; test only, never trained on, not in this repository |
 | Your own messages (`test/chat`) | `research.chat_testset` | Private | Never; test only, never committed |
 
 ## OpenSubtitles
