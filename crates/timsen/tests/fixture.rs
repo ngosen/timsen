@@ -1,8 +1,9 @@
 //! Compares the crate with `research.model` on the table in `fixtures/`, built by `research.fixture`.
 
 use std::path::Path;
+use std::sync::Arc;
 
-use timsen::{Personal, Table, ToneStyle};
+use timsen::{Dictionary, Personal, Table, ToneStyle, Typing};
 
 fn fixture(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -120,5 +121,36 @@ fn restores_with_learned_counts_exactly_like_the_python_model() {
         let words: Vec<&str> = run.split(' ').collect();
         let got = personal.restore(&words, ToneStyle::New).join(" ");
         assert_eq!(got, want, "run: {run}");
+    }
+}
+
+#[test]
+fn a_run_on_the_dictionary_restores_like_the_python_model_learned_up_to_its_start() {
+    let mut d = Dictionary::new(Arc::new(table()));
+    let runs = std::fs::read_to_string(fixture("tiny.runs")).unwrap();
+    let start =
+        |d: &Dictionary| -> Vec<Typing<'static>> { runs.lines().map(|_| d.typing()).collect() };
+    let before = start(&d);
+    for run in std::fs::read_to_string(fixture("tiny.learned"))
+        .unwrap()
+        .lines()
+    {
+        let words: Vec<Option<&str>> = run.split(' ').map(Some).collect();
+        d.learn(&words);
+    }
+    let after = start(&d);
+    for (typings, file) in [(before, "tiny.expected"), (after, "tiny.personal.expected")] {
+        let expected = std::fs::read_to_string(fixture(file)).unwrap();
+        for ((mut typing, run), want) in typings.into_iter().zip(runs.lines()).zip(expected.lines())
+        {
+            for syllable in run.split(' ') {
+                typing.push(syllable);
+            }
+            assert_eq!(
+                typing.finish(ToneStyle::New).join(" "),
+                want,
+                "{file}, run: {run}"
+            );
+        }
     }
 }

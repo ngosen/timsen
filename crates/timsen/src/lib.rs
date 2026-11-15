@@ -3,14 +3,17 @@
 //! The table is built by `research.table`. Restoration matches `research.model` exactly on the same
 //! table: 3-grams with stupid backoff, costlier from contexts the table kept nearly whole, and a
 //! Viterbi search over the whole run. [`Typing`] restores a run while it is typed; [`Personal`] adds
-//! counts learned from the user's own text.
+//! counts learned from the user's own text, and [`Dictionary`] keeps one for every field, read
+//! through snapshots.
 
+mod dictionary;
 mod personal;
 mod shared;
 mod table;
 mod tone;
 mod typing;
 
+pub use dictionary::Dictionary;
 pub use personal::{MAX_WEIGHT, Personal};
 pub use table::{Error, Table};
 pub use tone::ToneStyle;

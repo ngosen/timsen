@@ -30,6 +30,7 @@ const MAX_COUNT: u64 = 1 << 40;
 /// Counts learned from text known to be right, for one table. Words the table lacks get ids after
 /// the table's own, so they can be guessed too; the saved file names words by their spelling, so it
 /// survives a new table.
+#[derive(Clone)]
 pub struct Personal<'t> {
     table: Shared<'t, Table>,
     /// Word `table.len() + i` is `new_words[i]`, its unmarked form `new_plain[i]`. `new_share[i]` is
