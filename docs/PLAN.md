@@ -127,9 +127,10 @@ machine; the only thing a user may choose to send is a score (see "From users").
      Sen takes the owner out of its handle registry and releases the registry lock before restoring,
      learning or saving, so no field waits on another. A property test interleaves learn, clear and
      reload across two fields with push, guess and choices.
-   - **Never lose the personal file.** A file that fails to load is never overwritten: it is set
-     aside, saving stops, and the crate reports why, so the input method can tell the user and offer
-     to start empty. Lines dropped on load (a word the table cannot take) are kept and written back.
+   - **Never lose the personal file.** A file that fails to load is never overwritten: it stays
+     where it is, saving stops, and the crate reports why, so the input method can tell the user and
+     offer to start empty, which sets the file aside (an older Ngó Sen meeting a newer file leaves
+     it for the newer one to read). Lines dropped on load (a word the table cannot take) are kept and written back.
      A save writes a file readable by the user only, syncs it, renames it into place and syncs the
      directory; one save runs at a time, from the owner, and a save begun before a clear is dropped.
      Tests: an unknown header, a bad line and a refused word each leave the file byte for byte; a

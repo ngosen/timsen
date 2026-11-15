@@ -31,8 +31,8 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Io(e) => write!(f, "cannot read table: {e}"),
-            Error::Format(why) => write!(f, "not a valid table: {why}"),
+            Error::Io(e) => write!(f, "cannot read file: {e}"),
+            Error::Format(why) => write!(f, "not a valid file: {why}"),
         }
     }
 }

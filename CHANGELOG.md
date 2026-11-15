@@ -12,9 +12,16 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 - `Dictionary` keeps one personal dictionary for every field. `Dictionary::typing` starts a run on
   the snapshot taken then; `learn`, `clear` and `reload` make a new snapshot that only later runs
   see, so a run never mixes two sets of counts. A file that fails to reload leaves it as it was.
+- `Dictionary::open` keeps the dictionary in a file it never loses. A file that does not load is
+  left byte for byte and saving stops until `start_empty`, which renames it to `<name>.broken`.
+  `begin_save`, `SaveJob::write` and `finish_save` replace the file whole (readable by the user
+  only, synced, renamed into place), one save at a time, and drop a save begun before a clear or
+  reload. `reload_file` keeps what was learned since the last save. Lines naming a word the table
+  cannot take are written back unchanged.
 
 ### Changed
 
+- Errors read "cannot read file" and "not a valid file", since they come from personal files too.
 - The crate declares Rust 1.88 as its minimum, Ngó Sen's, and CI builds and tests on it.
 - `Table::open` reads the whole table into memory instead of mapping it, so a table file written
   over during an update no longer changes, or crashes, a running program. The crate no longer

@@ -53,6 +53,8 @@ pub struct Personal<'t> {
     unk_tri: HashMap<u64, u64>,
     /// Learned words the table knows, and run ends: the table's total leaves `<unk>` out.
     tokens: u64,
+    /// Lines of the loaded file this table could not take, written back unchanged by `save`.
+    kept: Vec<String>,
 }
 
 fn key2(v: u32, w: u32) -> u64 {
@@ -112,6 +114,7 @@ impl<'t> Personal<'t> {
             unk_bi: HashMap::new(),
             unk_tri: HashMap::new(),
             tokens: 0,
+            kept: Vec::new(),
         }
     }
 
@@ -392,6 +395,7 @@ impl<'t> Personal<'t> {
             );
             lines.push(format!("3\t{c}\t{}\t{}\t{}", name(u), name(v), name(w)));
         }
+        lines.extend(self.kept.iter().cloned());
         lines.sort();
         writeln!(out, "{HEADER}")?;
         for line in lines {
@@ -431,10 +435,14 @@ impl<'t> Personal<'t> {
                 ids.push(match *w {
                     "<s>" => BOS,
                     "</s>" => EOS,
-                    // A word this table cannot take any more, as `learn` would have dropped it.
+                    // A word this table cannot take any more, as `learn` would have dropped it;
+                    // the line is kept so a table that can take it finds it again.
                     w => match p.intern(w) {
                         Some(id) => id,
-                        None => continue 'lines,
+                        None => {
+                            p.kept.push(line);
+                            continue 'lines;
+                        }
                     },
                 });
             }
@@ -556,6 +564,39 @@ mod tests {
         assert!(text.contains("\tnhà\n") && text.contains("\tcó\n"));
         // A learned "<s>" would end a line; as a run boundary it never does.
         assert!(!text.contains("a\tb") && !text.contains("x\n") && !text.contains("\t<s>\n"));
+    }
+
+    #[test]
+    fn lines_with_a_word_the_table_cannot_take_are_written_back() {
+        let t = table();
+        let a: Vec<char> = "aàáảãạăằắẳẵặâầấẩẫậ".chars().collect();
+        let mut text = format!("{HEADER}\n");
+        let mut words: Vec<String> = (a.iter())
+            .flat_map(|x| a.iter().map(move |y| format!("{x}{y}")))
+            .collect();
+        words.sort();
+        for w in &words {
+            text.push_str(&format!("1\t1\t{w}\n"));
+        }
+        let p = Personal::load(&t, text.as_bytes()).unwrap();
+        assert!(
+            p.options("aa").unwrap().len() < words.len(),
+            "some words must be refused"
+        );
+        let mut file = Vec::new();
+        p.save(&mut file).unwrap();
+        assert_eq!(String::from_utf8(file).unwrap(), text);
+    }
+
+    #[test]
+    fn clear_drops_the_lines_kept_from_the_file() {
+        let t = table();
+        let text = format!("{HEADER}\n1\t1\tx\ry\n");
+        let mut p = Personal::load(&t, text.as_bytes()).unwrap();
+        p.clear();
+        let mut file = Vec::new();
+        p.save(&mut file).unwrap();
+        assert_eq!(String::from_utf8(file).unwrap(), format!("{HEADER}\n"));
     }
 
     #[test]

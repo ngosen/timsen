@@ -13,7 +13,7 @@ mod table;
 mod tone;
 mod typing;
 
-pub use dictionary::Dictionary;
+pub use dictionary::{Dictionary, SaveJob};
 pub use personal::{MAX_WEIGHT, Personal};
 pub use table::{Error, Table};
 pub use tone::ToneStyle;
