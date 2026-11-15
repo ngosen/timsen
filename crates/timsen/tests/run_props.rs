@@ -27,6 +27,8 @@ enum Op {
     Next,
     /// Undoes the latest fix, as the key for it does.
     Undo,
+    /// A word that must stay as typed, as one brought back by undoing its fix.
+    Typed(String),
 }
 
 fn cased(word: String, how: u8) -> String {
@@ -76,6 +78,7 @@ fn op() -> impl Strategy<Value = Op> {
         1 => Just(Op::Stale),
         1 => Just(Op::Next),
         1 => Just(Op::Undo),
+        1 => syllable().prop_map(Op::Typed),
     ]
 }
 
@@ -128,6 +131,7 @@ fn check(
             }
             Op::Push(_) => {}
             Op::Either(a, b) => prop_assert!(new == a || new == b),
+            Op::Typed(w) => prop_assert_eq!(new, w),
             _ => unreachable!("only pushes stay in the run"),
         }
     }
@@ -152,6 +156,11 @@ proptest! {
                 Op::Either(a, b) => {
                     run.push_either(a, b);
                     field.push(a.clone());
+                    typed.push(op.clone());
+                }
+                Op::Typed(s) => {
+                    run.push_as_typed(s);
+                    field.push(s.clone());
                     typed.push(op.clone());
                 }
                 Op::Pop => {

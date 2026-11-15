@@ -34,7 +34,9 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   it, exactly as `research.typo` decides. `Run::fixing(Some(FIX_MARGIN))` makes a run fix a word
   when it ends, from the words before it, if the fix wins by the margin; fixing is off by default.
   `Run::undo_fix` takes the latest fix back and keeps the syllable as typed, also after the run
-  ended; `Run::last_fix` says where that fix is, so a key can undo only the fix just made. Only
+  ended; `Run::last_fix` says where that fix is, so a key can undo only the fix just made, and
+  `Run::push_as_typed` takes a word that must stay as typed, such as one reopened by an undo and
+  committed again. Only
   words of plain letters in lowercase, capitals or with a capital first are fixed, and keep that
   case; a word the personal dictionary knows is never fixed, so learning an undone fix as typed
   keeps it as typed.

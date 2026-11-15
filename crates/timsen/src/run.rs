@@ -137,6 +137,17 @@ impl<'t> Run<'t> {
         self.decide_leaving();
     }
 
+    /// A word that stays as typed: neither guessed nor fixed, only context for the words around
+    /// it. For a word the user took back from a fix and committed again unchanged.
+    pub fn push_as_typed(&mut self, syllable: &str) {
+        self.typing.push_context(syllable);
+        self.shown.push(syllable.to_string());
+        self.readings.push(None);
+        self.pushed.push(Pushed::Kept(syllable.to_string()));
+        self.fixed.push(None);
+        self.decide_leaving();
+    }
+
     /// A word the input method read two ways, shown as `interpreted`.
     pub fn push_either(&mut self, interpreted: &str, raw: &str) {
         self.typing.push_either(interpreted, raw);
@@ -694,6 +705,24 @@ mod tests {
         type_words(&mut run, &["toi", "go", "phmi"], Reach::Run);
         assert_eq!(run.shown()[2], "phmi");
         assert_eq!(run.last_fix(), None);
+    }
+
+    #[test]
+    fn a_word_pushed_as_typed_stays_so_and_is_context() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        type_words(&mut run, &["toi", "go"], Reach::Run);
+        run.push_as_typed("phmi");
+        assert_eq!(run.last_fix(), None, "not fixed");
+        type_words(&mut run, &["rat", "nhanh"], Reach::Run);
+        if let Some(c) = run.change(true, Reach::Run, ToneStyle::New) {
+            assert!(run.apply(&c));
+        }
+        assert_eq!(run.shown(), strings(&["tôi", "gõ", "phmi", "rất", "nhanh"]));
+        run.pop();
+        run.pop();
+        run.pop();
+        assert_eq!(run.len(), 2);
     }
 
     #[test]
