@@ -50,6 +50,16 @@ impl Reading {
     }
 }
 
+/// The fix in the case it was typed in. A word typed in capitals stays in capitals even when the fix
+/// adds a letter, which copying the case letter by letter would leave lowercase.
+fn fix_case(typed: &str, plain: &str) -> String {
+    let mut letters = typed.chars().filter(|c| c.is_alphabetic());
+    if typed.chars().count() > 1 && letters.all(char::is_uppercase) {
+        return plain.to_uppercase();
+    }
+    tone::apply_case(typed, plain)
+}
+
 /// How a syllable went into the typing, so it can go in again after an earlier one changes.
 enum Pushed {
     /// Guessed from this text: as typed, or as fixed.
@@ -112,7 +122,7 @@ impl<'t> Run<'t> {
             .fix_margin
             .and_then(|m| self.typing.fix(last, false).filter(|f| f.margin >= m));
         if let Some(fix) = fix {
-            given = tone::apply_case(syllable, &fix.plain);
+            given = fix_case(syllable, &fix.plain);
             self.typing.pop();
             self.typing.push(&given);
             fixed = Some(syllable.to_string());
@@ -552,6 +562,22 @@ mod tests {
         let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(3.8));
         type_words(&mut run, &["ban", "phmi"], Reach::Run);
         assert_eq!(run.shown()[1], "phím");
+    }
+
+    #[test]
+    fn a_fix_keeps_a_word_typed_in_capitals_in_capitals() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        type_words(&mut run, &["toi", "go", "PHM"], Reach::Run);
+        assert_eq!(run.shown()[2], "PHÍM", "the added letter is a capital too");
+    }
+
+    #[test]
+    fn a_word_typed_with_combining_marks_is_never_fixed() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        type_words(&mut run, &["toi", "go", "phi\u{300}m"], Reach::Run);
+        assert_eq!(run.shown()[2], "phi\u{300}m");
     }
 
     #[test]

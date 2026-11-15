@@ -50,6 +50,9 @@ fn syllable() -> impl Strategy<Value = String> {
         4 => prop::sample::select(words).prop_map(str::to_string),
         1 => "[a-z]{1,4}",
         1 => Just("gõ".to_string()),
+        // Typos the fixture table can fix: a letter swapped, doubled or left out.
+        1 => prop::sample::select(vec!["phmi", "phm", "quyy", "tooi", "rta", "mnah"])
+            .prop_map(str::to_string),
     ];
     (plain, 0..6u8).prop_map(|(w, how)| cased(w, how))
 }
@@ -103,6 +106,9 @@ fn check(
                 prop_assert!(fixable(t, w), "{} for {}", new, w);
                 prop_assert!(new.chars().count().abs_diff(w.chars().count()) <= 1);
                 prop_assert_eq!(shape(new).first().copied(), shape(w).first().copied());
+                if w.chars().count() > 1 && w.chars().all(char::is_uppercase) {
+                    prop_assert!(!new.chars().any(char::is_lowercase), "{} for {}", new, w);
+                }
             }
             Op::Push(_) => {}
             Op::Either(a, b) => prop_assert!(new == a || new == b),
