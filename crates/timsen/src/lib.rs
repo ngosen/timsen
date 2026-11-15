@@ -13,7 +13,7 @@ mod typing;
 pub use personal::{MAX_WEIGHT, Personal};
 pub use table::{Error, Table};
 pub use tone::ToneStyle;
-pub use typing::{Choices, Typing};
+pub use typing::{Choices, SENSITIVE_CONFIDENCE, Typing};
 
 use table::BOS;
 

@@ -1789,3 +1789,32 @@ among them. What is left is mostly English words whose keys spell a Vietnamese w
 (215 on synthetic), `this` → `thí`, `now` → `nơ`, `too` → `tô`, `there` → `thể`, `has` → `há`, and
 `off` → `of`, which the core keeps on purpose. The doubled letters still lost are names and words
 outside the core's list (`messi` → `mesi`).
+
+## 2026-11-15 · Near certainty before switching to a crude word
+
+Question: at 0.99 the table changed `sẽ` into `sex` once on synthetic. Such a break costs far more
+than leaving an English word as the core read it. Can crude raw readings require near certainty,
+and what does it cost?
+
+Setup: as the entry above, fixed core. `Choices::takes_raw` switches to the raw reading when it ranks
+first with the caller's threshold, or with `SENSITIVE_CONFIDENCE` (0.9999) for `ass`, `piss`, `sex`
+and `tits`. These are the crude words, of about 60 checked, that the core at default settings turns
+into a Vietnamese word (`sẽ`, `tít`) or a shorter one (`as`, `pis`); `lust` → `lút` is left out as
+not crude. `mixed_eval` now decides through `takes_raw`.
+
+Seen before this prediction, from a one-off probe of the readings: `sex` was the raw reading of 108
+words on chat and 241 on synthetic. It ranked first 6 times on chat (confidence 0.667 once, 0.963
+five times) and 5 on synthetic (0.963 four times, 0.9988 once), all of them meant as `sẽ`. The two
+words meant as `sex`, both on synthetic, ranked `sẽ` first, so the table never fixed them.
+
+Prediction: broken words fall by exactly those counts, 6 and 5 at 0.5, 5 and 5 at 0.9, 0 and 1 at 0.99, 0
+and 0 at 0.999, unless `ass`, `piss` or `tits` also occur, which the sentences may not hold. Fixed
+English words unchanged at every threshold, since no word meant as one of the four was fixed.
+
+Result: held exactly. Broken words, before and after, chat then synthetic: 0.5, 12 to 6 and 18 to
+13; 0.9, 9 to 4 and 13 to 8; 0.99, 1 to 1 and 5 to 4; 0.999, 0 to 0 and 3 to 3. Fixed English words
+and doubled letters are the same at every threshold. Right at 0.99 stays 99.24% and 98.74%, one
+word on 87,038 too few to move it; at 0.9 it rises to 99.40% and 99.05%. `ass`, `piss` and `tits`
+broke nothing before, so these sentences test only `sex`. The floor is set from one break at 0.9988,
+so a crude word that the table is surer of still switches; the two words meant as `sex` show it
+costs nothing here, but they are too few to say what it costs elsewhere.

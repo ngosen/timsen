@@ -340,6 +340,26 @@ pub struct Choices {
     pub confidence: f64,
 }
 
+/// Confidence a crude raw reading needs before it replaces the interpreted one: turning `sẽ` into
+/// `sex` costs far more than leaving an English word as the input method read it.
+pub const SENSITIVE_CONFIDENCE: f64 = 0.9999;
+
+/// Crude English words whose keys an input method turns into a Vietnamese or a shorter word.
+const SENSITIVE: [&str; 4] = ["ass", "piss", "sex", "tits"];
+
+impl Choices {
+    /// Whether the raw reading should replace the interpreted one: it ranks first with at least
+    /// `threshold` confidence, or [`SENSITIVE_CONFIDENCE`] when it is a crude word.
+    pub fn takes_raw(&self, raw: &str, threshold: f64) -> bool {
+        let needed = if SENSITIVE.contains(&raw.to_lowercase().as_str()) {
+            threshold.max(SENSITIVE_CONFIDENCE)
+        } else {
+            threshold
+        };
+        self.spellings.len() >= 2 && self.spellings[0] == raw && self.confidence >= needed
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -567,5 +587,34 @@ mod tests {
         typing.pop();
         typing.push_either("tét", "test");
         assert_eq!(typing.finish(ToneStyle::New)[1], "tét");
+    }
+
+    fn ranked(first: &str, second: &str, confidence: f64) -> Choices {
+        let spellings = vec![first.to_string(), second.to_string()];
+        Choices {
+            spellings,
+            confidence,
+        }
+    }
+
+    #[test]
+    fn raw_reading_needs_to_rank_first_with_the_threshold() {
+        assert!(ranked("test", "tét", 0.995).takes_raw("test", 0.99));
+        assert!(!ranked("test", "tét", 0.98).takes_raw("test", 0.99));
+        assert!(!ranked("tét", "test", 0.995).takes_raw("test", 0.99));
+        let alone = Choices {
+            spellings: vec!["test".to_string()],
+            confidence: 1.0,
+        };
+        assert!(!alone.takes_raw("test", 0.99));
+    }
+
+    #[test]
+    fn crude_raw_reading_needs_near_certainty() {
+        assert!(!ranked("sex", "sẽ", 0.9988).takes_raw("sex", 0.99));
+        assert!(!ranked("Sex", "Sẽ", 0.9988).takes_raw("Sex", 0.99));
+        assert!(ranked("sex", "sẽ", SENSITIVE_CONFIDENCE).takes_raw("sex", 0.99));
+        // A caller asking for more than the floor still gets what it asked for.
+        assert!(!ranked("sex", "sẽ", 0.99995).takes_raw("sex", 0.99999));
     }
 }
