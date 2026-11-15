@@ -22,12 +22,33 @@ pub enum Reach {
     LastWord,
 }
 
-/// The most syllables a run should hold: past it a key costs more than the latency budget allows;
-/// see [`Run::is_full`].
+/// The most syllables a run should hold before the input method goes on in a new one; see
+/// [`Run::is_full`]. Typed text rarely gets near it, and a key stays fast well past it.
 pub const MAX_RUN: usize = 200;
 
 /// Syllables a run started by [`Run::next`] takes from the one before, as context only.
 const CONTEXT: usize = 2;
+
+/// Syllables at the end of a run whose reading is still weighed on every key. A word read two ways
+/// is decided for good when it leaves them, so a key costs the same however long the run.
+const WINDOW: usize = 4;
+
+/// A syllable the input method read two ways, and the reading kept once it left the window.
+struct Reading {
+    interpreted: String,
+    raw: String,
+    raw_kept: bool,
+}
+
+impl Reading {
+    fn kept(&self) -> &String {
+        if self.raw_kept {
+            &self.raw
+        } else {
+            &self.interpreted
+        }
+    }
+}
 
 /// A run on its way into a field. Each syllable is shown as typed until a [`Change`] says otherwise;
 /// later syllables can change earlier ones, several at once.
@@ -36,8 +57,7 @@ pub struct Run<'t> {
     /// Syllables from the run before, at the start of `typing`, that only serve as context.
     context: Vec<String>,
     shown: Vec<String>,
-    /// The interpreted and raw readings of a syllable pushed with two.
-    readings: Vec<Option<(String, String)>>,
+    readings: Vec<Option<Reading>>,
     raw_confidence: f64,
 }
 
@@ -63,14 +83,37 @@ impl<'t> Run<'t> {
         self.typing.push(syllable);
         self.shown.push(syllable.to_string());
         self.readings.push(None);
+        self.decide_leaving();
     }
 
     /// A word the input method read two ways, shown as `interpreted`.
     pub fn push_either(&mut self, interpreted: &str, raw: &str) {
         self.typing.push_either(interpreted, raw);
         self.shown.push(interpreted.to_string());
-        self.readings
-            .push(Some((interpreted.to_string(), raw.to_string())));
+        self.readings.push(Some(Reading {
+            interpreted: interpreted.to_string(),
+            raw: raw.to_string(),
+            raw_kept: false,
+        }));
+        self.decide_leaving();
+    }
+
+    /// Decides the syllable that the last push moved out of the window, if it was read two ways.
+    /// Backspace brings it back in, where it is weighed again until it leaves once more.
+    fn decide_leaving(&mut self) {
+        let n = self.shown.len();
+        let Some(j) = n.checked_sub(WINDOW + 1) else {
+            return;
+        };
+        let Some(reading) = &self.readings[j] else {
+            return;
+        };
+        // Both readings are kept as given, so the tone style does not change them.
+        let choices = self.typing.choices(WINDOW + 1, false, ToneStyle::New);
+        let raw_kept = choices[0].takes_raw(&reading.raw, self.raw_confidence);
+        if let Some(reading) = &mut self.readings[j] {
+            reading.raw_kept = raw_kept;
+        }
     }
 
     /// Removes the last syllable, as backspace into it does; the keys typed next make the syllable
@@ -98,15 +141,19 @@ impl<'t> Run<'t> {
         self.shown.len() >= MAX_RUN
     }
 
-    /// The run that goes on after this one: its last two syllables, as shown, are the new run's
-    /// context only, so they are neither shown again, changed, nor learned twice.
-    pub fn next(&self) -> Run<'t> {
+    /// The run that goes on after this one, guessed by `typing`, which should be empty: take it from
+    /// the dictionary again, so the new run sees what was learned meanwhile. This run's last two
+    /// syllables, as shown, are its context only, so they are neither shown again, changed, nor
+    /// learned twice.
+    pub fn next(&self, mut typing: Typing<'t>) -> Run<'t> {
         let all: Vec<&String> = self.context.iter().chain(&self.shown).collect();
         let context: Vec<String> = all[all.len().saturating_sub(CONTEXT)..]
             .iter()
             .map(|w| w.to_string())
             .collect();
-        let mut typing = self.typing.fresh();
+        while !typing.is_empty() {
+            typing.pop();
+        }
         for word in &context {
             typing.push_context(word);
         }
@@ -159,8 +206,9 @@ impl<'t> Run<'t> {
         true
     }
 
-    /// The best spelling of syllables `from..`. A syllable with two readings keeps the interpreted
-    /// one unless the raw one wins with the confidence asked for.
+    /// The best spelling of syllables `from..`. A syllable with two readings in the window keeps the
+    /// interpreted one unless the raw one wins with the confidence asked for; one before the window
+    /// keeps the reading decided when it left.
     fn wanted(&self, from: usize, ended: bool, style: ToneStyle) -> Vec<String> {
         let n = self.shown.len();
         let guess = if ended {
@@ -169,14 +217,25 @@ impl<'t> Run<'t> {
             self.typing.guess(style)
         };
         let mut wanted = guess[self.context.len() + from..].to_vec();
-        let Some(earliest) = (from..n).find(|&i| self.readings[i].is_some()) else {
+        let live = n.saturating_sub(WINDOW).max(from);
+        for i in from..live {
+            if let Some(reading) = &self.readings[i] {
+                wanted[i - from] = reading.kept().clone();
+            }
+        }
+        let Some(earliest) = (live..n).find(|&i| self.readings[i].is_some()) else {
             return wanted;
         };
         let choices = self.typing.choices(n - earliest, ended, style);
         for i in earliest..n {
-            if let Some((interpreted, raw)) = &self.readings[i] {
-                let takes = choices[i - earliest].takes_raw(raw, self.raw_confidence);
-                wanted[i - from] = if takes { raw } else { interpreted }.clone();
+            if let Some(reading) = &self.readings[i] {
+                let takes = choices[i - earliest].takes_raw(&reading.raw, self.raw_confidence);
+                wanted[i - from] = if takes {
+                    &reading.raw
+                } else {
+                    &reading.interpreted
+                }
+                .clone();
             }
         }
         wanted
@@ -299,10 +358,14 @@ mod tests {
         assert_eq!(run.shown(), shown);
     }
 
-    /// What a run sees after `context` kept as typed, for the syllables after it.
+    /// What a run sees after `context` kept as shown, for the syllables after it.
     fn after(t: &Table, context: &[&str], run: &[&str]) -> Vec<String> {
         let mut typing = Typing::new(t);
-        for w in context.iter().chain(run) {
+        for w in context {
+            // One reading given twice is kept as given, never guessed again.
+            typing.push_either(w, w);
+        }
+        for w in run {
             typing.push(w);
         }
         typing.guess(ToneStyle::New)[context.len()..].to_vec()
@@ -314,7 +377,7 @@ mod tests {
         let mut run = Run::new(Typing::new(&t), 0.99);
         type_words(&mut run, &["nguoi", "ta", "co", "go"], Reach::Run);
         let context: Vec<String> = run.shown()[2..].to_vec();
-        let mut next = run.next();
+        let mut next = run.next(Typing::new(&t));
         assert!(next.is_empty());
         assert_eq!(next.context, context);
         next.pop();
@@ -326,14 +389,51 @@ mod tests {
     }
 
     #[test]
+    fn the_context_is_kept_as_shown_and_not_guessed_again() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99);
+        // No change was applied, so `co go` stands unmarked in the field.
+        for w in ["nguoi", "ta", "co", "go"] {
+            run.push(w);
+        }
+        let next = run.next(Typing::new(&t));
+        let mut guessed = Typing::new(&t);
+        guessed.push("co");
+        guessed.push("go");
+        assert_ne!(guessed.guess(ToneStyle::New), ["co", "go"]);
+        assert_eq!(next.typing.guess(ToneStyle::New), ["co", "go"]);
+    }
+
+    #[test]
+    fn a_word_read_two_ways_is_decided_when_it_leaves_the_window() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.0);
+        run.push("mở");
+        run.push_either("fìle", "file");
+        assert_eq!(run.wanted(1, false, ToneStyle::New)[0], "file");
+        for _ in 0..WINDOW {
+            run.push("ta");
+        }
+        // Out of the window, its reading no longer depends on the confidence or what comes next.
+        run.raw_confidence = 1.1;
+        assert_eq!(run.wanted(1, true, ToneStyle::New)[0], "file");
+        run.pop();
+        assert_eq!(
+            run.wanted(1, true, ToneStyle::New)[0],
+            "fìle",
+            "back in, weighed again"
+        );
+    }
+
+    #[test]
     fn a_short_run_passes_on_context_from_the_one_before() {
         let t = table();
         let mut run = Run::new(Typing::new(&t), 0.99);
         type_words(&mut run, &["nguoi", "ta", "co"], Reach::Run);
-        let mut next = run.next();
+        let mut next = run.next(Typing::new(&t));
         type_words(&mut next, &["go"], Reach::Run);
         let last = run.shown()[2].clone();
-        let mut third = next.next();
+        let mut third = next.next(Typing::new(&t));
         type_words(&mut third, &["quy"], Reach::Run);
         let gone = next.shown()[0].clone();
         assert_eq!(third.context, [last.clone(), gone.clone()]);
@@ -350,7 +450,7 @@ mod tests {
         assert!(!run.is_full());
         run.push("ta");
         assert!(run.is_full());
-        assert!(!run.next().is_full());
+        assert!(!run.next(Typing::new(&t)).is_full());
     }
 
     #[test]

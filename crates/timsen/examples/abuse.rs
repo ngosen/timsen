@@ -271,7 +271,7 @@ fn runs_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
     for _ in 0..cases {
         if run.is_full() || rng.below(500) == 0 {
             full += usize::from(run.is_full());
-            run = run.next();
+            run = run.next(Typing::shared(Arc::clone(table)));
             field.clear();
         }
         // Pushes outnumber pops, so runs reach the cap.

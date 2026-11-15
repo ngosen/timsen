@@ -6,6 +6,8 @@
 //! RUNS: unmarked runs from `research.crosscheck`, one per line; their syllables are joined into
 //! runs of exactly each LENGTH. LEARNED: text with marks, learned into a personal dictionary kept in
 //! DIR. A key is what Ngó Sen does when a word ends: `Run::push`, `Run::change` and `Run::apply`.
+//! A LENGTH ending in `x` (`200x`) pushes one word in 20 with two readings (`Run::push_either`)
+//! and counts how often the run decides them as the whole run would.
 //! Linux only, since memory is read from `/proc/self/status`.
 
 use std::path::Path;
@@ -21,7 +23,8 @@ fn status_mb(field: &str) -> f64 {
         .find_map(|l| l.strip_prefix(field))
         .and_then(|v| v.trim().trim_end_matches(" kB").trim().parse::<f64>().ok())
         .unwrap_or(f64::NAN);
-    kb / 1024.0
+    // Decimal megabytes, as file sizes are given.
+    kb * 1024.0 / 1e6
 }
 
 fn ms(d: Duration) -> f64 {
@@ -75,16 +78,44 @@ fn personal(table: &Arc<Table>, learned: &str, dir: &Path) -> Dictionary {
     d
 }
 
+/// One word in 20 read two ways, as an input method reads `test` as `tét` or as typed: here its two
+/// likeliest spellings alone, words the table knows, so the context really chooses between them.
+fn readings(d: &Dictionary, chunk: &[&str], either: bool) -> Vec<Option<(String, String)>> {
+    let pair = |s: &str| {
+        let mut one = d.typing();
+        one.push(s);
+        let c = one.choices(1, false, ToneStyle::New).remove(0);
+        (c.spellings.len() >= 2).then(|| (c.spellings[0].clone(), c.spellings[1].clone()))
+    };
+    let at = |i: usize| either && i % 20 == 3;
+    (chunk.iter().enumerate())
+        .map(|(i, s)| if at(i) { pair(s) } else { None })
+        .collect()
+}
+
+fn push(run: &mut Run, s: &str, reading: &Option<(String, String)>) {
+    match reading {
+        Some((interpreted, raw)) => run.push_either(interpreted, raw),
+        None => run.push(s),
+    }
+}
+
 /// Times each word end in runs of `length` syllables; returns the keys and a hash of the text shown
 /// at the end, so two builds can be checked to restore alike.
-fn keys(d: &Dictionary, syllables: &[&str], length: usize) -> (Vec<Duration>, Vec<Duration>, u64) {
+fn keys(
+    d: &Dictionary,
+    syllables: &[&str],
+    length: usize,
+    either: bool,
+) -> (Vec<Duration>, Vec<Duration>, u64) {
     let (mut all, mut late) = (Vec::new(), Vec::new());
     let mut checksum = 0xcbf2_9ce4_8422_2325u64;
     for chunk in syllables.chunks_exact(length) {
+        let readings = readings(d, chunk, either);
         let mut run = Run::new(d.typing(), 0.99);
-        for (i, s) in chunk.iter().enumerate() {
+        for (i, (s, reading)) in chunk.iter().zip(&readings).enumerate() {
             let start = Instant::now();
-            run.push(s);
+            push(&mut run, s, reading);
             if let Some(c) = run.change(false, Reach::Run, ToneStyle::New) {
                 assert!(run.apply(&c));
             }
@@ -105,6 +136,46 @@ fn keys(d: &Dictionary, syllables: &[&str], length: usize) -> (Vec<Duration>, Ve
     (all, late, checksum)
 }
 
+/// How often a word read two ways ends as it would were the whole run weighed at its end. Returns
+/// the words that agree, all of them, and how many end raw in the run and in the whole-run answer.
+fn agreement(d: &Dictionary, syllables: &[&str], length: usize, confidence: f64) -> [usize; 4] {
+    let mut counts = [0; 4];
+    for chunk in syllables.chunks_exact(length) {
+        let readings = readings(d, chunk, true);
+        let (mut run, mut whole) = (Run::new(d.typing(), confidence), d.typing());
+        for (s, reading) in chunk.iter().zip(&readings) {
+            push(&mut run, s, reading);
+            match reading {
+                Some((interpreted, raw)) => whole.push_either(interpreted, raw),
+                None => whole.push(s),
+            }
+            if let Some(c) = run.change(false, Reach::Run, ToneStyle::New) {
+                assert!(run.apply(&c));
+            }
+        }
+        if let Some(c) = run.change(true, Reach::Run, ToneStyle::New) {
+            assert!(run.apply(&c));
+        }
+        let choices = whole.choices(length, true, ToneStyle::New);
+        for (i, reading) in readings.iter().enumerate() {
+            let Some((interpreted, raw)) = reading else {
+                continue;
+            };
+            let want = if choices[i].takes_raw(raw, confidence) {
+                raw
+            } else {
+                interpreted
+            };
+            let shown = &run.shown()[i];
+            counts[0] += usize::from(shown == want);
+            counts[1] += 1;
+            counts[2] += usize::from(shown == raw);
+            counts[3] += usize::from(want == raw);
+        }
+    }
+    counts
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let [_, table_path, runs, learned, dir, lengths @ ..] = args.as_slice() else {
@@ -121,13 +192,27 @@ fn main() {
     let text = std::fs::read_to_string(runs).expect("cannot read runs");
     let syllables: Vec<&str> = text.split_whitespace().collect();
     for length in lengths {
-        let length: usize = length.parse().expect("LENGTH is a number");
-        let (mut all, mut late, checksum) = keys(&d, &syllables, length);
+        let (digits, either) = match length.strip_suffix('x') {
+            Some(digits) => (digits, true),
+            None => (length.as_str(), false),
+        };
+        let length: usize = digits
+            .parse()
+            .expect("LENGTH is a number, x for two readings");
+        let (mut all, mut late, checksum) = keys(&d, &syllables, length, either);
+        let readings = if either { " with two readings" } else { "" };
         println!(
-            "runs of {length}: {}, hash {checksum:016x}",
+            "runs of {length}{readings}: {}, hash {checksum:016x}",
             percentiles(&mut all)
         );
         println!("  last tenth of each run: {}", percentiles(&mut late));
+        for confidence in [0.99, 0.5].into_iter().filter(|_| either) {
+            let [agree, all, run, whole] = agreement(&d, &syllables, length, confidence);
+            println!(
+                "  raw confidence {confidence}: {agree} of {all} agree with the whole run; \
+                 raw kept {run} times, by the whole run {whole}"
+            );
+        }
     }
     let typed = status_mb("VmRSS:");
     // Resets the peak, so it is the peak of the reload and not of learning above.

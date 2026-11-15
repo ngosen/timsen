@@ -9,7 +9,6 @@ use crate::{Counts, Personal, Table, ToneStyle, tone};
 const START: [u32; 1] = [BOS];
 
 /// Where words and counts come from.
-#[derive(Clone)]
 enum Source<'t> {
     Table(Shared<'t, Table>),
     Personal(Shared<'t, Personal<'t>>),
@@ -109,11 +108,6 @@ impl<'t> Typing<'t> {
     /// Typing with the user's learned counts on top of the table's.
     pub fn with_personal(personal: &'t Personal<'t>) -> Typing<'t> {
         Typing::from_source(Source::Personal(Shared::Borrowed(personal)))
-    }
-
-    /// An empty run on the same table and dictionary snapshot.
-    pub(crate) fn fresh(&self) -> Typing<'t> {
-        Typing::from_source(self.src.clone())
     }
 
     /// Adds a syllable that only serves as context, as it is: never guessed again.

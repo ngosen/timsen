@@ -1987,13 +1987,13 @@ before the dictionary was reopened.
 | | small | large |
 |---|---|---|
 | open | 42.6, 39.7 ms | 175.1, 149.4 ms |
-| resident after opening | 25.7 MB | 141.6–141.7 MB |
+| resident after opening | 25.7 MiB | 141.6–141.7 MiB |
 | personal file (193,263 words) | 5.2 MB; save 191, 201 ms; load 728, 837 ms | 5.2 MB; save 195, 167 ms; load 711, 700 ms |
 | p99 per key, runs of 50 | 2.008, 2.184 ms | 2.417, 2.246 ms |
 | p99 per key, runs of 200 | 2.057, 2.048 ms | 2.488, 2.366 ms |
 | last-tenth p99, runs of 200 | 2.010, 2.013 ms | 2.441, 2.279 ms |
-| resident after typing | 59.3, 60.1 MB | 175.7, 176.1 MB |
-| reopening; peak during it | 33.1, 28.0 ms; 91.3, 90.1 MB | 167.3, 159.3 ms; 320.7, 322.8 MB |
+| resident after typing | 59.3, 60.1 MiB | 175.7, 176.1 MiB |
+| reopening; peak during it | 33.1, 28.0 ms; 91.3, 90.1 MiB | 167.3, 159.3 ms; 320.7, 322.8 MiB |
 
 Against the prediction:
 - open: as predicted for the small table; the large one opened in 149.4 ms once, just under the
@@ -2005,8 +2005,10 @@ Against the prediction:
 - the last tenth of a run of 200 was slower than the whole at p50 (0.327–0.401 against 0.295–0.361
   ms) but not at p99, which it was predicted to be: the slow keys come from candidate lists and the
   dictionary, not from the run's length;
-- resident after typing: small 60.1 MB once, just over 30–60; large in range. The reload peak is
-  one table and one dictionary above that (about 30 MB small, 145 MB large), as predicted;
+- resident after typing: the table gives MiB (the example read kB as KiB), while the prediction was
+  in MB. In MB the small table took 62.2 and 63.0, over 30–60 in both rounds, a miss; the large one
+  took 184.2 and 184.7, in range. The reload peak is one table and one dictionary above that (about
+  30 MiB small, 145 MiB large), as predicted;
 - the slowest key was 6.4–12.3 ms in every series: rare (p99 is under 2.5 ms), but over the budget.
   This run cannot tell such stalls from the busy machine.
 
@@ -2027,3 +2029,73 @@ tests could not tell one syllable of context from two on the fixture table, and 
 asked for a second run even when the text was exactly 200 syllables long, which shrinking found.
 With the unit tests checking the context itself and the text at least 201 syllables, the run gave
 3, 2 and 4.
+
+### Words read two ways
+
+A review pointed out that every key above came from `Run::push`: a word pushed with two readings
+(`Run::push_either`, `tét` or `test`) makes each later key in the run also ask `Typing::choices`,
+a backward pass from that word to the end of the run, so its cost grows with the run. Setup as
+above with LENGTH `50x` and `200x`: one word in 20 pushed with a second reading (the word plus `s`),
+large table first. The example now gives memory in MB, as the prediction was written.
+
+Prediction, before running: this path passes the budget. p99 per key 3–8 ms at 50 and 10–40 ms at
+200, the last tenth of a run the slowest.
+
+Result: a miss, far over the predicted range. On the large table, load 7.6–9.3, runs of 50 gave
+p50 8.1, p95 23.3, p99 30.6 and max 50.3 ms over 73,600 keys; runs of 200 did not finish in ten
+minutes and were stopped. The prediction took the backward pass to cost about as much as a key's
+forward step; it costs ten times as much, and every key after the first word read two ways pays
+for it back to that word. Most of the `+s` readings are not words the table knows, so this was the
+pass alone, not a real choice.
+
+### Words read two ways, decided in a window
+
+The fix: a word read two ways is weighed on each key only while it is among the last four
+syllables (`WINDOW` in `run.rs`); when the next word pushes it out, its reading is decided once
+and kept, and backspace back into the window weighs it again. A key then pays for at most four
+syllables of backward pass whatever the run's length.
+
+The readings are now real: the word's two likeliest spellings alone (`Typing::choices` on the word
+by itself, for instance `gõ` and `gỗ`), both words the table knows, so the context really decides.
+Words with one spelling are pushed as usual. The example also counts, for each such word, whether
+the run ends with the reading that weighing the whole run at its end gives (`Typing::choices` over
+the whole run on a parallel `Typing`), at raw confidence 0.99 and 0.5.
+
+Prediction, before running, for `50x` and `200x` on both tables:
+- p99 per key 2.5–4.0 ms on the large table, 2.0–3.5 ms on the small one, and no higher at 200
+  than at 50 (within 0.3 ms);
+- agreement with the whole run at least 99% at 0.99 and 98% at 0.5; the raw reading kept at least
+  once at 0.5, or the count shows nothing;
+- the instrument: a build with `WINDOW` 1 agrees less, by at least half a point at 0.5 on the
+  large table.
+
+Result: in range everywhere except the last tenth of runs of 50, which went over the budget. Load
+2.5–5.2, so these are ceilings again.
+
+| | small | large |
+|---|---|---|
+| p99 per key, runs of 50 | 2.563 ms | 3.317 ms |
+| p99 per key, runs of 200 | 2.660 ms | 3.149 ms |
+| last-tenth p99, runs of 50 | 3.666 ms | 4.802 ms |
+| last-tenth p99, runs of 200 | 2.447 ms | 2.919 ms |
+| agree with the whole run, 0.99 (50; 200) | 4,104/4,105; 3,435/3,436 | 4,102/4,105; 3,433/3,436 |
+| agree with the whole run, 0.5 (50; 200) | 4,105/4,105; 3,436/3,436 | 4,103/4,105; 3,435/3,436 |
+
+- The cost no longer grows with the run: p99 at 200 is within 0.2 ms of p99 at 50 on both tables.
+  The last tenth of a run of 50 is slower only because of where the words fall: two readings sit
+  at every 20th syllable from the fourth, so three of a 50-run's last five keys weigh one in the
+  window, against four of a 200-run's last twenty.
+- The large table is over the 3 ms budget at p99 when words are read two ways (3.1–3.3 ms), against
+  2.2–2.5 ms without them. One word in 20 with two real readings is more than typed Vietnamese
+  usually holds, so this is a worst case.
+- Agreement is 99.9% or more, and the raw reading was kept 524–982 times, so the count does see a
+  choice. The instrument: a build with `WINDOW` 1 agrees on 3,942 of 4,105 at 0.5 (96.0%) and 4,001
+  at 0.99 on the large table, runs of 50, against 4,103 and 4,102 at 4: four points lower, past the
+  half point predicted. It is also cheaper (p99 2.255 ms): the window trades speed for agreement,
+  and 4 keeps agreement while holding the key near 3 ms.
+
+Tests for the window and the context, predicted before running (`cargo test --no-fail-fast --lib
+--test run_props`, one defect at a time): the context guessed again (`push` in place of
+`push_context`), 1 red; no window (every word weighed on every key), 1; a word never decided when it
+leaves the window, 1.
+The run gave 1, 1 and 1, each in the named test.
