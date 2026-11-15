@@ -1,8 +1,9 @@
 """Builds the small table the Rust tests compare against, from a few made-up sentences.
 
 usage: python -m research.fixture [OUT_DIR]   (default: crates/timsen/tests/fixtures)
-Writes tiny.timsen, tiny.runs and tiny.expected, and for the personal dictionary tiny.learned and
-tiny.personal.expected. Rerun after changing the table format or the model.
+Writes tiny.timsen, tiny.runs and tiny.expected, for the personal dictionary tiny.learned and
+tiny.personal.expected, and for fixing unknown syllables tiny.fixes. Rerun after changing the table
+format or the model.
 """
 
 import gzip
@@ -11,7 +12,7 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-from . import crosscheck, paths, table, train
+from . import crosscheck, paths, table, train, typo
 from .model import Model
 
 OUT = Path(__file__).resolve().parent.parent / "crates" / "timsen" / "tests" / "fixtures"
@@ -45,6 +46,18 @@ TEST = [
 # The user's own text: it turns gỗ quý into gõ quý and makes gõ end a run. The last line has a word
 # the table lacks, so crosscheck leaves it out.
 PERSONAL = ["nhà ta có gõ quý", "bạn thích gõ", "tôi thích ngó sen"]
+# Unmarked runs with typos the table does not know (phmi, rta, quyy), a known word one edit from
+# another, words with nothing known one edit away (commit, xyzzy) and one typed with capitals.
+FIX_RUNS = [
+    "toi go phmi rat nhanh",
+    "ban phmi nay go rta em",
+    "nha ta co go quyy",
+    "chuc anh khoe mnah",
+    "mo fiel code ra xem commit",
+    "Tooi go Phmi",
+    "xyzzy",
+    "gia dinh toi o ha noii",
+]
 
 
 def build(out):
@@ -63,6 +76,8 @@ def build(out):
         (tmp / "personal").write_text("\n".join(PERSONAL) + "\n", encoding="utf-8")
         learned, expected = out / "tiny.learned", out / "tiny.personal.expected"
         crosscheck.write_personal(out / "tiny.timsen", tmp / "personal", out / "tiny.runs", learned, expected)
+        with open(out / "tiny.fixes", "w", encoding="utf-8") as f:
+            typo.write_fixes(table.read(out / "tiny.timsen"), [r.split(" ") for r in FIX_RUNS], f)
 
 
 if __name__ == "__main__":

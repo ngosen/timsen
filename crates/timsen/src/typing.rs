@@ -8,6 +8,10 @@ use crate::{Counts, Personal, Table, ToneStyle, tone};
 
 const START: [u32; 1] = [BOS];
 
+mod fix;
+
+pub use fix::{FIX_MARGIN, Fix};
+
 /// Where words and counts come from.
 enum Source<'t> {
     Table(Shared<'t, Table>),

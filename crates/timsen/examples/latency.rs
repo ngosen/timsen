@@ -5,7 +5,8 @@
 //! usage: cargo run --release --example latency TABLE RUNS LEARNED DIR LENGTH...
 //! RUNS: unmarked runs from `research.crosscheck`, one per line; their syllables are joined into
 //! runs of exactly each LENGTH. LEARNED: text with marks, learned into a personal dictionary kept in
-//! DIR. A key is what Ngó Sen does when a word ends: `Run::push`, `Run::change` and `Run::apply`.
+//! DIR. A key is what Ngó Sen does when a word ends: `Run::push`, `Run::change` and `Run::apply`,
+//! with fixing on at `FIX_MARGIN`.
 //! A LENGTH ending in `x` (`200x`) pushes one word in 20 with two readings (`Run::push_either`)
 //! and counts how often the run decides them as the whole run would.
 //! Linux only, since memory is read from `/proc/self/status`.
@@ -14,7 +15,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use timsen::{Dictionary, Reach, Run, Table, ToneStyle};
+use timsen::{Dictionary, FIX_MARGIN, Reach, Run, Table, ToneStyle};
 
 fn status_mb(field: &str) -> f64 {
     let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
@@ -112,7 +113,7 @@ fn keys(
     let mut checksum = 0xcbf2_9ce4_8422_2325u64;
     for chunk in syllables.chunks_exact(length) {
         let readings = readings(d, chunk, either);
-        let mut run = Run::new(d.typing(), 0.99);
+        let mut run = Run::new(d.typing(), 0.99).fixing(Some(FIX_MARGIN));
         for (i, (s, reading)) in chunk.iter().zip(&readings).enumerate() {
             let start = Instant::now();
             push(&mut run, s, reading);
@@ -142,7 +143,10 @@ fn agreement(d: &Dictionary, syllables: &[&str], length: usize, confidence: f64)
     let mut counts = [0; 4];
     for chunk in syllables.chunks_exact(length) {
         let readings = readings(d, chunk, true);
-        let (mut run, mut whole) = (Run::new(d.typing(), confidence), d.typing());
+        let (mut run, mut whole) = (
+            Run::new(d.typing(), confidence).fixing(Some(FIX_MARGIN)),
+            d.typing(),
+        );
         for (s, reading) in chunk.iter().zip(&readings) {
             push(&mut run, s, reading);
             match reading {

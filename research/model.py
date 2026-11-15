@@ -119,9 +119,11 @@ class Model:
     def word(self, i, plain):
         return plain if i == UNK else self.words[i]
 
-    def restore(self, plain_words):
-        """Best marked spelling for each unmarked syllable, using the whole run (left and right context)."""
+    def restore(self, plain_words, ended=True):
+        """Best marked spelling for each unmarked syllable, using the whole run (left and right context).
+        With ended=False the run may still go on, so its end is not scored, as for a run being typed."""
         if self.qk is not None:
+            assert ended, "a run being typed is scored with trigrams only"
             return self.restore4(plain_words)
         opts = [self.options(p) for p in plain_words]
         pp_opts = np.array([BOS], dtype=np.int64)
@@ -133,7 +135,7 @@ class Model:
             back.append(s.argmax(axis=0))
             score = s.max(axis=0)
             pp_opts, prev_opts = prev_opts, o
-        final = score + self.logp(pp_opts[:, None], prev_opts[None, :], np.int64(EOS))
+        final = score + self.logp(pp_opts[:, None], prev_opts[None, :], np.int64(EOS)) if ended else score
         a, b = np.unravel_index(final.argmax(), final.shape)
         picks = [b, a]
         for bp in reversed(back[2:]):

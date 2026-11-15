@@ -154,3 +154,52 @@ fn a_run_on_the_dictionary_restores_like_the_python_model_learned_up_to_its_star
         }
     }
 }
+
+#[test]
+fn fixes_unknown_syllables_exactly_like_research_typo() {
+    let t = table();
+    let fixes = std::fs::read_to_string(fixture("tiny.fixes")).unwrap();
+    assert!(
+        fixes.lines().count() >= 20,
+        "the fixture lists both ways for each syllable"
+    );
+    for line in fixes.lines() {
+        let [run, i, mode, want, margin] = line.split('\t').collect::<Vec<_>>()[..] else {
+            panic!("bad line: {line}");
+        };
+        let (i, ended): (usize, bool) = (i.parse().unwrap(), mode == "ended");
+        let words: Vec<&str> = run.split(' ').collect();
+        // While typing, a syllable is decided when its word ends: nothing after it is known yet.
+        let upto = if ended { words.len() } else { i + 1 };
+        let mut typing = Typing::new(&t);
+        for w in &words[..upto] {
+            typing.push(w);
+        }
+        match (want, typing.fix(i, ended)) {
+            ("-", None) => {}
+            (want, Some(fix)) => {
+                assert_eq!(fix.plain, want, "{line}");
+                let margin: f64 = margin.parse().unwrap();
+                assert!(
+                    (fix.margin - margin).abs() < 1e-9,
+                    "{line}: margin {}",
+                    fix.margin
+                );
+            }
+            (want, None) => panic!("{line}: no fix, want {want}"),
+        }
+    }
+}
+
+#[test]
+fn a_known_or_marked_syllable_is_never_a_fix_target() {
+    let t = table();
+    let mut typing = Typing::new(&t);
+    for w in ["toi", "gõ", "phmi"] {
+        typing.push(w);
+    }
+    assert_eq!(typing.fix(0, true), None, "known");
+    assert_eq!(typing.fix(1, true), None, "typed with marks");
+    assert_eq!(typing.fix(3, true), None, "past the run");
+    assert_eq!(typing.fix(2, true).unwrap().plain, "phim");
+}

@@ -12,7 +12,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use timsen::{Change, Dictionary, Personal, Reach, Run, Table, ToneStyle, Typing};
+use timsen::{Change, Dictionary, FIX_MARGIN, Personal, Reach, Run, Table, ToneStyle, Typing};
 
 const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tiny.timsen");
 const LEARNED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tiny.learned");
@@ -97,7 +97,7 @@ fn main() {
 
 /// Types eight words into a run, taking each change; the run keeps one word per word typed.
 fn exercise(typing: Typing, rng: &mut Rng) {
-    let mut run = Run::new(typing, 0.99);
+    let mut run = Run::new(typing, 0.99).fixing(Some(FIX_MARGIN));
     for typed in 1..=8 {
         let w = rng.word();
         if rng.below(4) == 0 {
@@ -265,7 +265,7 @@ fn typing_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
 /// exactly when its old text stands where it says, and nothing else moves the field.
 fn runs_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
     let cases = 10_000;
-    let mut run = Run::new(Typing::shared(Arc::clone(table)), 0.99);
+    let mut run = Run::new(Typing::shared(Arc::clone(table)), 0.99).fixing(Some(FIX_MARGIN));
     let mut field: Vec<String> = Vec::new();
     let mut full = 0;
     for _ in 0..cases {
@@ -283,8 +283,13 @@ fn runs_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
                 None
             }
             1 => {
-                run.pop();
-                field.pop();
+                // Backspace, or the key that undoes a fix: neither moves the field by itself.
+                if rng.below(2) == 0 {
+                    run.pop();
+                    field.pop();
+                } else {
+                    run.undo_fix();
+                }
                 None
             }
             2 => {
