@@ -2171,3 +2171,27 @@ Found on the way:
   first.
 - The patch against unchanged Ngó Sen is kept in RAM (`/tmp/ngosen-diac/linkproof/integration.patch`,
   261 changed lines), not in this repository: Ngó Sen's code goes into Ngó Sen in step 7.
+
+Review of the proof (Codex), every finding checked against the copy and fixed there:
+- a word half typed when the field turned private reached the crate at its commit and was learned;
+- a reset (a cursor move) ended the run with a change counted from a cursor that had moved;
+- Enter, Tab, and a symbol after a space are forwarded without a commit, so the run went on across
+  them unlearned;
+- a commit of several words across the cap left the full run's last word unrestored;
+- a change pulled after a later commit was counted from the later cursor;
+- a word typed with marks whose raw reading replaced it was learned in its interpreted form;
+- a digit stayed inside a word (`toi1`) instead of splitting it and ending the run;
+- the lock was held while `Run::next` scored its context.
+Six tests were added, eleven in all; the copy now passes 135 of 135 cargo tests (124 + 11).
+
+Prediction, before running, one defect at a time (`cargo test --offline --locked --no-fail-fast`):
+the half-typed word not skipped, 1 red; a reset that ends with a change, 1; no end at a forwarded
+key, 1; no change before the cap moves on, 1; digits kept inside words, 1; the raw reading learned
+anyway, 0, since no raw reading wins on the fixture table at 0.99.
+
+Result: as predicted, 1, 1, 1, 1, 1 and 0, each in the test named for it. The last defect is not
+seen by any test, as said; it waits for a test on the real table in step 7. The full build again,
+after the fixes: 19 of 19 `ctest` tests and 135 of 135 cargo tests, static library 46,232,080 bytes
+(874,756 more than unchanged Ngó Sen), the same three dead-code warnings. The patch kept in RAM is
+now 400 changed lines. What step 7 takes from the review: the front end applies the changes before
+it forwards the key that made them, and a cursor move drops any change not yet applied.
