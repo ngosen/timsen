@@ -293,5 +293,10 @@ fn a_rename_not_synced_still_owes_a_save() {
     fs::set_permissions(&dir.0, fs::Permissions::from_mode(0o700)).unwrap();
     assert!(finished.is_err());
     assert!(d.is_dirty(), "the save may not survive a crash");
+    d.reload_file().unwrap();
+    assert!(
+        d.is_dirty(),
+        "reading the file back does not make it durable"
+    );
     assert!(save(&mut d));
 }

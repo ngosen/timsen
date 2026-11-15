@@ -202,7 +202,8 @@ impl Dictionary {
                 }
                 self.current = Arc::new(p);
                 disk.broken = None;
-                disk.dirty = !disk.pending.is_empty();
+                // Never lowered here: a save that may not have reached the disk is still owed.
+                disk.dirty |= !disk.pending.is_empty();
             }
         }
         self.generation += 1;
