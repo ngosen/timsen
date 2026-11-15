@@ -24,6 +24,10 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   that do not report their text; `pop` handles backspace into a word. A raw reading replaces the
   interpreted one only with the confidence the run was given. `Run::apply` refuses a change the run
   has moved past instead of panicking.
+- `MAX_RUN` (200 syllables), `Run::is_full` and `Run::next`: at the cap the input method ends the
+  run and goes on in a new one that reads the last two syllables as context only, neither shown
+  again nor learned twice. A key at word end stays under 2.5 ms at p99 at 50 and 200 syllables on
+  both tables with a 193,000-word personal dictionary (Xeon E5-2696 v4, busy machine).
 - `scripts/abuse.sh` builds an abuse binary with Ngó Sen's release profile (`panic = "abort"`) and
   again with overflow checks, and feeds it truncated and corrupt tables and personal files, odd text
   and calls in any order; CI runs it. A table cut short is an error unless the cut took only the

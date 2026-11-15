@@ -1941,3 +1941,89 @@ rounds 1–3:
 
 So sharing costs nothing measurable on the table path and at most a few percent on the dictionary
 path, well inside the 3 ms budget; a quiet machine is needed to settle the 2%.
+
+## 2026-11-15 · Latency, memory and the run cap
+
+Question: what does Đoán dấu cost an input method, each part on its own, and how long may a run get
+before a key at word end passes the 3 ms budget? The answer sets the run cap.
+
+Setup: `examples/latency.rs TABLE RUNS LEARNED DIR 50 200`, release build, Xeon E5-2696 v4.
+- RUNS: the frozen wiki runs of "Reading the table into memory instead of mapping it" (73,604
+  syllables, sha256 prefix 81114aca05af2a5e), joined into runs of exactly 50 and 200 syllables:
+  73,600 keys each.
+- LEARNED: the subs and forum-1..4 test sets, 10,747 lines and 193,263 words with marks (prefix
+  292eb5930e969b65), learned into a personal dictionary kept in a file, saved and loaded again.
+- A key is what Ngó Sen does when a word ends: `Run::push`, `Run::change(Reach::Run)` and
+  `Run::apply`, on a run that reads the dictionary's snapshot.
+- Small table (22,650,872 bytes) and large table (`research.prune --bytes 130958840 --min-plain
+  1000` from the stored model).
+- Memory from `/proc/self/status`: resident after opening and after typing; the peak while a second
+  copy of the table is opened in place of the first, as on an update, with the peak reset first.
+
+Prediction, written before any run:
+- open: small 30–60 ms, large 150–400 ms;
+- personal file 2–6 MB; save 50–300 ms, load 150–600 ms;
+- p99 per key, small table: 0.8–2.0 ms at 50, 1.2–3.0 ms at 200; large table: 1.0–2.5 ms at 50,
+  1.5–3.5 ms at 200, so the large table at 200 may pass the budget; the last tenth of each run is
+  slower than the whole at 200, since each key spells and compares the whole run;
+- resident after typing: small 30–60 MB, large 140–200 MB; the reload peak about one table file
+  above that;
+- the cap: the longest length tried whose last-tenth p99 stays under 3 ms on both tables, expected
+  200.
+
+Added after the first two rounds, before running it: since the key cost barely grew from 50 to
+200, a third run on the large table at 1,000 and 2,000 syllables (73,000 and 72,000 keys) tells
+whether the cap could be longer. Prediction: last-tenth p99 2.3–3.0 ms at 1,000 and 2.4–3.3 ms at
+2,000, since each key spells, copies and compares the whole run.
+
+Result: within the 3 ms budget everywhere, but the prediction missed in four places. Two rounds,
+small then large in turn; load average 3.9–8.2 throughout, with a backup (`restic`, about 1.2 of the
+44 hardware threads) running and, in round 1, this session's own builds; so these are ceilings.
+An earlier round was thrown away: its checksum counted letters, which marks do not change, so runs
+of 50 and of 200 gave the same number; it is now an FNV hash of the shown text, which differs
+between lengths and repeats exactly across rounds. The reload peak in that round was also read
+before the dictionary was reopened.
+
+| | small | large |
+|---|---|---|
+| open | 42.6, 39.7 ms | 175.1, 149.4 ms |
+| resident after opening | 25.7 MB | 141.6–141.7 MB |
+| personal file (193,263 words) | 5.2 MB; save 191, 201 ms; load 728, 837 ms | 5.2 MB; save 195, 167 ms; load 711, 700 ms |
+| p99 per key, runs of 50 | 2.008, 2.184 ms | 2.417, 2.246 ms |
+| p99 per key, runs of 200 | 2.057, 2.048 ms | 2.488, 2.366 ms |
+| last-tenth p99, runs of 200 | 2.010, 2.013 ms | 2.441, 2.279 ms |
+| resident after typing | 59.3, 60.1 MB | 175.7, 176.1 MB |
+| reopening; peak during it | 33.1, 28.0 ms; 91.3, 90.1 MB | 167.3, 159.3 ms; 320.7, 322.8 MB |
+
+Against the prediction:
+- open: as predicted for the small table; the large one opened in 149.4 ms once, just under the
+  150–400 range;
+- the personal file: size and save as predicted; loading took 700–837 ms against 150–600, a miss.
+  It is off the key path, and Đoán dấu can run on the table alone until it is loaded;
+- p99 per key: the small table at 50 came out at 2.0–2.2 ms against 0.8–2.0, a miss on the high
+  side; the other three were in range, all under 3 ms;
+- the last tenth of a run of 200 was slower than the whole at p50 (0.327–0.401 against 0.295–0.361
+  ms) but not at p99, which it was predicted to be: the slow keys come from candidate lists and the
+  dictionary, not from the run's length;
+- resident after typing: small 60.1 MB once, just over 30–60; large in range. The reload peak is
+  one table and one dictionary above that (about 30 MB small, 145 MB large), as predicted;
+- the slowest key was 6.4–12.3 ms in every series: rare (p99 is under 2.5 ms), but over the budget.
+  This run cannot tell such stalls from the busy machine.
+
+Runs of 1,000 and 2,000 on the large table, load 7.7–9.3: last-tenth p99 2.494 and 2.698 ms, both in
+the predicted ranges; p50 of the last tenth grows from 0.401 ms at 200 to 0.583 and 0.817 ms, about
+0.2 ms per 1,000 syllables.
+
+The cap: the rule in the prediction picks 200 from the lengths it named, and the later run shows the
+budget would hold even at 2,000. `MAX_RUN` is 200 all the same: no run of the wiki test set is longer
+than 61 syllables (p99 27, p99.9 40, `awk '{print NF}'` over the frozen runs), so the cap is almost
+never reached, and at 200 the run's own length adds about 0.04 ms to a key, leaving the margin to a
+slower machine.
+
+Tests for the cap, predicted before running (`cargo test --no-fail-fast --lib --test run_props`,
+one defect at a time): one syllable of context instead of two, 3 red; backspace reaching the
+context, 2; the context not skipped in the guess, 4. The first run gave 1, 3 and 4: the two unit
+tests could not tell one syllable of context from two on the fixture table, and the property test
+asked for a second run even when the text was exactly 200 syllables long, which shrinking found.
+With the unit tests checking the context itself and the text at least 201 syllables, the run gave
+3, 2 and 4.

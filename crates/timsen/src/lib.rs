@@ -16,7 +16,7 @@ mod typing;
 
 pub use dictionary::{Dictionary, SaveJob};
 pub use personal::{MAX_WEIGHT, Personal};
-pub use run::{Change, Reach, Run};
+pub use run::{Change, MAX_RUN, Reach, Run};
 pub use table::{Error, Table};
 pub use tone::ToneStyle;
 pub use typing::{Choices, SENSITIVE_CONFIDENCE, Typing};

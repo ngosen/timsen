@@ -261,15 +261,22 @@ fn typing_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
     cases
 }
 
-/// Pops, pushes, real changes and made-up ones: a change is taken exactly when its old text stands
-/// where it says, and nothing else moves the field.
+/// Pops, pushes, real changes and made-up ones, going on in a new run at the cap: a change is taken
+/// exactly when its old text stands where it says, and nothing else moves the field.
 fn runs_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
     let cases = 10_000;
     let mut run = Run::new(Typing::shared(Arc::clone(table)), 0.99);
     let mut field: Vec<String> = Vec::new();
+    let mut full = 0;
     for _ in 0..cases {
-        let change = match rng.below(4) {
-            0 => {
+        if run.is_full() || rng.below(500) == 0 {
+            full += usize::from(run.is_full());
+            run = run.next();
+            field.clear();
+        }
+        // Pushes outnumber pops, so runs reach the cap.
+        let change = match rng.below(5) {
+            0 | 4 => {
                 let w = rng.word();
                 run.push(w);
                 field.push(w.to_string());
@@ -306,6 +313,7 @@ fn runs_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
         }
         assert_eq!(run.shown(), field.as_slice());
     }
+    assert!(full > 0, "no run reached the cap");
     cases
 }
 

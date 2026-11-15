@@ -22,10 +22,19 @@ pub enum Reach {
     LastWord,
 }
 
+/// The most syllables a run should hold: past it a key costs more than the latency budget allows;
+/// see [`Run::is_full`].
+pub const MAX_RUN: usize = 200;
+
+/// Syllables a run started by [`Run::next`] takes from the one before, as context only.
+const CONTEXT: usize = 2;
+
 /// A run on its way into a field. Each syllable is shown as typed until a [`Change`] says otherwise;
 /// later syllables can change earlier ones, several at once.
 pub struct Run<'t> {
     typing: Typing<'t>,
+    /// Syllables from the run before, at the start of `typing`, that only serve as context.
+    context: Vec<String>,
     shown: Vec<String>,
     /// The interpreted and raw readings of a syllable pushed with two.
     readings: Vec<Option<(String, String)>>,
@@ -38,6 +47,7 @@ impl<'t> Run<'t> {
     pub fn new(typing: Typing<'t>, raw_confidence: f64) -> Run<'t> {
         let mut run = Run {
             typing,
+            context: Vec::new(),
             shown: Vec::new(),
             readings: Vec::new(),
             raw_confidence,
@@ -66,6 +76,9 @@ impl<'t> Run<'t> {
     /// Removes the last syllable, as backspace into it does; the keys typed next make the syllable
     /// that replaces it.
     pub fn pop(&mut self) {
+        if self.shown.is_empty() {
+            return;
+        }
         self.typing.pop();
         self.shown.pop();
         self.readings.pop();
@@ -77,6 +90,33 @@ impl<'t> Run<'t> {
 
     pub fn is_empty(&self) -> bool {
         self.shown.is_empty()
+    }
+
+    /// Whether the run holds [`MAX_RUN`] syllables. The input method then ends it (learning what it
+    /// learns at a run's end) and goes on with [`Run::next`] before the next word.
+    pub fn is_full(&self) -> bool {
+        self.shown.len() >= MAX_RUN
+    }
+
+    /// The run that goes on after this one: its last two syllables, as shown, are the new run's
+    /// context only, so they are neither shown again, changed, nor learned twice.
+    pub fn next(&self) -> Run<'t> {
+        let all: Vec<&String> = self.context.iter().chain(&self.shown).collect();
+        let context: Vec<String> = all[all.len().saturating_sub(CONTEXT)..]
+            .iter()
+            .map(|w| w.to_string())
+            .collect();
+        let mut typing = self.typing.fresh();
+        for word in &context {
+            typing.push_context(word);
+        }
+        Run {
+            typing,
+            context,
+            shown: Vec::new(),
+            readings: Vec::new(),
+            raw_confidence: self.raw_confidence,
+        }
     }
 
     /// The run as the field shows it.
@@ -128,7 +168,7 @@ impl<'t> Run<'t> {
         } else {
             self.typing.guess(style)
         };
-        let mut wanted = guess[from..].to_vec();
+        let mut wanted = guess[self.context.len() + from..].to_vec();
         let Some(earliest) = (from..n).find(|&i| self.readings[i].is_some()) else {
             return wanted;
         };
@@ -257,6 +297,60 @@ mod tests {
         };
         assert!(!run.apply(&wrong), "new must be as long as old");
         assert_eq!(run.shown(), shown);
+    }
+
+    /// What a run sees after `context` kept as typed, for the syllables after it.
+    fn after(t: &Table, context: &[&str], run: &[&str]) -> Vec<String> {
+        let mut typing = Typing::new(t);
+        for w in context.iter().chain(run) {
+            typing.push(w);
+        }
+        typing.guess(ToneStyle::New)[context.len()..].to_vec()
+    }
+
+    #[test]
+    fn the_next_run_reads_the_last_two_syllables_as_context_only() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99);
+        type_words(&mut run, &["nguoi", "ta", "co", "go"], Reach::Run);
+        let context: Vec<String> = run.shown()[2..].to_vec();
+        let mut next = run.next();
+        assert!(next.is_empty());
+        assert_eq!(next.context, context);
+        next.pop();
+        assert_eq!(next.context, context, "backspace never reaches the context");
+        type_words(&mut next, &["quy", "nha"], Reach::Run);
+        let context: Vec<&str> = context.iter().map(String::as_str).collect();
+        assert_eq!(next.shown(), after(&t, &context, &["quy", "nha"]));
+        assert_eq!(next.len(), 2, "the context is not shown again");
+    }
+
+    #[test]
+    fn a_short_run_passes_on_context_from_the_one_before() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99);
+        type_words(&mut run, &["nguoi", "ta", "co"], Reach::Run);
+        let mut next = run.next();
+        type_words(&mut next, &["go"], Reach::Run);
+        let last = run.shown()[2].clone();
+        let mut third = next.next();
+        type_words(&mut third, &["quy"], Reach::Run);
+        let gone = next.shown()[0].clone();
+        assert_eq!(third.context, [last.clone(), gone.clone()]);
+        assert_eq!(third.shown(), after(&t, &[&last, &gone], &["quy"]));
+    }
+
+    #[test]
+    fn a_run_is_full_at_the_cap() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99);
+        for _ in 0..MAX_RUN - 1 {
+            run.push("ta");
+        }
+        assert!(!run.is_full());
+        run.push("ta");
+        assert!(run.is_full());
+        assert!(!run.next().is_full());
     }
 
     #[test]
