@@ -158,8 +158,9 @@ machine; the only thing a user may choose to send is a score (see "From users").
      request.
    - **Integration proof.** The link proof again with the final API, through Ngó Sen's word-end and
      private-field paths; Ngó Sen's core tests pass.
-7. **Daily use in Ngó Sen.** After step 5. In the Ngó Sen repository, on a local build until this
-   repository is public: Đoán dấu as an option, off by default and never in private fields, and
+7. **Daily use in Ngó Sen.** After step 5. In the Ngó Sen repository, as a feature for its `next`
+   branch (its rules keep `main` for releases and `patch` for fixes to the current release), on a
+   local build until this repository is public: Đoán dấu as an option, off by default and never in private fields, and
    Cứu chữ's second case (when the text was typed with no marks at all, Tab adds them instead of
    re-reading the keys). Then type with it every day. Counted on the machine, never sent: words
    guessed, guesses changed with Tab, fixes undone. Decided from those counts: whether Đoán dấu fills
