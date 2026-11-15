@@ -2195,3 +2195,20 @@ after the fixes: 19 of 19 `ctest` tests and 135 of 135 cargo tests, static libra
 (874,756 more than unchanged Ngó Sen), the same three dead-code warnings. The patch kept in RAM is
 now 400 changed lines. What step 7 takes from the review: the front end applies the changes before
 it forwards the key that made them, and a cursor move drops any change not yet applied.
+
+A second review found two more, both fixed in the copy with a test that failed before the fix: a
+commit holding a separator inside it (a macro `ban thich go. phim`) was scored as one run, and the
+privacy skip outlived a half-typed word that `rebuild_from_text` replaced, swallowing the next
+public word. Prediction, before running, one defect at a time: no end at a separator inside a
+commit, 5 red (punctuation, two sentences, digits, two fields, reset); the skip not cleared on
+rebuild, 1; digits kept inside a word, 1.
+
+Result: 4, 1 and 0, two misses. The digits test did not turn red under either defect: Telex
+forwards a digit typed after a word (`toi1`) instead of committing it, so that test goes through
+the forwarded-key path and never reaches the splitting. A test that commits a digit inside the
+text directly (`ban thich go1`, as a macro can) was added. Prediction for it: red under the digit
+defect (1), and red under the separator defect too (5).
+
+Result: 5 and 1, as predicted. The full build after both reviews: 19 of 19 `ctest` tests and 138
+of 138 cargo tests (124 of Ngó Sen's, 14 new), static library 46,238,432 bytes (881,108 more than
+unchanged Ngó Sen), the same three dead-code warnings; the patch kept in RAM is 453 changed lines.

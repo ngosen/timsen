@@ -159,7 +159,7 @@ machine; the only thing a user may choose to send is a score (see "From users").
      request.
    - **Integration proof.** The link proof again with the final API, through Ngó Sen's word-end and
      private-field paths; Ngó Sen's core tests pass. Done ("Integration proof: the final API inside
-     Ngó Sen's core"): 19 of 19 and 135 of 135 tests. For step 7: a change is placed by counting
+     Ngó Sen's core"): 19 of 19 and 138 of 138 tests. For step 7: a change is placed by counting
      words back from the cursor and applied before the key that made it is forwarded; a cursor move
      ends the run and drops changes not yet applied; Enter, Tab and forwarded symbols end the run;
      the keys at a commit lose the key that ended the word before they are a second reading; and
