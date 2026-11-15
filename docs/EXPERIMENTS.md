@@ -2212,3 +2212,20 @@ defect (1), and red under the separator defect too (5).
 Result: 5 and 1, as predicted. The full build after both reviews: 19 of 19 `ctest` tests and 138
 of 138 cargo tests (124 of Ngó Sen's, 14 new), static library 46,238,432 bytes (881,108 more than
 unchanged Ngó Sen), the same three dead-code warnings; the patch kept in RAM is 453 changed lines.
+
+A narrow review of the privacy fix found it leaked still: the skip was spent at the first commit,
+so a private word reopened after it (Backspace, or the front end rebuilding it) reached the crate
+and was learned, and the internal Backspace rebuild cleared the skip. Clearing it only on an empty
+rebuild closed one path and left the others, so the rule changed instead: a field that has been
+private stays off for good; Ngó Sen keeps one engine per field, so this lasts until the field goes
+away. The cost is Đoán dấu in a field that shows a password and then turns back, which should not
+learn anyway. The test for a public word after a replaced private one went, and one for a word
+reopened after its commit came in.
+
+Prediction, before running: turning back on when the field turns public, 4 red (the four privacy
+tests); the private flag not checked at a commit, 4.
+
+Result: 4 and 4, as predicted. The full build after every review: 19 of 19 `ctest` tests and 139
+of 139 cargo tests (124 of Ngó Sen's, 15 new), static library 46,238,344 bytes (881,020 more than
+unchanged Ngó Sen), the same three dead-code warnings; the patch kept in RAM is 464 changed lines.
+The figures above for 135 and 138 tests are superseded.
