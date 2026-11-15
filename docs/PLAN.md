@@ -72,9 +72,10 @@ machine; the only thing a user may choose to send is a score (see "From users").
    - A syllable typed with marks is kept as typed and serves as context for the guessed ones
      (0.7–1.4 points better next to them). `push_either` takes both readings of a word, as
      interpreted (`tét`) and as raw letters (`test`); the library knows nothing about Telex or VNI.
-     Typed in Telex through the Ngó Sen engine, switching to the raw reading at confidence 0.99
+     Typed in Telex through bamboo-core alone, switching to the raw reading at confidence 0.99
      fixes 21–153 words per test set and breaks none; below that the raw reading is only a
-     suggestion ("Marked words and two readings").
+     suggestion ("Marked words and two readings"). Through Ngó Sen's own core on mixed English and
+     Vietnamese it breaks 1 and 4 words ("Near certainty before switching to a crude word").
 4. **Personal dictionary.** Done. Learns syllable 2- and 3-gram counts only from text known to be
    right: words the user typed with marks, and guesses the user corrected, so a wrong guess cannot
    reinforce itself. It also learns syllables the shipped table lacks (names, slang, technical
@@ -87,43 +88,78 @@ machine; the only thing a user may choose to send is a score (see "From users").
      in Rust"). Pausing and private fields are the input method's: it simply does not call `learn`.
    - Through the crate on chat: +3.2 to +3.6 points over the table alone; p99 2.4–2.9 ms per
      syllable ("New words as `<unk>` in context").
-5. **Fix syllables that do not exist.** After step 6. In the crate, a typed syllable whose unmarked form the
-   table does not know (`khogn`) is replaced by the known form one edit away that scores best in
-   context, when it beats the runner-up by a margin of 4; a word in the personal dictionary is never
-   a target, and one key undoes the fix. On the small table this changes at most 0.018% of clean
-   words and is right 98.6–99.6% of the time, fixing 19% (chat) to 46% (subs) of the typos it can
-   see ("Fixing syllables the table does not know"). Typos that land on another real syllable are
-   left to the spell check (Later). On one writer's real messages it fixed 3 of 17 typos and changed
-   2 of 2,430 real words the table lacks, so it is safe but rare ("Fixing unknown syllables on real
-   typos"). It runs when a word ends (space or punctuation), since a syllable still being typed
-   (`khon` on the way to `không`) is unknown too. Checks: the crate fixes exactly what
-   `research.typo` fixes, and p99 per syllable stays under 3 ms with the fix on.
-6. **Ready for an input method.** Next. Ngó Sen's typing core is already Rust (`bamboo-rs`), and at
-   the end of a word it holds both readings (`tét` as interpreted, `test` as typed), so it calls the
-   crate as a Rust dependency, compiled into the same static library: two Rust static libraries in
-   one fcitx5 addon clash on duplicate symbols. A C API waits for a second input method. Each step
-   below is one pull request.
-   - **Own the table, version the dictionary.** `Typing` and `Personal` borrow a `Table` and `Typing`
-     borrows `Personal`, which cannot sit behind the long-lived handles of an input method with
-     several fields open. `Typing` holds a shared `Table`; the personal dictionary carries a
-     generation, so a run opened before a clear or a reload is dropped instead of reading ids that
-     no longer exist. Learning never waits on, or blocks, a key.
-   - **No panic on any input.** Ngó Sen builds with `panic = "abort"`, so a panic kills fcitx5. Table
-     reads that trust the file (`from_utf8(..).unwrap()`, slice bounds) return an `Error` or a miss.
-     The table is read into memory, not mapped, so a file rewritten in place during an update cannot
-     fault a running input method. A run is capped in length, and the changed tail is reported, not
-     the whole run, since the input method rewrites committed text.
-   - **Abuse tests in the shipped build.** Garbage and invalid UTF-8, truncated and corrupt tables,
-     clear and reload with runs open, calls in any order: built with Ngó Sen's release profile
-     (`panic = "abort"`) and once with overflow checks on; passing means the process exits 0.
-   - **Latency.** p99 per key at runs of 50 and 200 syllables, opening the table (it blocks fcitx5's
-     main thread), loading and saving the personal dictionary, and memory, in Ngó Sen's release
-     profile, with the prediction written first. Saving runs off the key path, to a temporary file
-     renamed into place, readable by the user only.
-   - **Link proof.** A throwaway local build of Ngó Sen with the crate as a path dependency of
-     `bamboo-rs`, called at a word break; Ngó Sen's core tests pass. No pull request there yet.
-7. **Daily use in Ngó Sen.** In the Ngó Sen repository: Đoán dấu as an option, off by default, never
-   in password or other sensitive fields, and
+5. **Fix syllables that do not exist.** After step 6, before step 7. In the crate, a typed syllable
+   whose unmarked form the table does not know (`khogn`) is replaced by the known form one edit away
+   that scores best in context, when it beats the runner-up by a margin of 4; a word in the personal
+   dictionary is never a target, and one key undoes the fix. On the small table this changes at most
+   0.018% of clean words and is right 98.6–99.6% of the time, fixing 19% (chat) to 46% (subs) of the
+   typos it can see ("Fixing syllables the table does not know"). Typos that land on another real
+   syllable are left to the spell check (Later). On one writer's real messages it fixed 3 of 17
+   typos and changed 2 of 2,430 real words the table lacks, so it is safe but rare ("Fixing unknown
+   syllables on real typos"). It runs when a word ends (space or punctuation), since a syllable
+   still being typed (`khon` on the way to `không`) is unknown too. Checks: the crate fixes exactly
+   what `research.typo` fixes, and p99 per syllable stays under 3 ms with the fix on. It changes the
+   word-end result of step 6, so all of step 6's tests and its integration proof run again on it.
+6. **Ready for an input method.** Next. Ngó Sen's typing core is already Rust (`bamboo-rs`) and
+   holds both readings at a word break (`tét` as interpreted, `test` as typed), so it calls the
+   crate as a Rust dependency compiled into its own static library: two Rust static libraries in one
+   fcitx5 addon clash on duplicate symbols. A C API waits for a second input method. In this order,
+   each a pull request that carries the tests failing without it:
+   - **Read the table into memory.** In place of `memmap2`, which Ngó Sen does not vendor, so a
+     table file rewritten in place during an update cannot change under a running input method; the
+     broken-table tests run on the new path.
+   - **Rust 1.88.** `rust-version = "1.88"`, Ngó Sen's minimum, and a CI job on that version.
+   - **Link proof.** A local build of Ngó Sen through its own CMake path (vendored crates,
+     `--offline --locked`, its release profile with `panic = "abort"`) with the crate as a
+     dependency of `bamboo-rs`, calling today's `Table::restore` at a word break; Ngó Sen's core
+     tests pass. It proves the build and finds the call sites: `bamboo-rs` ends a word at a space,
+     but a run ends at punctuation, digits, symbols and line breaks, as in `research.text.segments`,
+     and when the cursor moves. Also chosen here: the source Ngó Sen will vendor the crate from. The
+     pull request is the `docs/EXPERIMENTS.md` entry (commands, Ngó Sen commit, results). Where the
+     crate's objects live is settled by the steps below and checked again by the integration proof.
+   - **Own the table.** `Typing` and `Personal` hold a shared `Table` instead of borrowing one.
+     Mechanical; a CHANGELOG line.
+   - **One dictionary, a snapshot per run.** Ngó Sen keeps one engine per field, so the personal
+     dictionary has one owner for the user, shared by every field; each run reads the snapshot taken
+     when it started, and its ids stay valid until it ends. Learning, a clear or a reload makes a
+     new snapshot that only later runs see, so a run never mixes two sets of counts. A run started
+     after some learning restores exactly like `research.personal` given the same learned text. Ngó
+     Sen takes the owner out of its handle registry and releases the registry lock before restoring,
+     learning or saving, so no field waits on another. A property test interleaves learn, clear and
+     reload across two fields with push, guess and choices.
+   - **Never lose the personal file.** A file that fails to load is never overwritten: it is set
+     aside, saving stops, and the crate reports why, so the input method can tell the user and offer
+     to start empty. Lines dropped on load (a word the table cannot take) are kept and written back.
+     A save writes a file readable by the user only, syncs it, renames it into place and syncs the
+     directory; one save runs at a time, from the owner, and a save begun before a clear is dropped.
+     Tests: an unknown header, a bad line and a refused word each leave the file byte for byte; a
+     clear racing a save leaves an empty dictionary on disk; two fields learning then reloading keep
+     both.
+   - **Word-end contract.** A change is reported as one batch for the run's snapshot: the old
+     spelling of the changed part and its new spelling, never a bare length, so the input method
+     checks the old part against the field before it deletes, and keeps its own guards (terminals,
+     address bars). Where the field does not report its text in time, only the word still being
+     typed changes. Backspace into committed words followed by more keys replaces the syllables
+     backspaced into. Ngó Sen passes whether the field is private (password, sensitive, a terminal
+     hiding what is typed) into `bamboo-rs`, which then does not call the crate; turning private
+     ends the run and drops what waited to be learned. Property tests: the part not reported is
+     unchanged, output as long as the input, case kept, and several syllables changing at once.
+   - **Abuse binary.** Garbage and invalid UTF-8, truncated and corrupt tables and personal files,
+     calls in any order: a binary built with Ngó Sen's release profile (`cargo test` ignores
+     `panic = "abort"`), and once with overflow checks on. Each case asserts its result (an `Error`,
+     a miss, an unchanged file); a control case that panics on purpose must fail, to show the
+     harness sees an abort.
+   - **Latency, memory and the run cap.** Budgets go in the prediction: p99 under 3 ms per key at
+     runs of 50 and 200 syllables, with the personal dictionary; opening the table, loading and
+     saving the personal file, each timed alone, off the key path, and Đoán dấu stays off until the
+     table is ready; memory for each table and its peak during a reload. The run cap is set from
+     these numbers: at the cap a new run starts with the last two syllables as context only, neither
+     shown again nor learned twice, and the property and abuse tests cover it in the same pull
+     request.
+   - **Integration proof.** The link proof again with the final API, through Ngó Sen's word-end and
+     private-field paths; Ngó Sen's core tests pass.
+7. **Daily use in Ngó Sen.** After step 5. In the Ngó Sen repository, on a local build until this
+   repository is public: Đoán dấu as an option, off by default and never in private fields, and
    Cứu chữ's second case (when the text was typed with no marks at all, Tab adds them instead of
    re-reading the keys). Then type with it every day. Counted on the machine, never sent: words
    guessed, guesses changed with Tab, fixes undone. Decided from those counts: whether Đoán dấu fills
@@ -137,7 +173,8 @@ machine; the only thing a user may choose to send is a score (see "From users").
   lawyer and for the owner and contact details.
 - **Repository:** pin the GitHub Actions to commit hashes before the repository goes public.
 - **Shipping inside Ngó Sen:** Ngó Sen is GPL-3.0-or-later and vendors its crates for offline
-  builds, so this repository must be public before a Ngó Sen release can carry the crate.
+  builds, so a Ngó Sen branch others can see carries the crate's source. This repository must be
+  public before then; until it is, step 7 runs on a local build.
 - **Model file:** the small table is attached to a GitHub release with its corpus attributions
   (`docs/DATA_SOURCES.md`).
 
