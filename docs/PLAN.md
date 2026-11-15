@@ -182,6 +182,18 @@ machine; the only thing a user may choose to send is a score (see "From users").
    Đoán dấu fills in marks or only suggests them, the confidence below which a guess is shown as
    unsure, and whether the syllable fix can be on by default. These come from one writer, so they
    stay provisional until "measure on my text" results from others agree.
+   - Prepared in a copy, Ngó Sen untouched ("Undoing a fix, prepared in the copy of Ngó Sen"):
+     Backspace right after the commit of a fixed word reopens it as typed, as Ngó Sen's Backspace
+     after a Space that shortened a word does; committed again unchanged, it stays as typed and is
+     learned so. `EngineSetFixing` switches fixing. What is left for the front end: on that
+     Backspace, call `EngineUndoFix` before `restoreDroppedWord`, check that the text it returns
+     (`phím `) is right before the cursor and delete it, and show the preedit; call
+     `EngineSetFixing` from the settings. Pull and apply the changes (`EnginePullChanges`)
+     after each key before forwarding it, including in Sen mode, where `commitWord` resets the
+     engine after every word: that reset must come after the pull and must not end the run, or
+     Đoán dấu has no words before the one being typed. Still to add with the binding: C calls to
+     open the table and the personal dictionary every field shares, attach them to an engine
+     (`set_diacritics`), save what was learned, and mark a field private (`set_private`).
 
 ## Before the first public release
 
