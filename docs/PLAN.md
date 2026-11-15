@@ -87,7 +87,7 @@ machine; the only thing a user may choose to send is a score (see "From users").
      in Rust"). Pausing and private fields are the input method's: it simply does not call `learn`.
    - Through the crate on chat: +3.2 to +3.6 points over the table alone; p99 2.4–2.9 ms per
      syllable ("New words as `<unk>` in context").
-5. **Fix syllables that do not exist.** Next. In the crate, a typed syllable whose unmarked form the
+5. **Fix syllables that do not exist.** After step 6. In the crate, a typed syllable whose unmarked form the
    table does not know (`khogn`) is replaced by the known form one edit away that scores best in
    context, when it beats the runner-up by a margin of 4; a word in the personal dictionary is never
    a target, and one key undoes the fix. On the small table this changes at most 0.018% of clean
@@ -98,9 +98,32 @@ machine; the only thing a user may choose to send is a score (see "From users").
    typos"). It runs when a word ends (space or punctuation), since a syllable still being typed
    (`khon` on the way to `không`) is unknown too. Checks: the crate fixes exactly what
    `research.typo` fixes, and p99 per syllable stays under 3 ms with the fix on.
-6. **C API.** A thin C interface and header so Linux input methods can use the crate: restore while
-   typing, the fix above, the personal dictionary.
-7. **Daily use in Ngó Sen.** In the Ngó Sen repository: Đoán dấu as an option, off by default, and
+6. **Ready for an input method.** Next. Ngó Sen's typing core is already Rust (`bamboo-rs`), and at
+   the end of a word it holds both readings (`tét` as interpreted, `test` as typed), so it calls the
+   crate as a Rust dependency, compiled into the same static library: two Rust static libraries in
+   one fcitx5 addon clash on duplicate symbols. A C API waits for a second input method. Each step
+   below is one pull request.
+   - **Own the table, version the dictionary.** `Typing` and `Personal` borrow a `Table` and `Typing`
+     borrows `Personal`, which cannot sit behind the long-lived handles of an input method with
+     several fields open. `Typing` holds a shared `Table`; the personal dictionary carries a
+     generation, so a run opened before a clear or a reload is dropped instead of reading ids that
+     no longer exist. Learning never waits on, or blocks, a key.
+   - **No panic on any input.** Ngó Sen builds with `panic = "abort"`, so a panic kills fcitx5. Table
+     reads that trust the file (`from_utf8(..).unwrap()`, slice bounds) return an `Error` or a miss.
+     The table is read into memory, not mapped, so a file rewritten in place during an update cannot
+     fault a running input method. A run is capped in length, and the changed tail is reported, not
+     the whole run, since the input method rewrites committed text.
+   - **Abuse tests in the shipped build.** Garbage and invalid UTF-8, truncated and corrupt tables,
+     clear and reload with runs open, calls in any order: built with Ngó Sen's release profile
+     (`panic = "abort"`) and once with overflow checks on; passing means the process exits 0.
+   - **Latency.** p99 per key at runs of 50 and 200 syllables, opening the table (it blocks fcitx5's
+     main thread), loading and saving the personal dictionary, and memory, in Ngó Sen's release
+     profile, with the prediction written first. Saving runs off the key path, to a temporary file
+     renamed into place, readable by the user only.
+   - **Link proof.** A throwaway local build of Ngó Sen with the crate as a path dependency of
+     `bamboo-rs`, called at a word break; Ngó Sen's core tests pass. No pull request there yet.
+7. **Daily use in Ngó Sen.** In the Ngó Sen repository: Đoán dấu as an option, off by default, never
+   in password or other sensitive fields, and
    Cứu chữ's second case (when the text was typed with no marks at all, Tab adds them instead of
    re-reading the keys). Then type with it every day. Counted on the machine, never sent: words
    guessed, guesses changed with Tab, fixes undone. Decided from those counts: whether Đoán dấu fills
@@ -113,6 +136,8 @@ machine; the only thing a user may choose to send is a score (see "From users").
 - **Licence:** the commercial licence offer and contributor agreement (draft PR #24) wait for a
   lawyer and for the owner and contact details.
 - **Repository:** pin the GitHub Actions to commit hashes before the repository goes public.
+- **Shipping inside Ngó Sen:** Ngó Sen is GPL-3.0-or-later and vendors its crates for offline
+  builds, so this repository must be public before a Ngó Sen release can carry the crate.
 - **Model file:** the small table is attached to a GitHub release with its corpus attributions
   (`docs/DATA_SOURCES.md`).
 
