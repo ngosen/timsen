@@ -50,14 +50,17 @@ impl Reading {
     }
 }
 
-/// The fix in the case it was typed in. A word typed in capitals stays in capitals even when the fix
-/// adds a letter, which copying the case letter by letter would leave lowercase.
-fn fix_case(typed: &str, plain: &str) -> String {
-    let mut letters = typed.chars().filter(|c| c.is_alphabetic());
-    if typed.chars().count() > 1 && letters.all(char::is_uppercase) {
-        return plain.to_uppercase();
+/// The fix in the case it was typed in: lowercase, capitals, or a capital first. Any other mix has
+/// no place for the capitals once a letter moves, so the word is left as typed.
+fn fix_case(typed: &str, plain: &str) -> Option<String> {
+    let mut chars = typed.chars();
+    let first = chars.next()?.is_uppercase();
+    let rest: Vec<bool> = chars.map(char::is_uppercase).collect();
+    match (first, rest.iter().all(|&u| u), rest.iter().any(|&u| u)) {
+        (_, _, false) => Some(tone::apply_case(typed, plain)),
+        (true, true, _) => Some(plain.to_uppercase()),
+        _ => None,
     }
-    tone::apply_case(typed, plain)
 }
 
 /// How a syllable went into the typing, so it can go in again after an earlier one changes.
@@ -118,11 +121,11 @@ impl<'t> Run<'t> {
         let mut fixed = None;
         let mut given = syllable.to_string();
         let last = self.typing.len() - 1;
-        let fix = self
-            .fix_margin
-            .and_then(|m| self.typing.fix(last, false).filter(|f| f.margin >= m));
+        let fix = (self.fix_margin)
+            .and_then(|m| self.typing.fix(last, false).filter(|f| f.margin >= m))
+            .and_then(|f| fix_case(syllable, &f.plain));
         if let Some(fix) = fix {
-            given = fix_case(syllable, &fix.plain);
+            given = fix;
             self.typing.pop();
             self.typing.push(&given);
             fixed = Some(syllable.to_string());
@@ -573,11 +576,26 @@ mod tests {
     }
 
     #[test]
-    fn a_word_typed_with_combining_marks_is_never_fixed() {
+    fn a_word_in_mixed_case_is_left_as_typed() {
         let t = table();
+        for typed in ["phM", "phMi", "pHmi"] {
+            let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+            type_words(&mut run, &["toi", "go", typed], Reach::Run);
+            assert_eq!(run.shown()[2], typed);
+        }
         let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
-        type_words(&mut run, &["toi", "go", "phi\u{300}m"], Reach::Run);
-        assert_eq!(run.shown()[2], "phi\u{300}m");
+        type_words(&mut run, &["toi", "go", "Phm"], Reach::Run);
+        assert_eq!(run.shown()[2], "Phím");
+    }
+
+    #[test]
+    fn a_word_with_a_letter_beyond_plain_latin_is_never_fixed() {
+        let t = table();
+        for typed in ["phi\u{300}m", "phi\u{1ab0}m", "phïm", "phmí\u{301}"] {
+            let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+            type_words(&mut run, &["toi", "go", typed], Reach::Run);
+            assert_eq!(run.shown()[2], typed);
+        }
     }
 
     #[test]

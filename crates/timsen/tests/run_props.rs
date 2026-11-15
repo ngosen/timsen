@@ -38,6 +38,14 @@ fn cased(word: String, how: u8) -> String {
                 .map(|f| f.to_uppercase().chain(c).collect())
                 .unwrap_or_default()
         }
+        // A capital last, as a slip of the shift key leaves it.
+        2 => {
+            let mut c: Vec<char> = word.chars().collect();
+            if let Some(l) = c.pop() {
+                c.extend(l.to_uppercase());
+            }
+            c.into_iter().collect()
+        }
         _ => word,
     }
 }
@@ -106,6 +114,14 @@ fn check(
                 prop_assert!(fixable(t, w), "{} for {}", new, w);
                 prop_assert!(new.chars().count().abs_diff(w.chars().count()) <= 1);
                 prop_assert_eq!(shape(new).first().copied(), shape(w).first().copied());
+                // Only lowercase, capitals or a capital first: any other mix stays as typed.
+                let caps: Vec<bool> = w.chars().skip(1).map(char::is_uppercase).collect();
+                prop_assert!(
+                    !caps.contains(&true) || !caps.contains(&false),
+                    "{} for {}",
+                    new,
+                    w
+                );
                 if w.chars().count() > 1 && w.chars().all(char::is_uppercase) {
                     prop_assert!(!new.chars().any(char::is_lowercase), "{} for {}", new, w);
                 }

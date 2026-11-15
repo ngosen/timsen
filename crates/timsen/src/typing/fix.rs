@@ -47,8 +47,9 @@ impl Typing<'_> {
             return None;
         }
         let typed = self.typed[i].to_lowercase();
-        // Marks typed as combining characters are marks all the same: the word was meant as typed.
-        if typed.chars().any(|c| ('\u{300}'..='\u{36f}').contains(&c)) {
+        // Edits are of plain letters only, and a letter beyond them, such as a mark typed as a
+        // combining character, says the word was meant as typed.
+        if !typed.chars().all(|c| c.is_ascii_lowercase()) {
             return None;
         }
         let cands: Vec<(String, Vec<u32>)> = (edits(&typed).into_iter())
