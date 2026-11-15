@@ -262,17 +262,21 @@ fn typing_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
 }
 
 /// Pops, pushes, real changes and made-up ones, going on in a new run at the cap: a change is taken
-/// exactly when its old text stands where it says, and nothing else moves the field.
+/// exactly when its old text stands where it says and it leaves a word kept as typed alone, and
+/// nothing else moves the field.
 fn runs_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
     let cases = 10_000;
     let mut run = Run::new(Typing::shared(Arc::clone(table)), 0.99).fixing(Some(FIX_MARGIN));
     let mut field: Vec<String> = Vec::new();
+    // Each word as pushed, and whether an undone fix keeps it so.
+    let mut typed: Vec<(String, bool)> = Vec::new();
     let mut full = 0;
     for _ in 0..cases {
         if run.is_full() || rng.below(500) == 0 {
             full += usize::from(run.is_full());
             run = run.next(Typing::shared(Arc::clone(table)));
             field.clear();
+            typed.clear();
         }
         // Pushes outnumber pops, so runs reach the cap.
         let change = match rng.below(5) {
@@ -280,6 +284,7 @@ fn runs_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
                 let w = rng.word();
                 run.push(w);
                 field.push(w.to_string());
+                typed.push((w.to_string(), false));
                 None
             }
             1 => {
@@ -287,8 +292,10 @@ fn runs_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
                 if rng.below(2) == 0 {
                     run.pop();
                     field.pop();
-                } else {
-                    run.undo_fix();
+                    typed.pop();
+                } else if let Some(i) = run.last_fix() {
+                    assert!(run.undo_fix());
+                    typed[i].1 = true;
                 }
                 None
             }
@@ -310,7 +317,9 @@ fn runs_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
         if let Some(c) = change {
             let end = c.first.checked_add(c.old.len());
             let stands = end.and_then(|end| field.get(c.first..end)) == Some(c.old.as_slice());
-            let fits = stands && c.old.len() == c.new.len();
+            let keeps =
+                |(k, new): (usize, &String)| matches!(&typed[c.first + k], (w, true) if w != new);
+            let fits = stands && c.old.len() == c.new.len() && !c.new.iter().enumerate().any(keeps);
             assert_eq!(run.apply(&c), fits, "{c:?} on {field:?}");
             if fits {
                 field[c.first..c.first + c.new.len()].clone_from_slice(&c.new);
