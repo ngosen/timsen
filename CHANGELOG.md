@@ -4,6 +4,12 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ## Unreleased
 
+### Added
+
+- `Typing::shared`, `Typing::with_shared_personal`, `Personal::shared` and `Personal::load_shared`
+  take the table or dictionary as an `Arc`, so an input method can keep a run in each field with no
+  lifetime. The borrowing constructors are unchanged.
+
 ### Changed
 
 - The crate declares Rust 1.88 as its minimum, Ngó Sen's, and CI builds and tests on it.

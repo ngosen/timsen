@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
+use std::sync::Arc;
 
+use crate::shared::Shared;
 use crate::table::{BOS, EOS, MAX_SPELLINGS, SHIFT, UNK};
 use crate::{Error, Table, tone};
 
@@ -29,7 +31,7 @@ const MAX_COUNT: u64 = 1 << 40;
 /// the table's own, so they can be guessed too; the saved file names words by their spelling, so it
 /// survives a new table.
 pub struct Personal<'t> {
-    table: &'t Table,
+    table: Shared<'t, Table>,
     /// Word `table.len() + i` is `new_words[i]`, its unmarked form `new_plain[i]`. `new_share[i]` is
     /// its log share of the learned spellings of that form when the table does not offer the form at
     /// all, and `None` when it does.
@@ -77,8 +79,24 @@ fn savable(word: &str) -> bool {
         && !word.chars().any(|c| c.is_whitespace() || c.is_control())
 }
 
+impl Personal<'static> {
+    /// A dictionary that shares the table instead of borrowing it, so it can be kept anywhere.
+    pub fn shared(table: Arc<Table>) -> Personal<'static> {
+        Personal::empty(Shared::Owned(table))
+    }
+
+    /// Like [`Personal::load`], sharing the table.
+    pub fn load_shared(table: Arc<Table>, input: impl BufRead) -> Result<Personal<'static>, Error> {
+        Personal::read(Shared::Owned(table), input)
+    }
+}
+
 impl<'t> Personal<'t> {
     pub fn new(table: &'t Table) -> Personal<'t> {
+        Personal::empty(Shared::Borrowed(table))
+    }
+
+    fn empty(table: Shared<'t, Table>) -> Personal<'t> {
         Personal {
             table,
             new_words: Vec::new(),
@@ -96,8 +114,8 @@ impl<'t> Personal<'t> {
         }
     }
 
-    pub fn table(&self) -> &'t Table {
-        self.table
+    pub fn table(&self) -> &Table {
+        &self.table
     }
 
     pub fn is_empty(&self) -> bool {
@@ -106,7 +124,7 @@ impl<'t> Personal<'t> {
 
     /// Forgets everything learned.
     pub fn clear(&mut self) {
-        *self = Personal::new(self.table);
+        *self = Personal::empty(self.table.clone());
     }
 
     /// Learns a run of words known to be right: typed with marks, or a guess the user corrected.
@@ -383,7 +401,11 @@ impl<'t> Personal<'t> {
 
     /// Reads a file written by [`Personal::save`], for this table.
     pub fn load(table: &'t Table, input: impl BufRead) -> Result<Personal<'t>, Error> {
-        let mut p = Personal::new(table);
+        Personal::read(Shared::Borrowed(table), input)
+    }
+
+    fn read(table: Shared<'t, Table>, input: impl BufRead) -> Result<Personal<'t>, Error> {
+        let mut p = Personal::empty(table);
         let mut lines = input.lines();
         if lines.next().transpose()?.as_deref() != Some(HEADER) {
             return Err(Error::Format("not a personal dictionary"));
