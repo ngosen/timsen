@@ -199,7 +199,8 @@ machine; the only thing a user may choose to send is a score (see "From users").
 
 - **Licence:** the commercial licence offer and contributor agreement (draft PR #24) wait for a
   lawyer and for the owner and contact details.
-- **Repository:** pin the GitHub Actions to commit hashes before the repository goes public.
+- **Repository:** GitHub Actions are pinned to commit hashes (`.github/workflows/ci.yml`, version in
+  a comment); keep new ones pinned too.
 - **Shipping inside Ngó Sen:** Ngó Sen is GPL-3.0-or-later and vendors its crates for offline
   builds, so a Ngó Sen branch others can see carries the crate's source. This repository must be
   public before then; until it is, step 7 runs on a local build.
