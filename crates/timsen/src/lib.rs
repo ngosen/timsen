@@ -6,6 +6,7 @@
 //! counts learned from the user's own text.
 
 mod personal;
+mod shared;
 mod table;
 mod tone;
 mod typing;

@@ -1,54 +1,56 @@
 //! Restoring a run while it is typed, one syllable at a time.
 
+use std::sync::Arc;
+
+use crate::shared::Shared;
 use crate::table::{BOS, EOS, UNK};
 use crate::{Counts, Personal, Table, ToneStyle, tone};
 
 const START: [u32; 1] = [BOS];
 
 /// Where words and counts come from.
-#[derive(Clone, Copy)]
 enum Source<'t> {
-    Table(&'t Table),
-    Personal(&'t Personal<'t>),
+    Table(Shared<'t, Table>),
+    Personal(Shared<'t, Personal<'t>>),
 }
 
 impl<'t> Source<'t> {
-    fn table(self) -> &'t Table {
+    fn table(&self) -> &Table {
         match self {
             Source::Table(t) => t,
             Source::Personal(p) => p.table(),
         }
     }
 
-    fn options(self, plain: &str) -> Option<Vec<u32>> {
+    fn options(&self, plain: &str) -> Option<Vec<u32>> {
         match self {
             Source::Table(t) => t.options(plain).map(Iterator::collect),
             Source::Personal(p) => p.options(plain),
         }
     }
 
-    fn word(self, id: u32) -> &'t str {
+    fn word(&self, id: u32) -> &str {
         match self {
             Source::Table(t) => t.word(id),
             Source::Personal(p) => p.word(id),
         }
     }
 
-    fn logp(self, u: u32, v: u32, w: u32) -> f64 {
+    fn logp(&self, u: u32, v: u32, w: u32) -> f64 {
         match self {
             Source::Table(t) => t.logp(u, v, w),
             Source::Personal(p) => p.logp(u, v, w),
         }
     }
 
-    fn context_left(self, u: u32, v: u32) -> f64 {
+    fn context_left(&self, u: u32, v: u32) -> f64 {
         match self {
             Source::Table(t) => t.context_left(u, v),
             Source::Personal(p) => p.context_left(u, v),
         }
     }
 
-    fn logp_left(self, u: u32, v: u32, w: u32, left: f64) -> f64 {
+    fn logp_left(&self, u: u32, v: u32, w: u32, left: f64) -> f64 {
         match self {
             Source::Table(t) => t.logp_left(u, v, w, left),
             Source::Personal(p) => p.logp_left(u, v, w, left),
@@ -56,7 +58,7 @@ impl<'t> Source<'t> {
     }
 
     /// The id of a word as typed, in either tone placement, or `UNK`.
-    fn id_of(self, word: &str) -> u32 {
+    fn id_of(&self, word: &str) -> u32 {
         let word = tone::to_new(&word.to_lowercase());
         let t = self.table();
         let known = t
@@ -86,14 +88,26 @@ pub struct Typing<'t> {
     back: Vec<Vec<usize>>,
 }
 
+impl Typing<'static> {
+    /// A run that shares the table instead of borrowing it, so it can be kept anywhere.
+    pub fn shared(table: Arc<Table>) -> Typing<'static> {
+        Typing::from_source(Source::Table(Shared::Owned(table)))
+    }
+
+    /// Like [`Typing::with_personal`], sharing the dictionary.
+    pub fn with_shared_personal(personal: Arc<Personal<'static>>) -> Typing<'static> {
+        Typing::from_source(Source::Personal(Shared::Owned(personal)))
+    }
+}
+
 impl<'t> Typing<'t> {
     pub fn new(table: &'t Table) -> Typing<'t> {
-        Typing::from_source(Source::Table(table))
+        Typing::from_source(Source::Table(Shared::Borrowed(table)))
     }
 
     /// Typing with the user's learned counts on top of the table's.
     pub fn with_personal(personal: &'t Personal<'t>) -> Typing<'t> {
-        Typing::from_source(Source::Personal(personal))
+        Typing::from_source(Source::Personal(Shared::Borrowed(personal)))
     }
 
     fn from_source(src: Source<'t>) -> Typing<'t> {

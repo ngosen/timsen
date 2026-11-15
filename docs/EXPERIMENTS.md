@@ -1894,3 +1894,26 @@ Found on the way:
   its test.
 - Source for Ngó Sen: this repository as a git dependency pinned to a commit, vendored with
   `cargo vendor`. Others can build it only once this repository is public.
+
+## 2026-11-15 · A shared table costs nothing per key
+
+Question: `Typing` and `Personal` can now share the table (and `Typing` the dictionary) through
+`Arc`, so an input method can keep them in a field with no lifetime. Every lookup now passes
+through one more match, borrowed or shared. Does a key get slower?
+
+Setup: `open_cost` as in "Reading the table into memory instead of mapping it" (small table, the
+same frozen wiki runs, 73,603 later keys), built from `main` and from this branch, three runs each,
+alternating. Both builds borrow the table, the path every caller took before, so this measures the
+cost the extra match adds to existing callers.
+
+Prediction: p50 and p99 per key the same within the run-to-run spread of that entry (p99
+0.635–0.654 ms); the checksum the same, 469,427.
+
+Result: the same within today's spread, but not within the earlier one, since the machine was busier
+(load average 4.7 against 1.6–3.6). Three runs each, `main` then this branch:
+- p99: 0.681, 0.689, 0.629 ms against 0.703, 0.665, 0.671 ms;
+- p50: 0.069, 0.069, 0.062 ms against 0.070, 0.066, 0.066 ms;
+- checksum 469,427 in all six; the two binaries differ.
+
+The ranges overlap (0.629–0.689 and 0.665–0.703), so no cost shows at this precision; a cost of a
+few percent would not show either.
