@@ -6,6 +6,7 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Changed
 
+- The crate declares Rust 1.88 as its minimum, Ngó Sen's, and CI builds and tests on it.
 - `Table::open` reads the whole table into memory instead of mapping it, so a table file written
   over during an update no longer changes, or crashes, a running program. The crate no longer
   depends on `memmap2`. Opening the small table takes about 12 ms more; memory once typing has
