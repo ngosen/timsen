@@ -2325,3 +2325,46 @@ Conclusion: the crate fixes exactly what `research.typo` fixes and stays within 
 Decided when the word ends, margin 4 is safe on all three sets but fixes about a quarter of the
 typos it can see, half of what the whole run fixes; the words after a typo carry the other half.
 Fixing stays off by default, as planned; step 7 decides whether it is offered on.
+
+## 2026-11-15 · The integration proof again, with fixing
+
+Question: step 5 changes what a word end does, so the integration proof of "The crate's final API
+inside Ngó Sen's core" runs again on it. Do its tests still pass on the new crate, with fixing off
+(the default) and with it on, and does a typo reach the field fixed through Ngó Sen's own key path?
+
+Setup: the same copy of Ngó Sen in RAM, never pushed, with the glue of that entry. The crate's
+revision moves from 8196fc7 to c5e2c8d (main after #62), vendored again with `cargo vendor
+--no-delete`; built and tested exactly as there (CMake core build, `ctest`, `cargo test --release
+--offline --locked` in `bamboo-rs`). Then a second build with the glue's `Run::new` followed by
+`.fixing(Some(FIX_MARGIN))` and one more test: typing `toi go phmi` and a space each, through
+Telex, brings the field to `tôi gõ phím`.
+
+Prediction, before building:
+- `cargo vendor` changes only `vendor/timsen`; `Cargo.lock` only the crate's revision;
+- fixing off: the build passes offline and locked, 19 of 19 `ctest` tests and 139 of 139 cargo
+  tests pass, and the static library grows by less than 100 KB over 46,238,344 bytes;
+- fixing on: 19 of 19 and 140 of 140, no test of the earlier proof changes, since none of them
+  types a syllable the fixture table does not know; the new test passes;
+- the new test sees fixing: with `.fixing(None)` in the glue it is the one test that fails.
+
+Result: held, but for one test the prediction did not foresee.
+- `cargo vendor` changed only `vendor/timsen` (13 files, `diff -rq` against the tree before), and
+  `Cargo.lock` only the crate's revision.
+- Fixing off: the CMake build passed vendored, offline and locked; 19 of 19 `ctest` tests and 139
+  of 139 cargo tests pass, with the same three dead-code warnings. The static library is
+  46,357,146 bytes, 118,802 more than before: over the 100 KB predicted, since the fixing code is
+  compiled in whether a run uses it or not.
+- Fixing on: 19 of 19 `ctest` tests, but 139 of 140 cargo tests, not 140. The test that two
+  fields share one dictionary failed at its first step: the fixture table lacks `ngo`, which is one
+  edit from `go`, so `ngo sen` was fixed to `gõ sen` before anything was learned. That is the risk
+  measured above as clean words changed (0.005–0.009%), met here because the test types a name the
+  table does not know. Its second step holds with fixing on: once the other field has learned
+  `ngó`, the word is a dictionary word, no longer a target, and comes back `ngó sen`. The test now
+  says so (`gõ sen` first, then `ngó sen`); with that, 140 of 140 pass. The library is 46,357,330
+  bytes.
+- The new test sees fixing: with `.fixing(None)` in the glue it is the one test that fails, as
+  predicted.
+
+The copy keeps fixing on; whether Ngó Sen offers it on by default is step 7's question, and this
+proof is one input to it: a name the table lacks is fixed until the dictionary learns it, and the
+undo key is what a user has before that. The patch kept in RAM is now 539 lines (531 before).
