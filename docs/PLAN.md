@@ -88,7 +88,7 @@ machine; the only thing a user may choose to send is a score (see "From users").
      in Rust"). Pausing and private fields are the input method's: it simply does not call `learn`.
    - Through the crate on chat: +3.2 to +3.6 points over the table alone; p99 2.4–2.9 ms per
      syllable ("New words as `<unk>` in context").
-5. **Fix syllables that do not exist.** After step 6, before step 7. In the crate, a typed syllable
+5. **Fix syllables that do not exist.** Next, before step 7. In the crate, a typed syllable
    whose unmarked form the table does not know (`khogn`) is replaced by the known form one edit away
    that scores best in context, when it beats the runner-up by a margin of 4; a word in the personal
    dictionary is never a target, and one key undoes the fix. On the small table this changes at most
@@ -100,7 +100,7 @@ machine; the only thing a user may choose to send is a score (see "From users").
    still being typed (`khon` on the way to `không`) is unknown too. Checks: the crate fixes exactly
    what `research.typo` fixes, and p99 per syllable stays under 3 ms with the fix on. It changes the
    word-end result of step 6, so all of step 6's tests and its integration proof run again on it.
-6. **Ready for an input method.** Next. Ngó Sen's typing core is already Rust (`bamboo-rs`) and
+6. **Ready for an input method.** Done. Ngó Sen's typing core is already Rust (`bamboo-rs`) and
    holds both readings at a word break (`tét` as interpreted, `test` as typed), so it calls the
    crate as a Rust dependency compiled into its own static library: two Rust static libraries in one
    fcitx5 addon clash on duplicate symbols. A C API waits for a second input method. In this order,
@@ -158,7 +158,10 @@ machine; the only thing a user may choose to send is a score (see "From users").
      shown again nor learned twice, and the property and abuse tests cover it in the same pull
      request.
    - **Integration proof.** The link proof again with the final API, through Ngó Sen's word-end and
-     private-field paths; Ngó Sen's core tests pass.
+     private-field paths; Ngó Sen's core tests pass. Done ("Integration proof: the final API inside
+     Ngó Sen's core"): 19 of 19 and 129 of 129 tests. For step 7: a change is placed by counting
+     words back from the cursor, the keys at a commit lose the key that ended the word before they
+     are a second reading, and the new engine calls need the C API before Ngó Sen's lint passes.
 7. **Daily use in Ngó Sen.** After step 5. In the Ngó Sen repository, as a feature for its `next`
    branch (its rules keep `main` for releases and `patch` for fixes to the current release), on a
    local build until this repository is public: Đoán dấu as an option, off by default and never in

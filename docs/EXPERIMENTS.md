@@ -2099,3 +2099,75 @@ Tests for the window and the context, predicted before running (`cargo test --no
 `push_context`), 1 red; no window (every word weighed on every key), 1; a word never decided when it
 leaves the window, 1.
 The run gave 1, 1 and 1, each in the named test.
+
+## 2026-11-15 · Integration proof: the final API inside Ngó Sen's core
+
+Question: does the crate's final API fit Ngó Sen's typing core the way step 6 meant it to, through
+its word-end and private-field paths, built the way Ngó Sen builds itself? Specifically: one
+`Dictionary` shared by every field, a `Run` per field on its snapshot, `Run::push` or
+`push_either` at each word end, a `Change` per word end, learning at a run's end, the cap, and a
+private field that never reaches the crate.
+
+Setup: the copy of Ngó Sen at 05e60eaf from "The crate inside Ngó Sen's Rust core", in RAM, never
+pushed. The crate comes from this repository at 8196fc7 (main after #60) as a git dependency of
+`bamboo-rs`, vendored with `cargo vendor --no-delete`. In `bamboo-rs/src/engine/mod.rs` the proof
+replaces the earlier `Table::restore` call:
+- the engine holds an optional `Diacritics`: the `Arc<Mutex<Dictionary>>` all fields share, this
+  field's `Run`, the words as committed, and the changes for the front end to apply. The lock is
+  held only to take a typing or to learn, never while restoring;
+- every commit goes through `commit_preedit_and_reset`. Each word in it is pushed, with two
+  readings when the keys differ from the text and are plain letters (`tét`, `test`). A commit that
+  holds anything but letters and spaces, or none at all (a reset: focus change or cursor move),
+  ends the run with `change(true)`; otherwise `change(false, Reach::Run)`. Each change is applied
+  and queued;
+- at a run's end, or at the cap before the next word, the words typed with marks are learned and
+  the rest passed as `None`; a full run goes on with `Run::next(dictionary.typing())`;
+- `set_private(true)` ends the run without learning, and while private nothing reaches the crate.
+Five core tests replace the earlier one, on the fixture table: a run's changes bring the field to
+`tôi gõ phím`; punctuation ends a run and learns its marked words; a private field sends nothing
+and drops what waited to be learned; two engines share one dictionary, so what one field learns
+the next run in another restores; 201 words go on past the cap. Built with Ngó Sen's CMake path as
+before (`-DNGOSEN_CORE_ONLY=ON -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release`, vendored,
+`--offline --locked`, release profile with `panic = "abort"`), then `ctest` and
+`cargo test --release --offline --locked` in `bamboo-rs`. Saving the personal file is left out:
+it runs from the owner off the key path and has its own tests here.
+
+Prediction, before building:
+- `cargo vendor` changes only `vendor/timsen`; `Cargo.lock` changes only the crate's revision; the
+  crate still has no dependencies;
+- the build passes offline and locked, with no duplicate symbols;
+- 19 of 19 `ctest` tests and 129 of 129 cargo tests (124 of Ngó Sen's, five new) pass;
+- the static library grows by less than 1.5 MB over unchanged Ngó Sen (45,357,324 bytes);
+- the tests see the paths: ignoring the private flag turns 1 test red (the private one); not
+  ending a run at punctuation turns 2 red (learning at punctuation, two fields sharing).
+
+Result: held, after one fix the prediction did not foresee.
+- `cargo vendor` changed only `vendor/timsen` (`diff -rq` against the tree before), and
+  `Cargo.lock` only the crate's revision.
+- The CMake build passed with vendored sources and `--offline`, release profile with
+  `panic = "abort"`, and the C++ core tests linked against the library: no duplicate symbols.
+- 19 of 19 `ctest` tests and 129 of 129 cargo tests pass (4 of Ngó Sen's ignored, as before).
+- The static library is 46,234,810 bytes: 877,486 more than unchanged Ngó Sen, 308,936 more
+  than with the earlier link proof.
+- The tests see the paths: ignoring the private flag turned exactly the private test red; not
+  ending a run at punctuation turned exactly the two predicted tests red.
+
+Found on the way:
+- A `Change` counts syllables from the start of its run, but a field knows only where the cursor
+  is, and a run may begin anywhere before it. The first run of the tests applied changes at the
+  wrong place. The engine now hands the front end each change with the number of words between it
+  and the cursor (`Run::len` minus the change's end); the crate's API had what was needed.
+- The keys of a word, as the engine holds them at the commit, end with the key that ended it
+  (`test ` with its space), so no word ever took the two-readings path until they were trimmed.
+  A probe (a print in the copy, removed afterwards) showed `tét`/`test`, `mở`/`mowr`, `là`/`laf`
+  and `có`/`cos` pushed with two readings once trimmed, and none before. None of the five tests
+  can see this: on the fixture table no raw reading wins at confidence 0.99. A test that does
+  belongs with step 7, on the real table.
+- Every word typed with Telex marks has keys that differ from its text, so every such word reaches
+  the crate with two readings, not only English words the engine kept as typed. The confidence
+  threshold and the crude-word list are what keep `có` from turning into `cos`.
+- Nothing calls the new engine functions yet (the C API comes in step 7), so the library build
+  warns of dead code three times. Ngó Sen's own CI, which denies warnings, would need the calls
+  first.
+- The patch against unchanged Ngó Sen is kept in RAM (`/tmp/ngosen-diac/linkproof/integration.patch`,
+  261 changed lines), not in this repository: Ngó Sen's code goes into Ngó Sen in step 7.
