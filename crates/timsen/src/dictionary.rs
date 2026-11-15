@@ -6,25 +6,41 @@ use std::sync::Arc;
 
 use crate::{Error, Personal, Table, Typing};
 
+mod disk;
+
+use disk::Disk;
+pub use disk::SaveJob;
+
 /// Owns the personal dictionary for one user. Each run reads the snapshot taken when it started:
 /// learning, a clear or a reload makes a new snapshot that only later runs see, so a run never mixes
 /// two sets of counts and the ids it holds stay valid until it ends.
+///
+/// One opened with [`Dictionary::open`] also keeps its file: see [`Dictionary::begin_save`].
 pub struct Dictionary {
     table: Arc<Table>,
     current: Arc<Personal<'static>>,
+    /// Moves on every clear and reload, so a save begun before one is dropped.
+    generation: u64,
+    disk: Option<Disk>,
 }
 
 impl Dictionary {
     /// An empty dictionary for this table.
     pub fn new(table: Arc<Table>) -> Dictionary {
         let current = Arc::new(Personal::shared(Arc::clone(&table)));
-        Dictionary { table, current }
+        Dictionary {
+            table,
+            current,
+            generation: 0,
+            disk: None,
+        }
     }
 
     /// A dictionary read from a file written by [`Dictionary::save`] or [`Personal::save`].
     pub fn load(table: Arc<Table>, input: impl BufRead) -> Result<Dictionary, Error> {
-        let current = Arc::new(Personal::load_shared(Arc::clone(&table), input)?);
-        Ok(Dictionary { table, current })
+        let mut d = Dictionary::new(table);
+        d.current = Arc::new(Personal::load_shared(Arc::clone(&d.table), input)?);
+        Ok(d)
     }
 
     pub fn table(&self) -> &Arc<Table> {
@@ -49,17 +65,29 @@ impl Dictionary {
     /// holds the current snapshot.
     pub fn learn(&mut self, run: &[Option<&str>]) {
         Arc::make_mut(&mut self.current).learn(run);
+        if let Some(disk) = &mut self.disk {
+            disk.learned(run);
+        }
     }
 
     /// Forgets everything learned; runs already started keep what they had.
     pub fn clear(&mut self) {
         self.current = Arc::new(Personal::shared(Arc::clone(&self.table)));
+        self.generation += 1;
+        if let Some(disk) = &mut self.disk {
+            disk.replaced();
+        }
     }
 
-    /// Replaces the counts with a file's. A file that does not load leaves the dictionary as it was.
+    /// Replaces the counts with a file's, and forgets what was learned since. A file that does not
+    /// load leaves the dictionary as it was. [`Dictionary::reload_file`] keeps what was learned.
     pub fn reload(&mut self, input: impl BufRead) -> Result<(), Error> {
         let loaded = Personal::load_shared(Arc::clone(&self.table), input)?;
         self.current = Arc::new(loaded);
+        self.generation += 1;
+        if let Some(disk) = &mut self.disk {
+            disk.replaced();
+        }
         Ok(())
     }
 
