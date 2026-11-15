@@ -22,8 +22,9 @@ not own the text and removes material on a valid takedown request; the Hugging F
 licence as unknown.
 
 The subtitles themselves are user translations of copyrighted films, so no clean licence exists for
-the text. A release therefore ships only counts, never text: three-syllable sequences seen at least
-50 times (small table) or 5 times (large table) across the corpora, not sentences. `wordfreq` ships word frequencies from the same
+the text. A release therefore ships only counts, never text: counts of syllables and of two- and
+three-syllable sequences across the corpora, not sentences. `research.prune` keeps the sequences
+that change restore the most until the table reaches its size. `wordfreq` ships word frequencies from the same
 corpus on the same terms. Every release names OpenSubtitles with the link and the citation above. If
 a takedown request reaches OPUS or us, rebuild the tables without this corpus.
 
