@@ -183,7 +183,12 @@ proptest! {
                     }
                 }
                 Op::Undo => {
-                    run.undo_fix();
+                    // An undone fix keeps the word as typed, as a push as typed does.
+                    if let Some(i) = run.last_fix() {
+                        prop_assert!(run.undo_fix());
+                        let Op::Push(w) = &typed[i] else { unreachable!("only a push is fixed") };
+                        typed[i] = Op::Typed(w.clone());
+                    }
                 }
                 Op::Next => {
                     run = run.next(Typing::new(&t));
@@ -193,7 +198,11 @@ proptest! {
                 Op::Stale => {
                     let Some(c) = taken.first() else { continue };
                     let end = c.first + c.old.len();
-                    let fits = field.get(c.first..end) == Some(c.old.as_slice());
+                    let kept = |(k, new): (usize, &String)| {
+                        matches!(&typed[c.first + k], Op::Typed(w) if w != new)
+                    };
+                    let fits = field.get(c.first..end) == Some(c.old.as_slice())
+                        && !c.new.iter().enumerate().any(kept);
                     prop_assert_eq!(run.apply(c), fits);
                     if fits {
                         field[c.first..end].clone_from_slice(&c.new);

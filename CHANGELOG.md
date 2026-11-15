@@ -36,10 +36,10 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   `Run::undo_fix` takes the latest fix back and keeps the syllable as typed, also after the run
   ended; `Run::last_fix` says where that fix is, so a key can undo only the fix just made, and
   `Run::push_as_typed` takes a word that must stay as typed, such as one reopened by an undo and
-  committed again. Only
-  words of plain letters in lowercase, capitals or with a capital first are fixed, and keep that
-  case; a word the personal dictionary knows is never fixed, so learning an undone fix as typed
-  keeps it as typed.
+  committed again; `Run::apply` refuses a change taken earlier that would alter such a word.
+  Only words of plain letters in lowercase, capitals or with a capital first are fixed, and keep
+  that case; a word the personal dictionary knows is never fixed, so learning an undone fix as
+  typed keeps it as typed.
 - `scripts/abuse.sh` builds an abuse binary with Ngó Sen's release profile (`panic = "abort"`) and
   again with overflow checks, and feeds it truncated and corrupt tables and personal files, odd text
   and calls in any order; CI runs it. A table cut short is an error unless the cut took only the

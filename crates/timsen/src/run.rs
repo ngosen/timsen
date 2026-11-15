@@ -300,6 +300,13 @@ impl<'t> Run<'t> {
         if !matches || change.new.len() != change.old.len() {
             return false;
         }
+        // Matching text cannot tell a word kept as typed from the one a stale change saw there.
+        let alters_kept = (change.new.iter().enumerate()).any(
+            |(k, new)| matches!(&self.pushed[change.first + k], Pushed::Kept(kept) if kept != new),
+        );
+        if alters_kept {
+            return false;
+        }
         let end = change.first + change.new.len();
         self.shown[change.first..end].clone_from_slice(&change.new);
         true
@@ -723,6 +730,27 @@ mod tests {
         run.pop();
         run.pop();
         assert_eq!(run.len(), 2);
+    }
+
+    #[test]
+    fn a_change_taken_before_a_word_was_kept_does_not_alter_it() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        type_words(&mut run, &["toi", "go"], Reach::Run);
+        run.push("phmi");
+        let fix = run.change(false, Reach::LastWord, ToneStyle::New).unwrap();
+        assert_eq!(fix.new, strings(&["phím"]));
+        run.pop();
+        run.push_as_typed("phmi");
+        assert!(!run.apply(&fix), "pushed as typed");
+        run.pop();
+        run.push("phmi");
+        assert!(run.apply(&fix));
+        assert!(run.undo_fix());
+        let back = run.change(false, Reach::LastWord, ToneStyle::New).unwrap();
+        assert!(run.apply(&back));
+        assert!(!run.apply(&fix), "its fix undone");
+        assert_eq!(run.shown(), strings(&["tôi", "gõ", "phmi"]));
     }
 
     #[test]
