@@ -57,6 +57,49 @@ fn rejects_files_that_are_not_tables() {
     assert!(Table::from_bytes(bytes).is_err());
 }
 
+/// A table file of its own, removed when dropped.
+struct TempTable(std::path::PathBuf);
+
+impl TempTable {
+    fn new(name: &str, bytes: &[u8]) -> TempTable {
+        let path = std::env::temp_dir().join(format!("timsen-{}-{name}", std::process::id()));
+        std::fs::write(&path, bytes).unwrap();
+        TempTable(path)
+    }
+}
+
+impl Drop for TempTable {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+#[test]
+fn an_open_table_ignores_its_file_being_rewritten_in_place() {
+    use std::io::Write;
+    let bytes = std::fs::read(fixture("tiny.timsen")).unwrap();
+    let file = TempTable::new("rewritten", &bytes);
+    let t = Table::open(&file.0).unwrap();
+    let before = t.restore(&["toi", "go", "phim"], ToneStyle::New);
+    // An update that writes over the file instead of replacing it, as `cp` onto an existing file does.
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&file.0)
+        .unwrap();
+    f.write_all(&vec![0xff; bytes.len()]).unwrap();
+    f.sync_all().unwrap();
+    assert_eq!(t.restore(&["toi", "go", "phim"], ToneStyle::New), before);
+}
+
+#[test]
+fn opening_a_broken_file_is_an_error() {
+    let mut bytes = std::fs::read(fixture("tiny.timsen")).unwrap();
+    bytes.truncate(bytes.len() - 100);
+    let file = TempTable::new("truncated", &bytes);
+    assert!(Table::open(&file.0).is_err());
+    assert!(Table::open(std::env::temp_dir().join("timsen-no-such-table")).is_err());
+}
+
 #[test]
 fn restores_with_learned_counts_exactly_like_the_python_model() {
     let t = table();

@@ -1,11 +1,10 @@
 //! Reader for the `.timsen` table written by `research.table`; the layout is documented there.
 //!
 //! Every section is read in place: opening a table checks the header and the string sections, and
-//! lookups decode little-endian numbers straight from the mapped bytes.
+//! lookups decode little-endian numbers straight from the bytes.
 
 use std::fmt;
-use std::fs::File;
-use std::ops::{Deref, Range};
+use std::ops::Range;
 use std::path::Path;
 
 pub const BOS: u32 = 0;
@@ -46,21 +45,6 @@ impl From<std::io::Error> for Error {
     }
 }
 
-enum Bytes {
-    Mapped(memmap2::Mmap),
-    Owned(Vec<u8>),
-}
-
-impl Deref for Bytes {
-    type Target = [u8];
-    fn deref(&self) -> &[u8] {
-        match self {
-            Bytes::Mapped(m) => m,
-            Bytes::Owned(v) => v,
-        }
-    }
-}
-
 /// Byte positions of a string section: `n + 1` u32 offsets, then the UTF-8 blob.
 struct Strings {
     offsets: usize,
@@ -80,7 +64,7 @@ struct Grams {
 }
 
 pub struct Table {
-    bytes: Bytes,
+    bytes: Vec<u8>,
     total: f64,
     words: Strings,
     uni: usize,
@@ -248,21 +232,13 @@ fn header_u64(bytes: &[u8], i: usize) -> Result<usize, Error> {
 }
 
 impl Table {
-    /// Maps a table file from disk.
+    /// Reads a table file into memory, so a file rewritten during an update cannot change it.
     pub fn open(path: impl AsRef<Path>) -> Result<Table, Error> {
-        let file = File::open(path)?;
-        // SAFETY: the file is opened read-only; a table replaced while mapped is the caller's error,
-        // as with any memory-mapped data file.
-        let map = unsafe { memmap2::Mmap::map(&file)? };
-        Table::parse(Bytes::Mapped(map))
+        Table::from_bytes(std::fs::read(path)?)
     }
 
     /// Reads a table already in memory.
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Table, Error> {
-        Table::parse(Bytes::Owned(bytes))
-    }
-
-    fn parse(bytes: Bytes) -> Result<Table, Error> {
         if bytes.len() < HEADER_LEN || &bytes[..8] != MAGIC {
             return Err(Error::Format("missing magic number"));
         }
