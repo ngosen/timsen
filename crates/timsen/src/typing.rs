@@ -110,6 +110,11 @@ impl<'t> Typing<'t> {
         Typing::from_source(Source::Personal(Shared::Borrowed(personal)))
     }
 
+    /// Adds a syllable that only serves as context, as it is: never guessed again.
+    pub(crate) fn push_context(&mut self, word: &str) {
+        self.push_kept(word, &[word]);
+    }
+
     fn from_source(src: Source<'t>) -> Typing<'t> {
         Typing {
             src,

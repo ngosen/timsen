@@ -1,9 +1,11 @@
 //! The word-end contract for any keys: a change says exactly what the field shows in the part it
 //! replaces, keeps every syllable's letters and capitalization, and leaves the rest alone.
 
+use std::sync::Arc;
+
 use proptest::prelude::*;
 use proptest::strategy::ValueTree;
-use timsen::{Change, Reach, Run, Table, ToneStyle, Typing};
+use timsen::{Change, Dictionary, MAX_RUN, Reach, Run, Table, ToneStyle, Typing};
 
 fn table() -> Table {
     Table::open(concat!(
@@ -21,6 +23,8 @@ enum Op {
     End(Reach, bool),
     /// Applies a change taken earlier, which the run may have moved past.
     Stale,
+    /// Goes on in a new run, as at the cap.
+    Next,
 }
 
 fn cased(word: String, how: u8) -> String {
@@ -57,6 +61,7 @@ fn op() -> impl Strategy<Value = Op> {
         1 => Just(Op::Pop),
         4 => (reach, any::<bool>()).prop_map(|(r, e)| Op::End(r, e)),
         1 => Just(Op::Stale),
+        1 => Just(Op::Next),
     ]
 }
 
@@ -124,6 +129,11 @@ proptest! {
                         prop_assert_eq!(run.change(*ended, *reach, ToneStyle::New), None);
                     }
                 }
+                Op::Next => {
+                    run = run.next(Typing::new(&t));
+                    field.clear();
+                    typed.clear();
+                }
                 Op::Stale => {
                     let Some(c) = taken.first() else { continue };
                     let end = c.first + c.old.len();
@@ -137,6 +147,29 @@ proptest! {
             prop_assert_eq!(run.shown(), field.as_slice());
             prop_assert_eq!(run.len(), typed.len());
         }
+    }
+
+    #[test]
+    fn text_past_the_cap_goes_on_with_two_syllables_of_context(
+        words in prop::collection::vec(syllable(), MAX_RUN + 1..2 * MAX_RUN + 20),
+    ) {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99);
+        let (mut context, mut start, mut runs) = (Vec::<String>::new(), 0, 0);
+        for (i, w) in words.iter().enumerate() {
+            if run.is_full() {
+                prop_assert_eq!(run.len(), MAX_RUN);
+                check_run(&t, &context, &words[start..i], run.shown())?;
+                context = run.shown()[MAX_RUN - 2..].to_vec();
+                (run, start, runs) = (run.next(Typing::new(&t)), i, runs + 1);
+            }
+            run.push(w);
+            if let Some(c) = run.change(false, Reach::Run, ToneStyle::New) {
+                prop_assert!(run.apply(&c));
+            }
+        }
+        check_run(&t, &context, &words[start..], run.shown())?;
+        prop_assert!(runs >= 1);
     }
 
     #[test]
@@ -155,6 +188,25 @@ proptest! {
         let words: Vec<&str> = words.iter().map(String::as_str).collect();
         prop_assert_eq!(run.shown().to_vec(), t.restore(&words, ToneStyle::New));
     }
+}
+
+/// A run after `context` shows what a run typed after it, kept as shown, guesses.
+fn check_run(
+    t: &Table,
+    context: &[String],
+    typed: &[String],
+    shown: &[String],
+) -> Result<(), TestCaseError> {
+    let mut typing = Typing::new(t);
+    for w in context {
+        // One reading given twice is kept as given, never guessed again.
+        typing.push_either(w, w);
+    }
+    for w in typed {
+        typing.push(w);
+    }
+    prop_assert_eq!(&typing.guess(ToneStyle::New)[context.len()..], shown);
+    Ok(())
 }
 
 #[test]
@@ -179,4 +231,25 @@ fn several_syllables_change_at_once_somewhere() {
         }
     }
     assert!(wide > 0, "no change covered two syllables");
+}
+
+#[test]
+fn the_next_run_sees_what_was_learned_before_it() {
+    let mut d = Dictionary::new(Arc::new(table()));
+    let typed = |run: &mut Run| {
+        for w in ["zed", "sen"] {
+            run.push(w);
+            if let Some(c) = run.change(true, Reach::Run, ToneStyle::New) {
+                assert!(run.apply(&c));
+            }
+        }
+        run.shown().to_vec()
+    };
+    let mut before = Run::new(d.typing(), 0.99);
+    before.push("nha");
+    // A word the table lacks, so only learning can restore it.
+    assert_ne!(typed(&mut Run::new(d.typing(), 0.99)), ["zèd", "sen"]);
+    d.learn(&[Some("zèd"), Some("sen")]);
+    let mut after = before.next(d.typing());
+    assert_eq!(typed(&mut after), ["zèd", "sen"]);
 }
