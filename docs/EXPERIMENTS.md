@@ -1850,3 +1850,47 @@ The mapped table was never cheap to open: checking the sections at open already 
 file, so 23 MB of it was resident before any key. Reading it costs about 12 ms once, off the key
 path, and about 6 MB more until typing has touched the rest. Load average rose to 3.6 during the
 runs, so the opening times are ceilings.
+
+## 2026-11-15 · The crate inside Ngó Sen's Rust core
+
+Question: can Ngó Sen's typing core (`bamboo-rs`) take the crate as a plain Rust dependency, built
+the way Ngó Sen builds itself (vendored crates, `--offline --locked`, its release profile with
+`panic = "abort"` and LTO), and call `Table::restore` when a word ends, without breaking its tests?
+
+Setup: a copy of Ngó Sen at commit 05e60eaf in RAM, never pushed. The crate comes from this
+repository at ebf8b12 as a git dependency of `bamboo-rs`, vendored with `cargo vendor` next to Ngó
+Sen's own crates. The engine gets an optional shared `Table` and keeps the words of the run; every
+commit passes through `commit_preedit_and_reset`, which calls `restore` on the run and keeps the
+result without showing it, so typing does not change. A new core test types `toi go phim` with
+spaces on the fixture table and reads the restored run. Built with
+`cmake -DNGOSEN_CORE_ONLY=ON -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release`, then `ctest` and
+`cargo test --release --offline --locked` in `bamboo-rs`; local cargo 1.99 (Rust 1.88 is checked by
+the crate's own CI job). Unchanged Ngó Sen, built the same way: 19 of 19 `ctest` tests and 124
+cargo tests pass, static library 45,357,324 bytes.
+
+Prediction: `cargo vendor` adds one directory, the crate, which has no dependencies, and changes no
+other vendored crate. The build passes offline and locked with no duplicate symbols, since there is
+one static library. 19 of 19 and 125 tests pass, the new one restoring `tôi gõ phím`. The static
+library grows by less than 1 MB.
+
+Result: held.
+- `cargo vendor --no-delete` added `vendor/timsen` and nothing else (`diff -rq` against the vendor
+  tree before). `Cargo.lock` gained the crate only. `.cargo/config.toml` needs one more stanza that
+  replaces the git source with the vendored one.
+- The CMake build passed offline and locked, and the C++ core tests linked against the library: no
+  duplicate symbols. `nm` shows the crate's symbols in it.
+- 19 of 19 `ctest` tests and 125 of 125 cargo tests pass, including the new one
+  (`word_ends_restore_the_run_through_timsen`).
+- The static library is 45,925,874 bytes, 568,550 more.
+
+Found on the way:
+- Every commit, at a space, a word-break symbol, a macro or a reset, goes through
+  `commit_preedit_and_reset` (`src/engine/mod.rs:921`), so the crate is called from one place.
+- `reset` is how a focus change or a cursor move reaches the engine; it commits nothing, which is
+  where a run must end. This proof never ends a run; the word-end contract does.
+- The vendored crate lacks `tests/fixtures/tiny.timsen` and `tiny.runs`; why was not checked (the
+  table is tracked through a `.gitignore` exception, the runs file is not ignored at all). Ngó Sen
+  does not run the crate's tests, so this costs nothing there; the proof copied the table next to
+  its test.
+- Source for Ngó Sen: this repository as a git dependency pinned to a commit, vendored with
+  `cargo vendor`. Others can build it only once this repository is public.
