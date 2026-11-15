@@ -1818,3 +1818,35 @@ word on 87,038 too few to move it; at 0.9 it rises to 99.40% and 99.05%. `ass`, 
 broke nothing before, so these sentences test only `sex`. The floor is set from one break at 0.9988,
 so a crude word that the table is surer of still switches; the two words meant as `sex` show it
 costs nothing here, but they are too few to say what it costs elsewhere.
+
+## 2026-11-15 · Reading the table into memory instead of mapping it
+
+Question: Ngó Sen does not vendor `memmap2`, and a mapped table changes under the input method when
+an update writes over the file in place; the new test
+`an_open_table_ignores_its_file_being_rewritten_in_place` panics on the mapped version (an index out
+of bounds in `table.rs`). `Table::open` now reads the whole file. What does that cost?
+
+Setup: `cargo run --release --example open_cost TABLE RUNS` on the small table (22,650,872 bytes),
+runs from `research.crosscheck` on the wiki test set (11,765 runs), built from `main` (mapped) and
+from this branch (read), each run three times, alternating. The table sits in RAM (`/tmp`), so
+opening never waits for a disk: a ceiling on what reading costs over mapping is the time to copy
+the file, not to fetch it from an SSD, which is not measured here. The large table is not on this
+machine. Intel Xeon E5-2696 v4, other jobs running (load average 1.6).
+
+Prediction: opening takes longer when read, 5–30 ms against 1–10 ms mapped. Resident memory after
+opening is at least the file size when read (≥ 22 MB) and lower when mapped, since only the checked
+sections are touched; after typing every run the two end within a few MB of each other, because the
+runs touch most of the table. Later keys: p50 and p99 the same within run-to-run spread. The first
+key is no slower when read. The checksum (guessed words) is the same for both builds.
+
+Result: opening missed both ranges, and memory ends the same. Three runs each, mapped then read:
+- open: 28.3, 30.4, 26.8 ms mapped; 39.2, 43.8, 39.5 ms read, about 12 ms more;
+- resident after opening: 23.0 MB mapped, 28.5–28.7 MB read; after typing every run 31.3–31.4
+  against 31.3–31.5, the same;
+- later keys (73,603): p50 0.063–0.064 ms and p99 0.635–0.654 ms in both, within the spread;
+- first key 0.007–0.010 ms in both; checksum 469,427 guessed words in both.
+
+The mapped table was never cheap to open: checking the sections at open already reads most of the
+file, so 23 MB of it was resident before any key. Reading it costs about 12 ms once, off the key
+path, and about 6 MB more until typing has touched the rest. Load average rose to 3.6 during the
+runs, so the opening times are ceilings.

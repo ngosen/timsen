@@ -69,8 +69,9 @@ What the table shows:
 At the time the large table got about 1.7 more words in 100 right on edited prose; since weighted
 pruning and the denser format, the gap is about one word in 100.
 
-The file is mapped from disk, so only the parts in use are read into memory; the size mainly affects
-the download.
+The whole file is read into memory when it opens, so its size is also the memory it takes: the small
+table opens in about 40 ms and holds 31 MB once typing has touched it ("Reading the table into
+memory instead of mapping it").
 
 Measured on 2026-10-15 with `research.evaluate` and `research.personal` (5-fold, weight 100); see
 "Pruned table for shipping" in [`EXPERIMENTS.md`](EXPERIMENTS.md).

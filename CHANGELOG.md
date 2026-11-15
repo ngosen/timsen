@@ -6,6 +6,10 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Changed
 
+- `Table::open` reads the whole table into memory instead of mapping it, so a table file written
+  over during an update no longer changes, or crashes, a running program. The crate no longer
+  depends on `memmap2`. Opening the small table takes about 12 ms more; memory once typing has
+  touched it is the same (31 MB).
 - `Choices::takes_raw` decides whether a raw reading replaces the interpreted one, and asks
   `SENSITIVE_CONFIDENCE` (0.9999) for crude words (`sex`, `ass`, `piss`, `tits`): on mixed text
   at 0.99 it removes the one `sẽ` → `sex` and fixes the same English words.
