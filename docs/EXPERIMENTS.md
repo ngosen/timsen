@@ -1895,7 +1895,7 @@ Found on the way:
 - Source for Ngó Sen: this repository as a git dependency pinned to a commit, vendored with
   `cargo vendor`. Others can build it only once this repository is public.
 
-## 2026-11-15 · A shared table costs nothing per key
+## 2026-11-15 · Sharing the table, cost per key
 
 Question: `Typing` and `Personal` can now share the table (and `Typing` the dictionary) through
 `Arc`, so an input method can keep them in a field with no lifetime. Every lookup now passes
@@ -1917,3 +1917,27 @@ Result: the same within today's spread, but not within the earlier one, since th
 
 The ranges overlap (0.629–0.689 and 0.665–0.703), so no cost shows at this precision; a cost of a
 few percent would not show either.
+
+A review pointed out that both builds borrowed the table, so the shared path Ngó Sen will use was
+not timed. Second run, on this branch only: `open_cost TABLE RUNS HOLD` with each run holding the
+table borrowed, through an `Arc` (`Typing::shared`), or with an empty personal dictionary on top,
+borrowed (`Typing::with_personal`) or shared (`Typing::with_shared_personal`); three rounds, the four
+in turn.
+
+Prediction: `shared` within the spread of `borrowed`, and `shared-personal` within the spread of
+`personal`, since an `Arc` is read through one pointer as a borrow is. The personal paths are slower
+than the table paths, since each lookup also checks the learned counts. The checksum is 469,427 for
+the table paths; with an empty dictionary the guesses are the same, so the personal paths give it
+too.
+
+Result: held for the table, not clearly for the dictionary. Load average rose to 7.8. p99 in ms,
+rounds 1–3:
+- `borrowed` 0.668, 0.661, 0.689; `shared` 0.659, 0.683, 0.678: the same.
+- `personal` 0.950, 0.942, 0.943; `shared-personal` 0.968, 1.045, 0.951. Slower in all three rounds,
+  and p50 too (0.089–0.091 against 0.092–0.095), so a cost of about 2% may be real; the 1.045 round
+  also had one key at 115.7 ms, a stall this run cannot tell from the busy machine.
+- checksum 469,427 for all twelve; the personal paths are about 40% slower per key than the table
+  alone even when empty.
+
+So sharing costs nothing measurable on the table path and at most a few percent on the dictionary
+path, well inside the 3 ms budget; a quiet machine is needed to settle the 2%.
