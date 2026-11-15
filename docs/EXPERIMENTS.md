@@ -2363,8 +2363,10 @@ Result: held, but for one test the prediction did not foresee.
   says so (`gõ sen` first, then `ngó sen`); with that, 140 of 140 pass. The library is 46,357,330
   bytes.
 - The new test sees fixing: with `.fixing(None)` in the glue it is the one test that fails, as
-  predicted.
+  predicted. That ran before the shared-dictionary test was changed; on the final tests, fixing
+  off turns two red, that test and the new one (predicted 2 before running, and 2).
 
 The copy keeps fixing on; whether Ngó Sen offers it on by default is step 7's question, and this
-proof is one input to it: a name the table lacks is fixed until the dictionary learns it, and the
-undo key is what a user has before that. The patch kept in RAM is now 539 lines (531 before).
+proof is one input to it: a name the table lacks is fixed until the dictionary learns it. The glue
+does not call `Run::undo_fix` yet, and the run that made a fix is gone once a punctuation mark
+ends it, so a key to undo a fix, and how long it stays available, are step 7's work too. The patch kept in RAM is now 539 lines (531 before).
