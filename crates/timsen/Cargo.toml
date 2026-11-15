@@ -3,6 +3,8 @@ name = "timsen"
 version = "0.1.0"
 description = "Vietnamese diacritic restoration from a syllable n-gram table"
 edition.workspace = true
+# Ngó Sen's minimum; the msrv CI job builds and tests on it.
+rust-version = "1.88"
 license.workspace = true
 repository.workspace = true
 
