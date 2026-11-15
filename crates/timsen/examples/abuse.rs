@@ -4,9 +4,12 @@
 //!
 //!     scripts/abuse.sh                  # release profile, then again with overflow checks
 //!     cargo run --example abuse -- --control   # panics on purpose: must not exit 0
+//!
+//! Personal files go in `TIMSEN_ABUSE_DIR`, which the script creates and removes even after an
+//! abort; without it, a directory under the system's temporary directory.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use timsen::{Change, Dictionary, Personal, Reach, Run, Table, ToneStyle, Typing};
@@ -14,6 +17,7 @@ use timsen::{Change, Dictionary, Personal, Reach, Run, Table, ToneStyle, Typing}
 const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tiny.timsen");
 const LEARNED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tiny.learned");
 const RUNS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tiny.runs");
+const HEADER: &[u8] = b"timsen-personal 1\n";
 
 /// Text an input method could hand over: empty, spaces, controls, combining marks, letters whose
 /// case changes their length, emoji, and a very long word.
@@ -61,12 +65,21 @@ impl Rng {
             WORDS[self.below(WORDS.len())]
         }
     }
+
+    fn bytes(&mut self, max: usize) -> Vec<u8> {
+        (0..self.below(max)).map(|_| self.next() as u8).collect()
+    }
 }
 
 fn main() {
     if std::env::args().any(|a| a == "--control") {
         panic!("control case: this run must not exit 0");
     }
+    let dir = match std::env::var_os("TIMSEN_ABUSE_DIR") {
+        Some(dir) => PathBuf::from(dir),
+        None => std::env::temp_dir().join(format!("timsen-abuse-{}", std::process::id())),
+    };
+    fs::create_dir_all(&dir).unwrap();
     let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
     let fixture = fs::read(FIXTURE).unwrap();
     let table = Arc::new(Table::from_bytes(fixture.clone()).unwrap());
@@ -74,15 +87,18 @@ fn main() {
     done += truncated_tables(&fixture);
     done += corrupt_tables(&fixture, &mut rng);
     done += broken_personal_files(&table, &mut rng);
-    done += kept_personal_files(&table, &mut rng);
-    done += calls_in_any_order(&table, &mut rng);
+    done += kept_personal_files(&table, &dir.join("broken.txt"), &mut rng);
+    done += typing_in_any_order(&table, &mut rng);
+    done += runs_in_any_order(&table, &mut rng);
+    done += dictionary_in_any_order(&table, &dir.join("personal.txt"), &mut rng);
+    fs::remove_dir_all(&dir).unwrap();
     println!("{done} cases, no panic");
 }
 
-/// Restores a run with every entry point; the output always has one word per input word.
+/// Types eight words into a run, taking each change; the run keeps one word per word typed.
 fn exercise(typing: Typing, rng: &mut Rng) {
     let mut run = Run::new(typing, 0.99);
-    for _ in 0..8 {
+    for typed in 1..=8 {
         let w = rng.word();
         if rng.below(4) == 0 {
             run.push_either(w, rng.word());
@@ -93,8 +109,8 @@ fn exercise(typing: Typing, rng: &mut Rng) {
             assert_eq!(c.old.len(), c.new.len());
             assert!(run.apply(&c));
         }
+        assert_eq!(run.shown().len(), typed);
     }
-    assert_eq!(run.shown().len(), run.len());
 }
 
 /// A table cut short is an `Error`, unless the cut only took the padding after the last section:
@@ -116,6 +132,7 @@ fn truncated_tables(fixture: &[u8]) -> usize {
     fixture.len()
 }
 
+/// Corrupt tables open or give an `Error`; random bytes without the magic number never open.
 fn corrupt_tables(fixture: &[u8], rng: &mut Rng) -> usize {
     let cases = 3000;
     for _ in 0..cases {
@@ -131,12 +148,13 @@ fn corrupt_tables(fixture: &[u8], rng: &mut Rng) -> usize {
         }
     }
     for _ in 0..500 {
-        let len = rng.below(200);
-        let mut bytes: Vec<u8> = (0..len).map(|_| rng.next() as u8).collect();
-        if rng.below(2) == 0 && bytes.len() >= 8 {
+        let mut bytes = rng.bytes(200);
+        let magic = rng.below(2) == 0 && bytes.len() >= 8;
+        if magic {
             bytes[..8].copy_from_slice(&fixture[..8]);
         }
-        let _ = Table::from_bytes(bytes);
+        let opened = Table::from_bytes(bytes.clone()).is_ok();
+        assert!(!opened || bytes.starts_with(&fixture[..8]), "{bytes:?}");
     }
     cases + 500
 }
@@ -152,12 +170,14 @@ fn learned_file(table: &Arc<Table>) -> Vec<u8> {
     file
 }
 
-/// Truncated and corrupt personal files load or give an `Error`, never a panic.
+/// Truncated and corrupt personal files load or give an `Error`; invalid UTF-8 is always an
+/// `Error`.
 fn broken_personal_files(table: &Arc<Table>, rng: &mut Rng) -> usize {
     let file = learned_file(table);
+    let load = |bytes: &[u8]| Personal::load_shared(Arc::clone(table), bytes);
     let mut cases = 0;
     for n in 0..file.len() {
-        if let Ok(p) = Personal::load_shared(Arc::clone(table), &file[..n]) {
+        if let Ok(p) = load(&file[..n]) {
             exercise(Typing::with_shared_personal(Arc::new(p)), rng);
         }
         cases += 1;
@@ -168,8 +188,11 @@ fn broken_personal_files(table: &Arc<Table>, rng: &mut Rng) -> usize {
             let at = rng.below(bytes.len());
             bytes[at] = rng.next() as u8;
         }
-        if let Ok(p) = Personal::load_shared(Arc::clone(table), bytes.as_slice()) {
+        if let Ok(p) = load(&bytes) {
             exercise(Typing::with_shared_personal(Arc::new(p)), rng);
+        }
+        if std::str::from_utf8(&bytes).is_err() {
+            assert!(load(&bytes).is_err(), "invalid UTF-8 loaded: {bytes:?}");
         }
         cases += 1;
     }
@@ -177,20 +200,19 @@ fn broken_personal_files(table: &Arc<Table>, rng: &mut Rng) -> usize {
 }
 
 /// A personal file that does not load is left byte for byte, whatever is done with the dictionary.
-fn kept_personal_files(table: &Arc<Table>, rng: &mut Rng) -> usize {
-    let dir = std::env::temp_dir().join(format!("timsen-abuse-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir(&dir).unwrap();
-    let path: PathBuf = dir.join("personal.txt");
+/// Every file with a byte that is not UTF-8 is one of them.
+fn kept_personal_files(table: &Arc<Table>, path: &Path, rng: &mut Rng) -> usize {
     let file = learned_file(table);
     let mut cases = 0;
-    for _ in 0..300 {
+    for i in 0..300 {
         let mut bytes = file.clone();
-        let at = rng.below(bytes.len());
-        bytes[at] = [0xff, b'\t', b'\n', b'x'][rng.below(4)];
-        bytes.truncate(bytes.len() - rng.below(bytes.len() / 2));
-        fs::write(&path, &bytes).unwrap();
-        let mut d = Dictionary::open(Arc::clone(table), &path);
+        let at = HEADER.len() + rng.below(bytes.len() - HEADER.len());
+        bytes[at] = [0xff, b'\t', b'\n', b'x'][i % 4];
+        bytes.truncate(bytes.len() - rng.below((bytes.len() - at) / 2));
+        fs::write(path, &bytes).unwrap();
+        let mut d = Dictionary::open(Arc::clone(table), path);
+        let invalid = std::str::from_utf8(&bytes).is_err();
+        assert!(!invalid || d.problem().is_some(), "invalid UTF-8 loaded");
         if d.problem().is_none() {
             continue;
         }
@@ -198,72 +220,139 @@ fn kept_personal_files(table: &Arc<Table>, rng: &mut Rng) -> usize {
         d.clear();
         assert!(d.begin_save().is_none());
         assert!(d.reload_file().is_err());
-        assert_eq!(fs::read(&path).unwrap(), bytes, "a broken file changed");
+        assert_eq!(fs::read(path).unwrap(), bytes, "a broken file changed");
         cases += 1;
     }
-    fs::remove_dir_all(&dir).unwrap();
-    assert!(cases > 0, "no corrupt file failed to load");
+    assert!(cases >= 75, "only {cases} broken files");
     cases
 }
 
-fn calls_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
-    let cases = 20_000;
-    let mut d = Dictionary::new(Arc::clone(table));
+fn typing_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
+    let cases = 10_000;
     let mut typing = Typing::shared(Arc::clone(table));
-    let mut run = Run::new(d.typing(), 0.99);
     let mut pushed = 0usize;
     for _ in 0..cases {
-        match rng.below(12) {
-            0 => {
+        match rng.below(5) {
+            0 | 1 => {
                 typing.push(rng.word());
                 pushed += 1;
             }
-            1 => {
+            2 => {
                 typing.pop();
                 pushed = pushed.saturating_sub(1);
             }
-            2 => assert_eq!(typing.guess(ToneStyle::New).len(), pushed),
-            3 => assert_eq!(typing.finish(ToneStyle::Old).len(), pushed),
-            4 => {
-                let last = [0, 1, 3, usize::MAX][rng.below(4)];
-                assert!(
-                    typing
-                        .choices(last, rng.below(2) == 0, ToneStyle::New)
-                        .len()
-                        <= pushed
-                );
+            3 => {
+                let ended = rng.below(2) == 0;
+                let words = if ended {
+                    typing.finish(ToneStyle::Old)
+                } else {
+                    typing.guess(ToneStyle::New)
+                };
+                assert_eq!(words.len(), pushed);
             }
-            5 => {
+            _ => {
+                let last = [0, 1, 3, usize::MAX][rng.below(4)];
+                let choices = typing.choices(last, rng.below(2) == 0, ToneStyle::New);
+                assert_eq!(choices.len(), last.min(pushed));
+            }
+        }
+        assert_eq!(typing.len(), pushed);
+    }
+    cases
+}
+
+/// Pops, pushes, real changes and made-up ones: a change is taken exactly when its old text stands
+/// where it says, and nothing else moves the field.
+fn runs_in_any_order(table: &Arc<Table>, rng: &mut Rng) -> usize {
+    let cases = 10_000;
+    let mut run = Run::new(Typing::shared(Arc::clone(table)), 0.99);
+    let mut field: Vec<String> = Vec::new();
+    for _ in 0..cases {
+        let change = match rng.below(4) {
+            0 => {
+                let w = rng.word();
+                run.push(w);
+                field.push(w.to_string());
+                None
+            }
+            1 => {
+                run.pop();
+                field.pop();
+                None
+            }
+            2 => {
+                let n = field.len();
+                let first = [0, n, n.saturating_sub(1), usize::MAX][rng.below(4)];
+                let old = match field.get(first) {
+                    Some(w) if rng.below(2) == 0 => vec![w.clone()],
+                    _ => vec![rng.word().to_string(); rng.below(3)],
+                };
+                Some(Change {
+                    first,
+                    old,
+                    new: vec![rng.word().to_string(); rng.below(3)],
+                })
+            }
+            _ => run.change(rng.below(2) == 0, Reach::Run, ToneStyle::New),
+        };
+        if let Some(c) = change {
+            let end = c.first.checked_add(c.old.len());
+            let stands = end.and_then(|end| field.get(c.first..end)) == Some(c.old.as_slice());
+            let fits = stands && c.old.len() == c.new.len();
+            assert_eq!(run.apply(&c), fits, "{c:?} on {field:?}");
+            if fits {
+                field[c.first..c.first + c.new.len()].clone_from_slice(&c.new);
+            }
+        }
+        assert_eq!(run.shown(), field.as_slice());
+    }
+    cases
+}
+
+/// A dictionary kept in a file, with learning, clears, reloads and saves interleaved; a save that
+/// reaches the file always leaves one that loads, and no temporary file is left.
+fn dictionary_in_any_order(table: &Arc<Table>, path: &Path, rng: &mut Rng) -> usize {
+    let cases = 3000;
+    let tmp = path.with_file_name(".personal.txt.tmp");
+    let mut d = Dictionary::open(Arc::clone(table), path);
+    let mut job = None;
+    for _ in 0..cases {
+        match rng.below(7) {
+            0 | 1 => {
                 let run: Vec<Option<&str>> = (0..rng.below(6))
                     .map(|_| (rng.below(4) != 0).then(|| rng.word()))
                     .collect();
                 d.learn(&run);
             }
-            6 => d.clear(),
-            7 => {
-                let garbage: Vec<u8> = (0..rng.below(64)).map(|_| rng.next() as u8).collect();
-                let _ = d.reload(garbage.as_slice());
-                assert!(d.begin_save().is_none(), "no file to save to");
-            }
-            8 => run.push(rng.word()),
-            9 => run.pop(),
-            10 => {
-                let n = run.len();
-                let first = [0, n, n.saturating_sub(1), usize::MAX][rng.below(4)];
-                let old = vec![rng.word().to_string(); rng.below(3)];
-                let new = vec![rng.word().to_string(); rng.below(3)];
-                let _ = run.apply(&Change { first, old, new });
-            }
-            _ => {
-                if let Some(c) = run.change(rng.below(2) == 0, Reach::LastWord, ToneStyle::New) {
-                    assert_eq!(c.first + 1, run.len());
-                    assert!(run.apply(&c));
+            2 => d.clear(),
+            3 => {
+                let before = d.snapshot();
+                let garbage = rng.bytes(64);
+                if d.reload(garbage.as_slice()).is_err() {
+                    assert!(
+                        Arc::ptr_eq(&before, &d.snapshot()),
+                        "a failed reload changed it"
+                    );
                 }
-                if rng.below(8) == 0 {
-                    run = Run::new(d.typing(), 0.99);
+            }
+            4 => assert!(
+                d.reload_file().is_ok(),
+                "the file the dictionary saved must load"
+            ),
+            5 => job = job.or_else(|| d.begin_save()),
+            _ => {
+                if let Some(j) = job.take() {
+                    let written = j.write();
+                    let replaced = d.finish_save(j, written).unwrap();
+                    assert!(!tmp.exists(), "a temporary file was left");
+                    if replaced {
+                        let saved = fs::read(path).unwrap();
+                        assert!(Personal::load_shared(Arc::clone(table), saved.as_slice()).is_ok());
+                    }
                 }
             }
         }
+        assert!(d.problem().is_none());
     }
     cases
 }

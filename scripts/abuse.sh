@@ -4,6 +4,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# The binary's personal files live here; removed on exit, even when the binary aborts.
+TIMSEN_ABUSE_DIR="$(mktemp -d)"
+export TIMSEN_ABUSE_DIR
+trap 'rm -rf "$TIMSEN_ABUSE_DIR"' EXIT
+
 profile=(--config 'profile.release.panic="abort"' --config 'profile.release.lto=true'
   --config 'profile.release.codegen-units=1')
 run() { cargo run -q --locked --release -p timsen --example abuse "${profile[@]}" "$@"; }
