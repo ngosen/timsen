@@ -88,7 +88,7 @@ machine; the only thing a user may choose to send is a score (see "From users").
      in Rust"). Pausing and private fields are the input method's: it simply does not call `learn`.
    - Through the crate on chat: +3.2 to +3.6 points over the table alone; p99 2.4–2.9 ms per
      syllable ("New words as `<unk>` in context").
-5. **Fix syllables that do not exist.** Done in the crate; the integration proof runs again next.
+5. **Fix syllables that do not exist.** Done.
    A typed syllable whose unmarked form the table does not know (`khogn`) is replaced by the known
    form one edit away that scores best in context, when it beats the runner-up by a margin of 4; a word in the personal
    dictionary is never a target, and one key undoes the fix. On the small table this changes at most
@@ -105,6 +105,9 @@ machine; the only thing a user may choose to send is a score (see "From users").
      2.5 ms but for one loaded round at 2.9 ms). Decided at word end, from the words before it only,
      it fixes 23–25% of the typos it can see, not 45–50%, and is right 98.0–99.5% of the time
      ("Fixing unknown syllables in the crate, decided when a word ends"). Off by default.
+   - The integration proof again, with fixing: all of step 6's tests pass on the new crate, fixing
+     off or on, except that with fixing on a name the fixture table lacks (`ngo`) is fixed to `gõ`
+     until the dictionary learns it ("The integration proof again, with fixing").
 6. **Ready for an input method.** Done. Ngó Sen's typing core is already Rust (`bamboo-rs`) and
    holds both readings at a word break (`tét` as interpreted, `test` as typed), so it calls the
    crate as a Rust dependency compiled into its own static library: two Rust static libraries in one
