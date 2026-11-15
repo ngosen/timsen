@@ -6,6 +6,9 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Changed
 
+- `Choices::takes_raw` decides whether a raw reading replaces the interpreted one, and asks
+  `SENSITIVE_CONFIDENCE` (0.9999) for crude words (`sex`, `ass`, `piss`, `tits`): on mixed text
+  at 0.99 it removes the one `sẽ` → `sex` and fixes the same English words.
 - `Personal` in the crate, `research.crosscheck` and `research.personal auto` weigh a learned n-gram
   min(3000, table total / tokens learned) times one from the corpora instead of a fixed 1000, so a
   dictionary of years of text no longer drowns the table: on the user's messages +0.35 to +0.48 points

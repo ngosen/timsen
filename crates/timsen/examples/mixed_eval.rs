@@ -2,10 +2,10 @@
 //!
 //! usage: cargo run --release --example mixed_eval TABLE READINGS
 //! READINGS comes from `research.mixed_readings`. After each run a word switches to its raw reading
-//! only when that ranks first with at least the threshold's confidence. Words the core changed are
-//! split by cause: a lost doubled letter (`issue` → `isue`), any other change to a word typed as
-//! written (`test` → `tét`), and words whose keys do not give them back at all. A threshold above 1
-//! never switches, so it shows the core alone.
+//! as `Choices::takes_raw` decides at the threshold. Words the core changed are split by cause: a
+//! lost doubled letter (`issue` → `isue`), any other change to a word typed as written (`test` →
+//! `tét`), and words whose keys do not give them back at all. A threshold above 1 never switches,
+//! so it shows the core alone.
 
 use std::collections::HashMap;
 
@@ -129,9 +129,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 t.words += 1;
                 t.known += usize::from(two);
             }
-            let raw_first = two && c.spellings[0] == r.raw;
             for (o, &t) in outcomes.iter_mut().zip(&THRESHOLDS) {
-                let out = if raw_first && c.confidence >= t {
+                let out = if c.takes_raw(&r.raw, t) {
                     &r.raw
                 } else {
                     &r.interpreted
