@@ -19,9 +19,10 @@ from .text import same, segments, strip_marks
 MARGINS = [0, 1, 2, 3, 4, 5, 6, 8]
 
 
-def local_score(m, seq, i, cands):
-    """Sum of every trigram score that involves position i, for each candidate placed there."""
-    pad = np.concatenate([[BOS, BOS], seq, [EOS]])
+def local_score(m, seq, i, cands, ended=True):
+    """Sum of every trigram score that involves position i, for each candidate placed there. With
+    ended=False the run may still go on, so the end of the run is not scored."""
+    pad = np.concatenate([[BOS, BOS], seq, [EOS] if ended else []]).astype(np.int64)
     j = i + 2
     total = np.zeros(len(cands))
     for k in range(j, min(j + 3, len(pad))):

@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use proptest::prelude::*;
 use proptest::strategy::ValueTree;
-use timsen::{Change, Dictionary, MAX_RUN, Reach, Run, Table, ToneStyle, Typing};
+use timsen::{Change, Dictionary, FIX_MARGIN, MAX_RUN, Reach, Run, Table, ToneStyle, Typing};
 
 fn table() -> Table {
     Table::open(concat!(
@@ -25,6 +25,8 @@ enum Op {
     Stale,
     /// Goes on in a new run, as at the cap.
     Next,
+    /// Undoes the latest fix, as the key for it does.
+    Undo,
 }
 
 fn cased(word: String, how: u8) -> String {
@@ -62,6 +64,7 @@ fn op() -> impl Strategy<Value = Op> {
         4 => (reach, any::<bool>()).prop_map(|(r, e)| Op::End(r, e)),
         1 => Just(Op::Stale),
         1 => Just(Op::Next),
+        1 => Just(Op::Undo),
     ]
 }
 
@@ -70,7 +73,20 @@ fn shape(word: &str) -> Vec<bool> {
     word.chars().map(char::is_uppercase).collect()
 }
 
-fn check(field: &[String], typed: &[Op], c: &Change, reach: Reach) -> Result<(), TestCaseError> {
+/// Whether `typed` is a syllable the run could fix: unknown, with a known form one edit away.
+fn fixable(t: &Table, typed: &str) -> bool {
+    let mut typing = Typing::new(t);
+    typing.push(typed);
+    typing.fix(0, true).is_some()
+}
+
+fn check(
+    t: &Table,
+    field: &[String],
+    typed: &[Op],
+    c: &Change,
+    reach: Reach,
+) -> Result<(), TestCaseError> {
     let n = field.len();
     prop_assert!(!c.old.is_empty());
     prop_assert_eq!(c.old.len(), c.new.len());
@@ -82,7 +98,13 @@ fn check(field: &[String], typed: &[Op], c: &Change, reach: Reach) -> Result<(),
     }
     for (i, new) in (c.first..).zip(&c.new) {
         match &typed[i] {
-            Op::Push(t) => prop_assert_eq!(shape(new), shape(t), "{} for {}", new, t),
+            // A fixed syllable may gain or lose a letter, but only one the run could fix.
+            Op::Push(w) if shape(new) != shape(w) => {
+                prop_assert!(fixable(t, w), "{} for {}", new, w);
+                prop_assert!(new.chars().count().abs_diff(w.chars().count()) <= 1);
+                prop_assert_eq!(shape(new).first().copied(), shape(w).first().copied());
+            }
+            Op::Push(_) => {}
             Op::Either(a, b) => prop_assert!(new == a || new == b),
             _ => unreachable!("only pushes stay in the run"),
         }
@@ -94,7 +116,7 @@ proptest! {
     #[test]
     fn a_change_replaces_exactly_what_it_reports(ops in prop::collection::vec(op(), 1..40)) {
         let t = table();
-        let mut run = Run::new(Typing::new(&t), 0.99);
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
         let mut field: Vec<String> = Vec::new();
         let mut typed: Vec<Op> = Vec::new();
         let mut taken: Vec<Change> = Vec::new();
@@ -117,7 +139,7 @@ proptest! {
                 }
                 Op::End(reach, ended) => {
                     if let Some(c) = run.change(*ended, *reach, ToneStyle::New) {
-                        check(&field, &typed, &c, *reach)?;
+                        check(&t, &field, &typed, &c, *reach)?;
                         taken.push(c.clone());
                         let before = field.clone();
                         field[c.first..c.first + c.new.len()].clone_from_slice(&c.new);
@@ -128,6 +150,9 @@ proptest! {
                         prop_assert_eq!(&field[end..], &before[end..]);
                         prop_assert_eq!(run.change(*ended, *reach, ToneStyle::New), None);
                     }
+                }
+                Op::Undo => {
+                    run.undo_fix();
                 }
                 Op::Next => {
                     run = run.next(Typing::new(&t));
@@ -252,4 +277,30 @@ fn the_next_run_sees_what_was_learned_before_it() {
     d.learn(&[Some("zèd"), Some("sen")]);
     let mut after = before.next(d.typing());
     assert_eq!(typed(&mut after), ["zèd", "sen"]);
+}
+
+#[test]
+fn the_property_above_meets_fixes() {
+    // The contract must hold for fixed syllables too, so the same kind of runs must contain some.
+    let t = table();
+    let mut runner = proptest::test_runner::TestRunner::deterministic();
+    let mut fixes = 0;
+    for _ in 0..300 {
+        let words = prop::collection::vec(syllable(), 1..10)
+            .new_tree(&mut runner)
+            .unwrap()
+            .current();
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        for w in &words {
+            run.push(w);
+            if let Some(c) = run.change(false, Reach::Run, ToneStyle::New) {
+                let typed = &words[words.len() - run.len()..][c.first..];
+                fixes += (c.new.iter().zip(typed))
+                    .filter(|(new, w)| shape(new) != shape(w))
+                    .count();
+                assert!(run.apply(&c));
+            }
+        }
+    }
+    assert!(fixes > 0, "no syllable was fixed");
 }

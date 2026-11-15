@@ -2229,3 +2229,99 @@ Result: 4 and 4, as predicted. The full build after every review: 19 of 19 `ctes
 of 139 cargo tests (124 of Ngó Sen's, 15 new), static library 46,238,344 bytes (881,020 more than
 unchanged Ngó Sen), the same three dead-code warnings; the patch kept in RAM is 464 changed lines.
 The figures above for 135 and 138 tests are superseded.
+
+## 2026-11-15 · Fixing unknown syllables in the crate, decided when a word ends
+
+Question: "Fixing syllables the table does not know" scored a fix with the whole sentence around
+the syllable. An input method decides when the word ends, with only the words before it. Is the fix
+still safe and useful decided that way, at margin 4? And does the crate decide exactly as
+`research.typo` does, without passing the 3 ms budget per key?
+
+Setup:
+- `research.typo --typing` scores each syllable on the run up to it, not over: no right context
+  and no end of run (`Model.restore` and `local_score` take `ended=False`). Without the flag it is
+  the whole-run fix of the earlier entry, unchanged.
+- Small table, test sets `wiki` and `subs` as in the earlier entry, and `forum-1..4` (forum-1 to
+  forum-4 joined: 6,747 lines, 160,836 words, sha256 prefix 83a922cc46cae3a0), which is not the
+  earlier `forum` set, so its whole-run figures are new too. Same typo model and seed as before.
+- The crate: `Typing::fix(i, ended)` mirrors `best_fix`; `Run::push` fixes the word that just
+  ended when the fix wins by the margin set with `Run::fixing` (off by default, as the plan
+  promises; `FIX_MARGIN` is 4), and `Run::undo_fix` takes the latest fix back for good. A word the
+  personal dictionary knows is never a target.
+- Crosscheck: `research.typo --write-fixes` writes every decision, both ways, on the clean runs
+  and the mistyped copies of `wiki` and `subs`; `examples/fix_check.rs` recomputes each with the
+  crate, on the small and the large table.
+- Latency: `examples/latency.rs` as in "Latency, memory and the run cap", runs of 50 and 200, both
+  tables; every push may now fix.
+
+Prediction, written before any run:
+- whole run, small table, margin 4: `wiki` and `subs` repeat the earlier figures exactly
+  (0.001% / 41.5% / 99.5% and 0.009% / 46.4% / 99.6%), since only a default argument changed;
+- decided when the word ends, margin 4: fewer typos fixed, for lack of the words after: 30–38% on
+  `wiki`, 35–42% on `subs`, 28–36% on `forum-1..4`; at least 97.5% of fixes right; clean words
+  changed no more than with the whole run (≤ 0.02%). Margin 4 still meets both limits (≤ 0.05%
+  clean, ≥ 98% right) on `wiki` and `subs`; `forum-1..4` may fall just under 98% right;
+- crosscheck: every decision the same fix, none on the other side of the margin, margins within
+  1e-9, on both tables;
+- latency: p99 per key grows by less than 0.3 ms over the earlier 2.0–2.5 ms and stays under 3 ms.
+- the crosscheck sees a defect: built once with `local` never adding the end of run, the fixture
+  test fails and `fix_check` on the small table still agrees on every `typing` decision but shows a
+  margin difference above 0.01 on `ended` ones; built once with no deletions among the candidates,
+  the fixture test fails on the fixes that drop a letter (`quyy`, `Tooi`, `noii`) and `fix_check`
+  reports decisions that differ in both modes.
+
+Result, small table, margin 4 (clean words changed / typos fixed right / share of fixes that are
+right), load average 5.8–7.1:
+
+| Set | Whole run | Decided when the word ends |
+| --- | --- | --- |
+| wiki | 0.005% / 45.1% / 99.4% | 0.005% / 23.9% / 99.5% |
+| subs | 0.009% / 49.9% / 99.4% | 0.006% / 24.8% / 98.7% |
+| forum-1..4 | 0.015% / 45.1% / 98.6% | 0.009% / 23.2% / 98.0% |
+
+Against the prediction:
+- whole run: missed. `wiki` and `subs` do not repeat the 2026-10-17 figures (`wiki` 45.1% fixed
+  right against 41.5%; 42.4% of typos landing on a known form against 41.6%). The code is not the
+  cause: `research.typo` from `main` prints the same figures, line for line, on today's files. The
+  test files or the small table were rebuilt since that entry, which recorded neither checksum, so
+  its figures cannot be reproduced; these are the reference now.
+- decided when the word ends: safety as predicted, usefulness missed. Clean words changed fell
+  (0.005–0.009%) and fixes stay right 98.0–99.5% of the time, so margin 4 meets both limits on all
+  three sets, `forum-1..4` exactly at 98.0%. But only 23–25% of typos are fixed right, not 30–42%:
+  without the words after it, half of the fixes the whole run makes no longer win by 4. A lower
+  margin does not buy them back safely: at margin 3, `subs` falls to 96.9% right.
+- crosscheck: as predicted. 28,368 decisions on `wiki` and `subs` (each unknown syllable of the
+  clean runs and the mistyped copies, both ways): every one the same fix, none on the other side of
+  the margin, largest margin difference 0, on both tables. Made at the margin: small table 2,209
+  while typing and 4,193 with the whole run, large table 2,235 and 4,148.
+- the crosscheck sees a defect: as predicted. With `local` never adding the end of run, the fixture
+  test fails and `fix_check` differs on 369 decisions, all with the whole run and none while typing
+  (216 on the other side of the margin, margin off by up to 7.08). With no deletions among the
+  candidates, the fixture test fails and the fixture's decisions differ on exactly `quyy`, `Tooi`
+  and `noii`, both ways; not predicted, one fix that stays the same moves its margin by 3.18, since
+  its runner-up was a deletion, and that is where the test failed first. Rebuilt without a defect,
+  all 28,368 agree again.
+- latency: two rounds, `main` (no fixing) then this branch (fixing on) in turn, small then large;
+  the shown text hashes differ between the two, so fixes were made. Added after round 2, before
+  running it: in round 2 the branch on the large table at 200 had p99 2.873 ms against 2.270 ms,
+  with p50 up 26% as well, which looks like load rather than fixing; two more rounds on the large
+  table alone decide it. Prediction: in both, the branch's p99 within 0.3 ms of `main`'s.
+
+  p99 per key, ms (`main` / branch), load average 1.7–7.0:
+
+  | Round | small, 50 | small, 200 | large, 50 | large, 200 |
+  | --- | --- | --- | --- | --- |
+  | 1 | 2.052 / 1.914 | 2.001 / 2.003 | 2.197 / 2.149 | 2.208 / 2.204 |
+  | 2 | 2.012 / 1.911 | 2.040 / 1.973 | 2.195 / 2.423 | 2.270 / 2.873 |
+  | 3 | | | 2.336 / 2.226 | 2.279 / 2.229 |
+  | 4 | | | 2.246 / 2.448 | 2.330 / 2.340 |
+
+  As predicted: in rounds 3 and 4 the branch is within 0.3 ms of `main` (−0.11 to +0.20), so round
+  2 was load; every p99 stays under 3 ms, the highest 2.873 ms in that round. Fixing costs nothing
+  measurable here, but these runs are clean text: only the 3% of syllables the table does not know
+  are scored for a fix at all, so a writer with many typos pays it on more keys than this shows.
+
+Conclusion: the crate fixes exactly what `research.typo` fixes and stays within the key budget.
+Decided when the word ends, margin 4 is safe on all three sets but fixes about a quarter of the
+typos it can see, half of what the whole run fixes; the words after a typo carry the other half.
+Fixing stays off by default, as planned; step 7 decides whether it is offered on.

@@ -1,7 +1,7 @@
 //! What an input method changes in the field when a word ends: the run as it is shown, against the
 //! run as it is guessed.
 
-use crate::{ToneStyle, Typing};
+use crate::{ToneStyle, Typing, tone};
 
 /// One change to the field: syllables `first..first + old.len()` of the run read `old` and become
 /// `new`, as long. The input method checks `old` against the field before it deletes anything, and
@@ -50,6 +50,15 @@ impl Reading {
     }
 }
 
+/// How a syllable went into the typing, so it can go in again after an earlier one changes.
+enum Pushed {
+    /// Guessed from this text: as typed, or as fixed.
+    Guessed(String),
+    Either(String, String),
+    /// Kept as typed, never guessed or fixed: a fix the user undid.
+    Kept(String),
+}
+
 /// A run on its way into a field. Each syllable is shown as typed until a [`Change`] says otherwise;
 /// later syllables can change earlier ones, several at once.
 pub struct Run<'t> {
@@ -58,7 +67,11 @@ pub struct Run<'t> {
     context: Vec<String>,
     shown: Vec<String>,
     readings: Vec<Option<Reading>>,
+    pushed: Vec<Pushed>,
+    /// The syllable as typed, for one that was fixed.
+    fixed: Vec<Option<String>>,
     raw_confidence: f64,
+    fix_margin: Option<f64>,
 }
 
 impl<'t> Run<'t> {
@@ -70,7 +83,10 @@ impl<'t> Run<'t> {
             context: Vec::new(),
             shown: Vec::new(),
             readings: Vec::new(),
+            pushed: Vec::new(),
+            fixed: Vec::new(),
             raw_confidence,
+            fix_margin: None,
         };
         while !run.typing.is_empty() {
             run.typing.pop();
@@ -78,11 +94,33 @@ impl<'t> Run<'t> {
         run
     }
 
-    /// A word that ended, shown as typed.
+    /// How far a fix must win by ([`crate::Typing::fix`]), or `None`, the default, to fix nothing.
+    /// [`FIX_MARGIN`] is the margin measured to be safe.
+    pub fn fixing(mut self, margin: Option<f64>) -> Run<'t> {
+        self.fix_margin = margin;
+        self
+    }
+
+    /// A word that ended, shown as typed. A syllable nothing knows is fixed now, from the words
+    /// before it, when a fix wins by the margin; a later [`Run::change`] shows it.
     pub fn push(&mut self, syllable: &str) {
         self.typing.push(syllable);
+        let mut fixed = None;
+        let mut given = syllable.to_string();
+        let last = self.typing.len() - 1;
+        let fix = self
+            .fix_margin
+            .and_then(|m| self.typing.fix(last, false).filter(|f| f.margin >= m));
+        if let Some(fix) = fix {
+            given = tone::apply_case(syllable, &fix.plain);
+            self.typing.pop();
+            self.typing.push(&given);
+            fixed = Some(syllable.to_string());
+        }
         self.shown.push(syllable.to_string());
         self.readings.push(None);
+        self.pushed.push(Pushed::Guessed(given));
+        self.fixed.push(fixed);
         self.decide_leaving();
     }
 
@@ -95,7 +133,31 @@ impl<'t> Run<'t> {
             raw: raw.to_string(),
             raw_kept: false,
         }));
+        self.pushed
+            .push(Pushed::Either(interpreted.to_string(), raw.to_string()));
+        self.fixed.push(None);
         self.decide_leaving();
+    }
+
+    /// Undoes the latest fix still in the run: the syllable goes back to what was typed and stays
+    /// so. Returns whether there was one; [`Run::change`] then shows it.
+    pub fn undo_fix(&mut self) -> bool {
+        let Some(i) = self.fixed.iter().rposition(Option::is_some) else {
+            return false;
+        };
+        let typed = self.fixed[i].take().unwrap_or_default();
+        self.pushed[i] = Pushed::Kept(typed);
+        while self.typing.len() > self.context.len() + i {
+            self.typing.pop();
+        }
+        for pushed in &self.pushed[i..] {
+            match pushed {
+                Pushed::Guessed(text) => self.typing.push(text),
+                Pushed::Either(interpreted, raw) => self.typing.push_either(interpreted, raw),
+                Pushed::Kept(text) => self.typing.push_context(text),
+            }
+        }
+        true
     }
 
     /// Decides the syllable that the last push moved out of the window, if it was read two ways.
@@ -125,6 +187,8 @@ impl<'t> Run<'t> {
         self.typing.pop();
         self.shown.pop();
         self.readings.pop();
+        self.pushed.pop();
+        self.fixed.pop();
     }
 
     pub fn len(&self) -> usize {
@@ -162,7 +226,10 @@ impl<'t> Run<'t> {
             context,
             shown: Vec::new(),
             readings: Vec::new(),
+            pushed: Vec::new(),
+            fixed: Vec::new(),
             raw_confidence: self.raw_confidence,
+            fix_margin: self.fix_margin,
         }
     }
 
@@ -245,6 +312,7 @@ impl<'t> Run<'t> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::FIX_MARGIN;
     use crate::Table;
 
     fn table() -> Table {
@@ -459,5 +527,68 @@ mod tests {
         let run = Run::new(Typing::new(&t), 0.99);
         assert!(run.is_empty());
         assert_eq!(run.change(true, Reach::LastWord, ToneStyle::New), None);
+    }
+
+    #[test]
+    fn a_syllable_nothing_knows_is_fixed_when_its_word_ends() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        type_words(&mut run, &["toi", "go"], Reach::Run);
+        run.push("Phmi");
+        let change = run.change(false, Reach::LastWord, ToneStyle::New).unwrap();
+        assert_eq!(
+            (change.old, change.new),
+            (strings(&["Phmi"]), strings(&["Phím"]))
+        );
+    }
+
+    #[test]
+    fn a_fix_that_does_not_win_by_the_margin_is_not_made() {
+        let t = table();
+        // On the fixture, phmi after "ban" wins by 3.87 when its word ends.
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        type_words(&mut run, &["ban", "phmi"], Reach::Run);
+        assert_eq!(run.shown()[1], "phmi");
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(3.8));
+        type_words(&mut run, &["ban", "phmi"], Reach::Run);
+        assert_eq!(run.shown()[1], "phím");
+    }
+
+    #[test]
+    fn fixing_is_off_by_default() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99);
+        type_words(&mut run, &["toi", "go", "phmi"], Reach::Run);
+        assert_eq!(run.shown()[2], "phmi");
+        let next = run.next(Typing::new(&t));
+        assert_eq!(next.fix_margin, None, "the next run keeps the setting");
+    }
+
+    #[test]
+    fn undoing_a_fix_brings_back_what_was_typed_for_good() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        type_words(&mut run, &["toi", "go", "phmi", "rat"], Reach::Run);
+        assert_eq!(run.shown()[2], "phím");
+        assert!(run.undo_fix());
+        let change = run.change(false, Reach::Run, ToneStyle::New).unwrap();
+        assert_eq!((change.first, &change.new), (2, &strings(&["phmi"])));
+        assert!(run.apply(&change));
+        type_words(&mut run, &["nhanh"], Reach::Run);
+        assert_eq!(run.shown(), strings(&["tôi", "gõ", "phmi", "rất", "nhanh"]));
+        assert!(!run.undo_fix(), "nothing left to undo");
+    }
+
+    #[test]
+    fn a_word_in_the_personal_dictionary_is_never_fixed() {
+        let mut d = crate::Dictionary::new(std::sync::Arc::new(table()));
+        d.learn(&[Some("phmí")]);
+        let mut run = Run::new(d.typing(), 0.99).fixing(Some(FIX_MARGIN));
+        type_words(&mut run, &["toi", "go", "phmi"], Reach::Run);
+        assert_eq!(
+            run.shown()[2],
+            "phmí",
+            "the learned word, not fixed to phím"
+        );
     }
 }

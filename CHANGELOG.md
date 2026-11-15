@@ -29,6 +29,12 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   two syllables as context only, neither shown again nor learned twice. A key at word end stays
   under 2.5 ms at p99 at 50 and 200 syllables on both tables with a 193,000-word personal
   dictionary (Xeon E5-2696 v4, busy machine), and near 3 ms with one word in 20 read two ways.
+- `Typing::fix` finds the known syllable one edit away that scores best in context for a syllable
+  the table does not know (`khogn` → `không`), with its margin over the runner-up and over keeping
+  it, exactly as `research.typo` decides. `Run::fixing(Some(FIX_MARGIN))` makes a run fix a word
+  when it ends, from the words before it, if the fix wins by the margin; fixing is off by default.
+  `Run::undo_fix` takes the latest fix back and keeps the syllable as typed. A word the personal
+  dictionary knows is never fixed.
 - `scripts/abuse.sh` builds an abuse binary with Ngó Sen's release profile (`panic = "abort"`) and
   again with overflow checks, and feeds it truncated and corrupt tables and personal files, odd text
   and calls in any order; CI runs it. A table cut short is an error unless the cut took only the
