@@ -90,22 +90,37 @@ fn sync_directory(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// A name beside `path` that nothing uses yet, for a file set aside.
-fn aside(path: &Path) -> PathBuf {
-    let mut n = 0;
-    loop {
+/// Moves `path` to the first free name beside it (`<name>.broken`, `<name>.broken.1`, ...), never
+/// replacing a file already there. `None` when there is no file at `path`.
+fn set_aside(path: &Path) -> io::Result<Option<PathBuf>> {
+    for n in 0u32.. {
         let mut name = path.file_name().unwrap_or_default().to_os_string();
         name.push(if n == 0 {
             ".broken".into()
         } else {
             format!(".broken.{n}")
         });
-        let candidate = path.with_file_name(name);
-        if fs::symlink_metadata(&candidate).is_err() {
-            return candidate;
+        let to = path.with_file_name(name);
+        // A hard link is never made over an existing name, even when another process races for it.
+        match fs::hard_link(path, &to) {
+            Ok(()) => return fs::remove_file(path).map(|()| Some(to)),
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
+            // A directory, or a file system without hard links.
+            Err(_) => {}
         }
-        n += 1;
+        match fs::symlink_metadata(&to) {
+            Ok(_) => continue,
+            Err(e) if e.kind() != ErrorKind::NotFound => return Err(e),
+            Err(_) => {}
+        }
+        return match fs::rename(path, &to) {
+            Ok(()) => Ok(Some(to)),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e),
+        };
     }
+    unreachable!("names run out after u32::MAX files set aside")
 }
 
 /// The file's counts, or `None` when there is no file yet.
@@ -160,12 +175,7 @@ impl Dictionary {
         let Some(disk) = self.disk.as_mut().filter(|d| d.broken.is_some()) else {
             return Ok(None);
         };
-        let to = aside(&disk.path);
-        let moved = match fs::rename(&disk.path, &to) {
-            Ok(()) => Some(to),
-            Err(e) if e.kind() == ErrorKind::NotFound => None,
-            Err(e) => return Err(e),
-        };
+        let moved = set_aside(&disk.path)?;
         sync_directory(&disk.path)?;
         disk.broken = None;
         self.clear();
@@ -236,6 +246,11 @@ impl Dictionary {
         }
         disk.pending.drain(..job.pending);
         disk.dirty = !disk.pending.is_empty();
-        sync_directory(&job.path).map(|()| true)
+        if let Err(e) = sync_directory(&job.path) {
+            // The rename may not survive a crash, so the file is owed another save.
+            disk.dirty = true;
+            return Err(e);
+        }
+        Ok(true)
     }
 }

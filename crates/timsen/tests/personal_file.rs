@@ -155,6 +155,13 @@ fn two_fields_learning_then_reloading_keep_both() {
     for (run, want) in runs.iter().zip(&want) {
         assert_eq!(restore(&again, run), *want);
     }
+    // Each run counted once: replaying a saved run again would double its counts.
+    let mut once = Dictionary::new(table());
+    learn(&mut once, "ngó sen");
+    learn(&mut once, "zèd sen");
+    let mut want_file = Vec::new();
+    once.save(&mut want_file).unwrap();
+    assert_eq!(fs::read(dir.file()).unwrap(), want_file);
 }
 
 #[test]
@@ -261,4 +268,30 @@ fn a_file_that_cannot_be_read_stops_saving() {
     learn(&mut d, "ngó sen");
     assert!(d.begin_save().is_none());
     assert!(Path::new(&dir.file()).is_dir());
+    // A directory cannot be hard-linked, so it is renamed aside.
+    let moved = d.start_empty().unwrap().unwrap();
+    assert!(moved.is_dir());
+    assert!(save(&mut d));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_rename_not_synced_still_owes_a_save() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = Dir::new("unsynced");
+    let mut d = Dictionary::open(table(), dir.file());
+    learn(&mut d, "ngó sen");
+    // Without read permission the directory cannot be opened to sync it, but renames still work.
+    fs::set_permissions(&dir.0, fs::Permissions::from_mode(0o300)).unwrap();
+    if fs::File::open(&dir.0).is_ok() {
+        fs::set_permissions(&dir.0, fs::Permissions::from_mode(0o700)).unwrap();
+        return; // Running as root: permissions do not stop it.
+    }
+    let job = d.begin_save().unwrap();
+    let written = job.write();
+    let finished = d.finish_save(job, written);
+    fs::set_permissions(&dir.0, fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(finished.is_err());
+    assert!(d.is_dirty(), "the save may not survive a crash");
+    assert!(save(&mut d));
 }
