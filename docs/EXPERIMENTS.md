@@ -1747,3 +1747,45 @@ synthetic is the first text where 0.99 breaks words.
 
 Not measured: a real app, the personal dictionary, the time a switch takes, or how a change to an
 already committed word looks to the user. The sentences favour Vikey; they are not typical chat.
+
+## 2026-11-15 · Mixed text through the fixed core
+
+Question: Ngó Sen's core now keeps the doubled letter of English words it knows (ngosen/ngosen#534),
+so `issue` no longer comes out as `isue`. The entry above could only simulate that with
+`--core-fixed`. With the real core, how right is mixed text, and what is still left for the table?
+
+Setup: as above, with the same table, threshold and sentence files (Vikey commit 6b29780151, the
+same byte sizes as on 2026-11-02). The core is ngosen/ngosen at 05e60eaf, which also carries about
+250 other changes since the last run, built with its test fakes and the English word list they load.
+
+Checks: the old core's driver, kept from the last run, must again give 97.61% and 96.19% at a
+threshold of 2, so the setup is the same. The new driver must keep `issue`, `sorry` and `coffee`,
+which the old one turns into `isue`, `sory` and `cofee` (seen before this prediction).
+
+Prediction. Core alone (threshold 2): chat 98.2 to 98.6%, synthetic 96.6 to 97.0%, near the
+simulated 98.43% and 96.87%; the core's own count, 493 to 339 wrong words on chat, points the same
+way. Doubled letters still lost: at most 25 on chat and 40 on synthetic (the core counts 15 and 24).
+Other changes: within 10% of 323 and 2,717. At 0.99: right 99.0 to 99.4% on chat and 98.5 to 98.9%
+on synthetic, within 0.3 of the simulated 99.30% and 98.74%; broken at most 3 and 8, and `sẽ` →
+`sex` still among them, since the table and the core's reading of `sẽ` did not change.
+
+Result: every part held, and the real fix scores what the simulation did. Checks passed: the old
+driver gives 97.61% and 96.19% at a threshold of 2 again, on the same 20,676 and 87,038 words, and
+the table still scores 96.03% on wiki.
+
+| | chat | synthetic |
+|---|---|---|
+| Core alone, old core / simulated fix / fixed core | 97.61 / 98.43 / 98.36% | 96.19 / 96.87 / 96.87% |
+| Doubled letter still lost (known to the table) | 15 (14) | 24 (21) |
+| Other change (known) | 322 (293) | 2,693 (2,515) |
+| 0.5: other fixed / broken / right | 259 / 12 / 99.58% | 2,310 / 18 / 99.51% |
+| 0.9 | 215 / 9 / 99.38% | 1,904 / 13 / 99.04% |
+| 0.99 | 182 / 1 / 99.24% | 1,631 / 5 / 98.74% |
+| 0.999 | 145 / 0 / 99.06% | 1,376 / 3 / 98.45% |
+
+The core's other changes since the last run move nothing here: other changes fall by 1 and 24 and
+the table fixes the same words. Breaks at 0.99 are the same six words as before, `sẽ` → `sex`
+among them. What is left is mostly English words whose keys spell a Vietnamese word: `is` → `í`
+(215 on synthetic), `this` → `thí`, `now` → `nơ`, `too` → `tô`, `there` → `thể`, `has` → `há`, and
+`off` → `of`, which the core keeps on purpose. The doubled letters still lost are names and words
+outside the core's list (`messi` → `mesi`).
