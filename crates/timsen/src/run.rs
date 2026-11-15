@@ -103,10 +103,20 @@ impl<'t> Run<'t> {
         })
     }
 
-    /// Records that the field now shows `change`.
-    pub fn apply(&mut self, change: &Change) {
+    /// Records that the field now shows `change`. A change taken before the run moved on (a pop, a
+    /// push, another change) no longer matches what is shown: it is refused, and nothing changes.
+    #[must_use = "a refused change was not recorded"]
+    pub fn apply(&mut self, change: &Change) -> bool {
+        let end = change.first.checked_add(change.old.len());
+        let matches = end
+            .and_then(|end| self.shown.get(change.first..end))
+            .is_some_and(|shown| shown == change.old.as_slice());
+        if !matches || change.new.len() != change.old.len() {
+            return false;
+        }
         let end = change.first + change.new.len();
         self.shown[change.first..end].clone_from_slice(&change.new);
+        true
     }
 
     /// The best spelling of syllables `from..`. A syllable with two readings keeps the interpreted
@@ -152,7 +162,7 @@ mod tests {
         for w in words {
             run.push(w);
             if let Some(c) = run.change(false, reach, ToneStyle::New) {
-                run.apply(&c);
+                assert!(run.apply(&c));
             }
         }
     }
@@ -168,7 +178,7 @@ mod tests {
         assert_eq!(change.first, 3);
         assert_eq!(change.old, strings(&["gõ", "quy"]));
         assert_eq!(change.new, strings(&["gỗ", "quý"]));
-        run.apply(&change);
+        assert!(run.apply(&change));
         assert_eq!(run.change(false, Reach::Run, ToneStyle::New), None);
     }
 
@@ -206,7 +216,7 @@ mod tests {
             run.push_either("fìle", "file");
             run.push("code");
             if let Some(c) = run.change(true, Reach::Run, ToneStyle::New) {
-                run.apply(&c);
+                assert!(run.apply(&c));
             }
             assert_eq!(run.shown()[1], want, "confidence {confidence}");
         }
@@ -218,14 +228,35 @@ mod tests {
         let mut run = Run::new(Typing::new(&t), 0.0);
         run.push("mở");
         run.push_either("tét", "test");
-        run.apply(&Change {
+        assert!(run.apply(&Change {
             first: 1,
             old: strings(&["tét"]),
             new: strings(&["test"]),
-        });
+        }));
         let change = run.change(true, Reach::Run, ToneStyle::New).unwrap();
         assert_eq!(change.old, strings(&["test"]));
         assert_eq!(change.new, strings(&["tét"]));
+    }
+
+    #[test]
+    fn a_change_that_no_longer_matches_is_refused() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99);
+        type_words(&mut run, &["nguoi", "ta", "co"], Reach::Run);
+        run.push("go");
+        let change = run.change(false, Reach::Run, ToneStyle::New).unwrap();
+        run.pop();
+        assert!(!run.apply(&change), "the syllable it replaces is gone");
+        run.push("phim");
+        assert!(!run.apply(&change), "another syllable stands there now");
+        let shown = run.shown().to_vec();
+        let wrong = Change {
+            first: 0,
+            old: shown[..1].to_vec(),
+            new: strings(&["a", "b"]),
+        };
+        assert!(!run.apply(&wrong), "new must be as long as old");
+        assert_eq!(run.shown(), shown);
     }
 
     #[test]

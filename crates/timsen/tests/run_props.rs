@@ -19,6 +19,8 @@ enum Op {
     Either(String, String),
     Pop,
     End(Reach, bool),
+    /// Applies a change taken earlier, which the run may have moved past.
+    Stale,
 }
 
 fn cased(word: String, how: u8) -> String {
@@ -54,6 +56,7 @@ fn op() -> impl Strategy<Value = Op> {
         1 => either.prop_map(|(a, b)| Op::Either(a.to_string(), b.to_string())),
         1 => Just(Op::Pop),
         4 => (reach, any::<bool>()).prop_map(|(r, e)| Op::End(r, e)),
+        1 => Just(Op::Stale),
     ]
 }
 
@@ -89,6 +92,7 @@ proptest! {
         let mut run = Run::new(Typing::new(&t), 0.99);
         let mut field: Vec<String> = Vec::new();
         let mut typed: Vec<Op> = Vec::new();
+        let mut taken: Vec<Change> = Vec::new();
         for op in &ops {
             match op {
                 Op::Push(s) => {
@@ -109,14 +113,24 @@ proptest! {
                 Op::End(reach, ended) => {
                     if let Some(c) = run.change(*ended, *reach, ToneStyle::New) {
                         check(&field, &typed, &c, *reach)?;
+                        taken.push(c.clone());
                         let before = field.clone();
                         field[c.first..c.first + c.new.len()].clone_from_slice(&c.new);
-                        run.apply(&c);
+                        assert!(run.apply(&c));
                         // Outside the change, nothing moved.
                         prop_assert_eq!(&field[..c.first], &before[..c.first]);
                         let end = c.first + c.new.len();
                         prop_assert_eq!(&field[end..], &before[end..]);
                         prop_assert_eq!(run.change(*ended, *reach, ToneStyle::New), None);
+                    }
+                }
+                Op::Stale => {
+                    let Some(c) = taken.first() else { continue };
+                    let end = c.first + c.old.len();
+                    let fits = field.get(c.first..end) == Some(c.old.as_slice());
+                    prop_assert_eq!(run.apply(c), fits);
+                    if fits {
+                        field[c.first..end].clone_from_slice(&c.new);
                     }
                 }
             }
@@ -132,11 +146,11 @@ proptest! {
         for w in &words {
             run.push(w);
             if let Some(c) = run.change(false, Reach::Run, ToneStyle::New) {
-                run.apply(&c);
+                assert!(run.apply(&c));
             }
         }
         if let Some(c) = run.change(true, Reach::Run, ToneStyle::New) {
-            run.apply(&c);
+            assert!(run.apply(&c));
         }
         let words: Vec<&str> = words.iter().map(String::as_str).collect();
         prop_assert_eq!(run.shown().to_vec(), t.restore(&words, ToneStyle::New));
@@ -160,7 +174,7 @@ fn several_syllables_change_at_once_somewhere() {
             run.push(w);
             if let Some(c) = run.change(false, Reach::Run, ToneStyle::New) {
                 wide += usize::from(c.new.len() > 1);
-                run.apply(&c);
+                assert!(run.apply(&c));
             }
         }
     }
