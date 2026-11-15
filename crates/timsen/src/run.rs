@@ -152,10 +152,18 @@ impl<'t> Run<'t> {
         self.decide_leaving();
     }
 
+    /// Where the latest fix still in the run is, counted from its start like [`Run::shown`], or
+    /// `None`. [`Run::undo_fix`] undoes that one, so an input method that undoes only the fix just
+    /// made checks first that it is the last syllable.
+    pub fn last_fix(&self) -> Option<usize> {
+        self.fixed.iter().rposition(Option::is_some)
+    }
+
     /// Undoes the latest fix still in the run: the syllable goes back to what was typed and stays
-    /// so. Returns whether there was one; [`Run::change`] then shows it.
+    /// so, also after the run ended. Returns whether there was one; [`Run::change`] then shows it.
+    /// Learning the syllable as typed afterwards keeps it from being fixed in later runs.
     pub fn undo_fix(&mut self) -> bool {
-        let Some(i) = self.fixed.iter().rposition(Option::is_some) else {
+        let Some(i) = self.last_fix() else {
             return false;
         };
         let typed = self.fixed[i].take().unwrap_or_default();
@@ -639,6 +647,53 @@ mod tests {
         type_words(&mut run, &["nhanh"], Reach::Run);
         assert_eq!(run.shown(), strings(&["tôi", "gõ", "phmi", "rất", "nhanh"]));
         assert!(!run.undo_fix(), "nothing left to undo");
+    }
+
+    #[test]
+    fn the_latest_fix_is_found_until_it_is_undone() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        type_words(&mut run, &["toi", "go"], Reach::Run);
+        assert_eq!(run.last_fix(), None);
+        type_words(&mut run, &["phmi", "rat"], Reach::Run);
+        assert_eq!(run.last_fix(), Some(2), "the fix stays found after a word");
+        type_words(&mut run, &["toi", "go", "phmi"], Reach::Run);
+        assert_eq!(run.last_fix(), Some(6));
+        assert!(run.undo_fix());
+        assert_eq!(run.last_fix(), Some(2), "the earlier fix is next");
+        for _ in 0..4 {
+            run.pop();
+        }
+        assert_eq!(run.last_fix(), Some(2));
+        run.pop();
+        assert_eq!(run.last_fix(), None, "popped with its word");
+    }
+
+    #[test]
+    fn a_fix_is_undone_after_its_run_ended() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        type_words(&mut run, &["toi", "go", "phmi"], Reach::Run);
+        if let Some(c) = run.change(true, Reach::Run, ToneStyle::New) {
+            assert!(run.apply(&c));
+        }
+        assert_eq!(run.shown()[2], "phím");
+        assert!(run.undo_fix());
+        let change = run.change(true, Reach::Run, ToneStyle::New).unwrap();
+        assert_eq!((change.first, &change.new), (2, &strings(&["phmi"])));
+        assert!(run.apply(&change));
+        assert_eq!(run.shown(), strings(&["tôi", "gõ", "phmi"]));
+    }
+
+    #[test]
+    fn an_undone_fix_learned_as_typed_is_not_fixed_again() {
+        let mut d = crate::Dictionary::new(std::sync::Arc::new(table()));
+        // As an input method learns a run: guessed words unknown, the undone one as typed.
+        d.learn(&[None, None, Some("phmi")]);
+        let mut run = Run::new(d.typing(), 0.99).fixing(Some(FIX_MARGIN));
+        type_words(&mut run, &["toi", "go", "phmi"], Reach::Run);
+        assert_eq!(run.shown()[2], "phmi");
+        assert_eq!(run.last_fix(), None);
     }
 
     #[test]

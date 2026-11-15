@@ -33,9 +33,11 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   the table does not know (`khogn` → `không`), with its margin over the runner-up and over keeping
   it, exactly as `research.typo` decides. `Run::fixing(Some(FIX_MARGIN))` makes a run fix a word
   when it ends, from the words before it, if the fix wins by the margin; fixing is off by default.
-  `Run::undo_fix` takes the latest fix back and keeps the syllable as typed. Only words of plain
-  letters in lowercase, capitals or with a capital first are fixed, and keep that case; a word the
-  personal dictionary knows is never fixed.
+  `Run::undo_fix` takes the latest fix back and keeps the syllable as typed, also after the run
+  ended; `Run::last_fix` says where that fix is, so a key can undo only the fix just made. Only
+  words of plain letters in lowercase, capitals or with a capital first are fixed, and keep that
+  case; a word the personal dictionary knows is never fixed, so learning an undone fix as typed
+  keeps it as typed.
 - `scripts/abuse.sh` builds an abuse binary with Ngó Sen's release profile (`panic = "abort"`) and
   again with overflow checks, and feeds it truncated and corrupt tables and personal files, odd text
   and calls in any order; CI runs it. A table cut short is an error unless the cut took only the
