@@ -18,6 +18,12 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   only, synced, renamed into place), one save at a time, and drop a save begun before a clear or
   reload. `reload_file` keeps what was learned since the last save. Lines naming a word the table
   cannot take are written back unchanged.
+- `Run` tracks a run as the field shows it and, when a word ends, gives one `Change`: the syllables
+  it replaces as the field shows them and their new spellings, so the input method checks the old
+  text before it deletes. `Reach::LastWord` keeps the change to the word that just ended, for fields
+  that do not report their text; `pop` handles backspace into a word. A raw reading replaces the
+  interpreted one only with the confidence the run was given. `Run::apply` refuses a change the run
+  has moved past instead of panicking.
 
 ### Changed
 
