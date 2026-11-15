@@ -599,6 +599,24 @@ mod tests {
     }
 
     #[test]
+    fn a_letter_that_lowercases_to_plain_latin_is_not_plain() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        // U+212A, the Kelvin sign, lowercases to an ASCII k.
+        type_words(&mut run, &["chuc", "anh", "\u{212a}he"], Reach::Run);
+        assert_eq!(run.shown()[2], "\u{212a}he");
+    }
+
+    #[test]
+    fn a_word_of_any_length_is_pushed_without_running_out_of_memory() {
+        let t = table();
+        let mut run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        let long = "x".repeat(10_000);
+        type_words(&mut run, &["toi", &long], Reach::Run);
+        assert_eq!(run.shown()[1], long);
+    }
+
+    #[test]
     fn fixing_is_off_by_default() {
         let t = table();
         let mut run = Run::new(Typing::new(&t), 0.99);

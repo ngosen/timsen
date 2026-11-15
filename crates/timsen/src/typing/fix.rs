@@ -6,6 +6,9 @@ use super::{EOS, START, Typing, UNK};
 /// How far the best fix must score above keeping the word, or the next fix, before it is made.
 pub const FIX_MARGIN: f64 = 4.0;
 
+/// The longest syllable that is a fix target, in letters.
+const MAX_TARGET: usize = 32;
+
 /// A known form one edit away from an unknown syllable, without marks, and how far it scores above
 /// keeping the word or the next form.
 #[derive(Clone, Debug, PartialEq)]
@@ -46,12 +49,14 @@ impl Typing<'_> {
         if self.opts.get(i)? != &[UNK] || self.kept[i][0].is_some() {
             return None;
         }
-        let typed = self.typed[i].to_lowercase();
         // Edits are of plain letters only, and a letter beyond them, such as a mark typed as a
-        // combining character, says the word was meant as typed.
-        if !typed.chars().all(|c| c.is_ascii_lowercase()) {
+        // combining character, says the word was meant as typed. The length bound keeps the
+        // edits of pasted text small; no plain form in a table comes near it.
+        let typed = &self.typed[i];
+        if typed.len() > MAX_TARGET || !typed.chars().all(|c| c.is_ascii_alphabetic()) {
             return None;
         }
+        let typed = typed.to_ascii_lowercase();
         let cands: Vec<(String, Vec<u32>)> = (edits(&typed).into_iter())
             .filter_map(|c| self.src.options(&c).map(|o| (c, o)))
             .collect();
