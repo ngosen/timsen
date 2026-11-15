@@ -58,7 +58,7 @@ machine; the only thing a user may choose to send is a score (see "From users").
    chooses the n-grams to keep), and both tables are
    measured alone on chat, wiki and forum, and on chat with the personal dictionary
    (`docs/EXPERIMENTS.md`, "Pruned table for shipping" and "Trimming the table vocabulary").
-2. **Whole-run restore in Rust.** Done: the `timsen` crate (`crates/timsen`) maps a table and
+2. **Whole-run restore in Rust.** Done: the `timsen` crate (`crates/timsen`) reads a table and
    restores a run, keeping the user's capitalization and following the tone placement setting. It
    restores every run of the wiki, subs, web and forum sets exactly like `research.model` on both
    tables (`docs/EXPERIMENTS.md`, "Rust restore against the Python model"); CI checks it on a small
