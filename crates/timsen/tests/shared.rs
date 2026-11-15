@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use timsen::{Personal, Table, ToneStyle, Typing};
+use timsen::{Dictionary, Personal, Table, ToneStyle, Typing};
 
 fn fixture(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -44,6 +44,7 @@ fn shared_values_can_live_in_a_field_behind_a_lock() {
     fn send_sync<T: Send + Sync>() {}
     send_sync::<Field>();
     send_sync::<Personal<'static>>();
+    send_sync::<Dictionary>();
     send_sync::<Arc<Table>>();
 }
 
