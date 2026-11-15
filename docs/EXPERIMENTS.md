@@ -2325,3 +2325,148 @@ Conclusion: the crate fixes exactly what `research.typo` fixes and stays within 
 Decided when the word ends, margin 4 is safe on all three sets but fixes about a quarter of the
 typos it can see, half of what the whole run fixes; the words after a typo carry the other half.
 Fixing stays off by default, as planned; step 7 decides whether it is offered on.
+
+## 2026-11-15 · Undoing a fix, prepared in the copy of Ngó Sen
+
+Question: step 7 needs a key that undoes a fix, and a switch for fixing. Can the glue in the copy
+of Ngó Sen do all of it but bind the key, with the crate's `Run::last_fix`, `Run::undo_fix` and
+`Run::push_as_typed`? Ngó Sen itself is not changed.
+
+Setup: the copy and glue of "The integration proof again, with fixing", built and tested as
+there; the crate from this branch. `BambooEngine::set_fixing` (and `EngineSetFixing` for the C++
+front end) switches fixing for runs started afterwards, the run after the cap included.
+
+First design: `undo_fix` replaced the fixed word in place with what was typed, any time until the
+next word, also after the punctuation that ended its run (kept, learned, until the next word); the
+undone word was learned as typed. Five tests. Prediction, one defect at a time (`cargo test
+--release --offline --locked --no-fail-fast`): undo not limited to the last word, 1 red; the undone
+word not learned in an open run, 1; the ended run not kept, 1; the word undone after its run ended
+not learned, 1. Result: 1, 1, 1 and 1, each in the test named for it. Review (Codex) found that a
+key forwarded in between, such as Home, left the undo possible with the cursor elsewhere, and that
+the run after the cap kept the old fixing setting.
+
+Second design, after the owner chose Backspace, as Ngó Sen already does it: Backspace right after
+Space split or shortened a word reopens the word as typed (`restoreDroppedWord`). So undo is now
+for the next key only (`fix_undoable`, as `drop_kept_tail`): `BambooEngine::undo_fix` (and
+`EngineUndoFix`) takes the fixed word out of the run, reopens it in the preedit as typed, and
+returns it as the field shows it, for the front end to delete with the key that ended it. Committed
+again unchanged, it is pushed with `push_as_typed` and learned as typed; changed, it is guessed
+afresh. After the punctuation that ended the run, the run goes on without learning its words
+twice. Binding Backspace to `EngineUndoFix` in the front end (`ngosen-state.cpp`, before
+`restoreDroppedWord`) is step 7's. Seven tests replace the five: reopen after a space, committed
+again as typed and learned; the same after punctuation, the run going on; a reopened word changed
+is guessed afresh; no undo with nothing typed, nothing fixed, a word or another key after the fix,
+after a reset, or twice; none in a private field; the switch from the next run, and past the cap.
+
+Prediction, before running, one defect at a time: undo not limited to the next key, 1 red (the
+test for when undo applies); the reopened word committed again guessed as usual, 2 (both reopen
+tests); the reopened word not learned, 2 (the same); the run after the cap ignoring the switch, 1;
+words learned again after a reopen past punctuation, 0, since no test counts what is learned.
+
+Result: 1, 2, 2, 0 and 0. The miss was the switch past the cap: its test put `toi go` before the
+cap and `phmi` after it, where nothing is fixed with the switch on either, so it could not fail.
+Rewritten to type `toi go phmi` after a full run, once with fixing on (fixed) and once off (kept),
+it fails with that defect: 1, 2, 2, 1 and 0 on the rerun, each in the tests named above. The
+copy builds with the CMake core build (`NGOSEN_CORE_ONLY=ON`, Release): 19 of 19 `ctest`, 147 of
+147 `cargo test --release`, the same four dead-code warnings as before, for glue the front end
+does not call yet.
+
+Review (Codex) of the second design found four problems, each checked in the code. Undo was
+armed by any key that committed text while the run still ended in the fixed word, so a second
+Space, or Home pressed with the word still being typed (committed, fixed, and the key passed on
+to move the cursor), left it possible. A change not pulled yet was dropped whole by an undo,
+the fixes of the words before included. The text to delete was assumed to be the word and one
+key, which a Tab macro (nothing after the word) and a macro ending in punctuation (`phím. `)
+break. And the crate's `Run::apply` let a change taken earlier overwrite a word kept as typed;
+fixed in the crate (`apply` refuses a change that alters a kept word) and vendored. Third
+design: undo is armed only by a key the engine used whose commit ends in the fixed word; it is
+refused while changes wait to be applied; it returns the text from the fixed word to the cursor
+(`phím `, `phím.`, `phím` after a Tab macro), which the front end checks before the cursor and
+deletes, as `restoreDroppedWord` does. Tests: the second Space and Home while typing in the test
+for when undo applies; the text to delete after a space, punctuation and a Tab macro; no undo
+while the fix waits, and the fix still applied after.
+
+Prediction, before running, one defect at a time: undo armed by a key passed on to the app, 1
+red (the test for when undo applies); a commit without a word leaving the last tail, 1 (the
+same); the tail left out of the returned text, 1 (the text-to-delete test); undo allowed while
+changes wait, 1 (that test); a key that ends the run not clearing the tail, 0, since such keys
+are passed on and already refused. The five defects of the second design again: 1, 2, 2, 1, 0.
+
+Result: 0, 2, 2, 1, 0 for the five, and 0, 0, 1, 1, 0 for the new ones: three misses, the undo
+limited to the next key, a key passed on, and a commit without a word. Each check is backed by
+another in the cases tested: Home and a second Space with macros off are passed on, which ends
+the run and clears the tail. Cases only one check covers, added to the test for when undo
+applies: a letter typed after the fix (only the next-key flag), Tab without a macro, which the
+engine passes on without ending the run (only the key passed on), and a second Space with macros
+on, which the engine commits (only the tail cleared). Prediction for the rerun: 1, 2, 2, 1, 0
+and 1, 1, 1, 1, 0.
+
+Result: 1, 2, 2, 1, 0 and 0, 1, 1, 1, 0: the key passed on missed again. Every key the engine
+passes on after a commit, Tab without a macro included, goes through the branch that ends the
+run and clears the tail, so that check could never act; it is removed, and clearing the tail
+there is the one check left for such keys. Prediction for the rerun without it: 1, 2, 2, 1, 0,
+then for the tail 1 (a commit without a word), 1 (left out), 1 (changes waiting) and 1 (a key
+that ends the run), each in the tests named above.
+
+Result: as predicted, 1, 2, 2, 1, 0 and 1, 1, 1, 1, each in the test named for it. With the crate
+fix vendored, the copy builds as before: 19 of 19 `ctest`, 149 of 149 `cargo test --release`, the
+same four warnings.
+
+A second review (Codex) found four more, each checked in the code; the first is the undo's, the
+others are older gaps in the glue that the undo made easier to reach. The returned text was in
+Unicode while the field may use another charset (VIQR shows `phi'm`). Backspace with nothing
+being typed goes to the app, which deletes the end of the run, but the run went on as if the
+field still held it. `EngineRebuildFromText`, which the front end calls whenever it takes a word
+back from the field (retyping, a new tone, Backspace into a word, the reopen after Space), left
+the run going and an undo armed. And rebuilding a kept word types keys again inside the engine,
+whose commits Đoán dấu took for typing. Fourth design: the text is encoded as committed text is;
+that Backspace and a word taken back end the run without changing anything, as a reset does;
+the engine's own rebuilds (the undo, Backspace within a kept word) keep the run, and Đoán dấu
+does not see the keys they type again.
+
+Prediction, before running, one defect at a time, each 1 red in its new test: the word taken
+back not ending the run; Backspace to the app not ending it; the text left in Unicode; the keys
+of a rebuild seen by Đoán dấu. The nine before: 1, 2, 2, 1, 0, 1, 1, 1, 1.
+
+Result: 1, 0, 1, 0, then 1, 2, 2, 1, 0, 1, 1, 2, 1, 1; three misses. With macros off, Backspace with
+nothing typed goes the way of any key passed on, which already ends the run, so its test did not
+reach the gap; with macros on the engine handles Backspace itself, and the test now turns them on.
+Leaving the tail out also fails the new charset test, which compares the whole text: 2, not 1. A
+probe showed that rebuilding `hòa2` or `tôid2` does commit inside the engine, but the text ends in a
+digit, which ends that run at once; it is dropped at the next word with nothing learned or changed,
+so no test sees it. The check stays, since Đoán dấu should see only text the field gets, without a
+test that shows it acting. Prediction for the rerun of the Backspace defect: 1. Result: 1. The test
+for the rebuild, which could not fail, is dropped. The copy builds: 19 of 19 `ctest`, 152 of 152
+`cargo test --release`, the same four warnings; it differs from Ngó Sen only in the glue's lines.
+
+A third review (Codex) found two more. In Sen mode the front end resets the engine after every
+word it commits (`commitWord`, after `EnginePullCommit`), which ends the run and drops its
+changes before they are pulled: the binding in step 7 must pull and apply the changes first and
+must not end the run there, or Đoán dấu does nothing in Sen mode. That is the front end's, so it
+goes to the plan. And the front end also rebuilds the word being typed (Backspace that removes a
+tone, and the fallback for keys shown as typed), where ending the run loses the words before
+it; a rebuild now ends the run only when nothing is being typed, so the text came from the field.
+Prediction, before running: ending the run on every rebuild, 1 red (the new test: a tone removed
+from the word being typed keeps the run); the defects before unchanged: the word taken back 1,
+Backspace to the app 1, the text in Unicode 1; the next-key flag 1, the reopened word guessed
+2, not learned 2, the cap 1, the learned prefix 0, a commit without a word 1, the tail left out
+2, changes waiting 1, a key ending the run 1.
+
+Result: as predicted, each in the test named for it: 1; then 1, 1, 1; then 1, 2, 2, 1, 0, 1, 2,
+1, 1.
+
+The copy had no C call for the changes: `pull_changes` was Rust only, which the dead-code
+warnings showed. `EnginePullChanges` (`BambooEngine::pull_changes_text`) now returns them, one
+per line, `after`, the old words and the new ones separated by tabs, the words by spaces, in the
+field's charset; a run holds letters only, so neither separator can occur in a word. Prediction,
+before running: one test, which compares the text with `pull_changes` of a twin engine fed the
+same keys, in VIQR; the text left in Unicode, 1 red; `after` left out, 1 (the same test).
+
+Result: 1 and 1, after two runs that showed nothing because the defects were wrong, not the code.
+The first left only the old words in Unicode, which are plain letters and the same in any charset;
+the second did not apply once `cargo fmt` had split the line (the script reports whether the file
+changed). Fixed, each defect fails the test. The copy builds: 19 of 19 `ctest`, 154 of 154 `cargo
+test --release`. Two dead-code warnings are left, for the calls the C++ side still lacks: attaching
+Đoán dấu to an engine with the table and personal dictionary every field shares (`set_diacritics`),
+and marking a field private (`set_private`). Where Ngó Sen keeps those files and settings is the
+front end's choice, so they wait for the binding in step 7.
