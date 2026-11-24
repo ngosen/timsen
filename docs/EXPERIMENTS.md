@@ -2592,15 +2592,15 @@ VietTelex's whole model is 1.99 MB ("VietTelex's 2 MB model on the same test fil
 the table lose at each size down to that, and is there a size well under 22.65 MB that loses
 little?
 
-Setup: the model trained again as in `docs/TABLES.md` (`research.train MODEL.npz wiki subs forum
-tech`; the corpora fetched again, since `/tmp` was lost), then `research.prune MODEL.npz OUT
+Setup: the stored model (`data-store/model.npz`, trained as in `docs/TABLES.md`; the first draft
+of this entry said it would be trained again, which was not needed), then `research.prune MODEL.npz OUT
 --bytes N --min-plain 1000` for N = 22650896, 16, 11, 8, 6, 4, 3 MB (N × 1,000,000) and 1991768,
 VietTelex's size. Scored with `research.evaluate` on the frozen `wiki`, `subs` and `forum` files,
 the same copies as in the VietTelex entry. Format and scoring unchanged, so this moves one thing:
 how many n-grams are kept. Not measured: `chat` and the personal dictionary (the chat file is not
 on this machine); the sizes that hold up here still need that run before one is shipped.
 
-Check that the retrained model is the one the tables were built from: the table pruned to
+Check that the stored model is the one the tables were built from: the table pruned to
 22,650,896 bytes is byte for byte the released one (sha256 `295e88c0…1ba9`). If it is not, it
 must at least score 96.03%, 95.73% and 93.26%; anything else and the sweep is on a different
 model, to be said so.
@@ -2624,6 +2624,30 @@ So at VietTelex's size the table is expected to lose to VietTelex (92.94%, 94.30
 all three sets: it spends 6 bytes on an n-gram and 4 more on a bigram, where VietTelex's
 quantized scores take a little over 2. If that holds, going far below 22.65 MB is a question of
 the file format before it is one of pruning.
+
+Result. The table pruned to 22,650,896 bytes is byte for byte the released one, so the model is the
+one the tables were built from.
+
+| Size | n-grams (bigrams + trigrams) | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- | --- |
+| 22.65 MB | 912,919 + 2,052,941 | 96.03% | 95.73% | 93.26% |
+| 16 MB | 676,165 + 1,339,049 | 95.66% | 95.41% | 92.83% |
+| 11 MB | 482,970 + 827,707 | 95.26% | 95.09% | 92.34% |
+| 8 MB | 357,780 + 536,357 | 94.76% | 94.82% | 91.88% |
+| 6 MB | 268,362 + 352,053 | 94.19% | 94.50% | 91.27% |
+| 4 MB | 171,310 + 180,473 | 93.49% | 93.91% | 90.45% |
+| 3 MB | 117,962 + 102,720 | 92.80% | 93.33% | 89.81% |
+| 1.99 MB | 57,933 + 34,730 | 91.32% | 92.04% | 88.13% |
+
+Against the prediction: every size from 16 MB to 3 MB is within 0.21 points, inside the 0.5
+allowed. At 1.99 MB all three miss by 0.66 to 0.68, lower than predicted: the words, their counts
+and the candidate lists take about 1.2 MB whatever the size, so only 92,663 n-grams are left. As
+predicted, the table then loses to VietTelex on every set (92.94%, 94.30%, 89.54%), by 1.6, 2.3
+and 1.4 points; VietTelex keeps 862,285 n-grams in the same bytes. Each halving costs more than
+the one before: 0.4 to 0.5 points from 22.65 to 11 MB, about 1.1 from 6 to 3 MB.
+
+Conclusion: no size below 22.65 MB is free in this format, and far below it the format is the
+limit, not the pruning.
 
 ## 2026-11-24 · Counts in one byte
 
@@ -2650,6 +2674,26 @@ half of 22.65 MB. A step at 8 bits is about 0.07 in log score, small next to the
 from rounded counts: 0.1 to 0.5 points lower. 6 bits (step 0.29), leftover kept: 0.05 to 0.3 lower.
 4 bits (step 1.2): 0.5 to 2 lower.
 
+Result. BITS 0 scored 96.03%, 95.73% and 93.26%, as it must.
+
+| Counts | Leftover | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- | --- |
+| exact | from the counts | 96.03% | 95.73% | 93.26% |
+| 8 bits | kept | 96.02% | 95.72% | 93.25% |
+| 8 bits | from the rounded counts | 96.04% | 95.72% | 93.24% |
+| 6 bits | kept | 96.01% | 95.73% | 93.25% |
+| 4 bits | kept | 95.90% | 95.56% | 93.15% |
+
+Against the prediction: 8 bits with the leftover kept hit (within 0.01). 8 bits with the leftover
+from the rounded counts missed, the right way: no loss, not 0.1 to 0.5, so the leftover needs no
+byte of its own. 6 bits missed the same way: within 0.02, below the predicted 0.05 to 0.3. 4 bits
+missed: 0.10 to 0.17 lower, not 0.5 to 2. The dense layout holds the small table's n-grams in
+11.13 MB, as predicted (about 11 MB).
+
+Conclusion: restore needs the order of the counts, not their value; one byte per count is free.
+Not tried: 6 or 4 bits with the leftover from the rounded counts, and bit-packed codes or ids, which
+would save under a fifth more and cost a slower lookup.
+
 ## 2026-11-24 · Where accuracy stops rising, and what fits under 50 MB
 
 Question: the owner's target changed from the smallest file to the most accurate one that can be
@@ -2672,3 +2716,42 @@ unpruned count model was on chat. So accuracy stops rising between 260 MB and 52
 30 MB file holds the n-grams of a 60 MB version 2 table and scores about 96.65% on `wiki`, 96.2% on
 `subs` and 93.85% on `forum`; a 50 MB file those of about 110 MB and scores about 97.05%, 96.5% and
 94.2%, within 0.15 of the large table, each within 0.2 points.
+
+Result. Version 2 tables and the unpruned model:
+
+| File | n-grams (bigrams + trigrams) | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- | --- |
+| 130.96 MB | 4,210,961 + 14,607,528 | 97.15% | 96.59% | 94.30% |
+| 260 MB | 6,482,066 + 32,329,213 | 97.34% | 96.77% | 94.31% |
+| 444.5 MB (every n-gram of the table's words) | 7,764,801 + 60,948,861 | 97.40% | 96.75% | 94.12% |
+| unpruned model, 592,161 words | 16,110,696 + 78,578,293 | 97.52% | 96.83% | 94.27% |
+
+`--bytes 520000000` asked for more than there is: with the 40,801 words `--min-plain 1000` keeps,
+every n-gram fits in 444.5 MB. Dense layout, counts rounded to 8 bits with the leftover from the
+rounded counts scored on the small table only; here exact counts and 8 bits with the leftover kept
+were scored and differ by at most 0.02 points, so one figure is given:
+
+| Dense file | Same n-grams in version 2 | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- | --- |
+| 26.90 MB | 56 MB | 96.77% | 96.29% | 94.03% |
+| 29.75 MB | 62 MB | 96.82% | 96.29% | 94.05% |
+| 32.60 MB | 68 MB | 96.88% | 96.36% | 94.07% |
+| 47.72 MB | 100 MB | 97.07% | 96.55% | 94.27% |
+| 52.45 MB | 110 MB | 97.07% | 96.61% | 94.26% |
+| 57.18 MB | 120 MB | 97.10% | 96.59% | 94.28% |
+
+Against the prediction: 130.96 MB as recorded. 260 MB adds 0.19 on `wiki`, just under the
+predicted 0.2 to 0.4, and 0.01 on `forum`: missed. The largest table adds 0.06 on `wiki` and loses
+0.19 on `forum`; the unpruned model is within 0.2 of it and not lower. "Stops rising between 260
+and 520 MB" was wrong in shape: `forum` stops at 131 MB and is lower with every n-gram kept, `wiki`
+creeps up to the unpruned model. The dense figures hit: 29.75 MB gives 96.82%, 96.29% and 94.05%
+(predicted 96.65%, 96.2%, 93.85%) and 47.72 MB gives 97.07%, 96.55% and 94.27% (predicted 97.05%,
+96.5%, 94.2%).
+
+Conclusion: the ceiling is about 97.5%, 96.8% and 94.3%. A dense file of 47.72 MB is 0.45, 0.28
+and 0.00 points under it and 1.04, 0.82 and 1.01 above the small table; one of 29.75 MB takes
+three quarters of that gain. Past 48 MB ten more megabytes buy a few hundredths. These are sizes
+computed for a layout no file uses yet: the next step is version 3 of the format in
+`research.table` and the crate, checked against these figures. Not measured: `chat`, where the
+small and large tables were level with the personal dictionary, so the gain may be on edited text
+only.
