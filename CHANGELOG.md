@@ -6,6 +6,8 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Added
 
+- `research.quant`: scores a table with its counts rounded to a few bits and sizes the denser file
+  that would hold it; one byte per count loses nothing measurable.
 - `research.external`: scores another program's restoration of a test file on the words
   `research.evaluate` counts; used to measure VietTelex's 2 MB model on the frozen test files.
 - `Typing::shared`, `Typing::with_shared_personal`, `Personal::shared` and `Personal::load_shared`
