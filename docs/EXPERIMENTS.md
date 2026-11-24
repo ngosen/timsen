@@ -2515,3 +2515,42 @@ test --release`. Two dead-code warnings are left, for the calls the C++ side sti
 Đoán dấu to an engine with the table and personal dictionary every field shares (`set_diacritics`),
 and marking a field private (`set_private`). Where Ngó Sen keeps those files and settings is the
 front end's choice, so they wait for the binding in step 7.
+
+## 2026-11-24 · VietTelex's 2 MB model on the same test files
+
+Question: VietTelex (github.com/ptrinh/viettelex, MIT) ships Thêm dấu from a syllable model of
+1,991,768 bytes, `vnlm.bin`, built from much the same corpora (Wikimedia, OpenSubtitles, FineWeb-2
+forum pages, Tatoeba), against 22,650,872 bytes for the small table. Its own figures are on its
+own test sets, so they say nothing here. How far behind is it on the frozen `wiki`, `subs` and
+`forum` files?
+
+Setup: VietTelex at commit `a150d25`, its `vnlm.bin` (sha256 `b4bd837f…2ae1`), `vnlexicon.bin` and
+`enlexicon.bin` from `iOS/Keyboard/Resources`, restored by its own C++ port
+(`windows/engine/src/add_tones.cpp`, default `Params`: second-order Viterbi and the curated pairs
+on, no personal model), driven by `scripts/viettelex_restore.cpp`. The model is used to measure
+only; nothing of it enters a table. `research.external strip` writes each test sentence lowercased
+without marks, punctuation and spacing kept; `research.external score` counts the same words as
+`research.evaluate` (every word token, `hoà`/`hòa` one spelling). Two inputs: whole sentences,
+which is how Thêm dấu is used and lets it see across commas, and one run per line (`--runs`), the
+context `research.evaluate` gives a table. The test files were lost with `/tmp` and rebuilt with
+`research.fetch_wiki`, `research.fetch_subs` and `research.fetch_fineweb forum 1`, `2`, `3` (the
+forum file is the first 4,000 lines of the three). Not measured: `chat`, whose source file is not
+on this machine, and the personal dictionary, which VietTelex's static restore does not have.
+
+Checks that the instruments see what they should, before the measurement:
+
+- The driver restores VietTelex's own fixture (`iOS/KeyboardTests/Fixtures/add-tones.txt`) exactly:
+  69 of 69 lines, all 69 changed from their input.
+- The rebuilt files are the frozen ones only if the small table (release `table-small-v1`) scores
+  what `docs/TABLES.md` records. Prediction: `wiki` 4,000 sentences, 73,604 words, 96.03%; `subs`
+  4,000, 31,845, 95.73%; `forum` 4,000, 92,220, 93.26%. If a count or a figure differs, the files
+  are not the frozen ones and the comparison below is on new files, to be said so.
+- `research.external score` on the stripped input itself must give the share of words that carry
+  no mark, and on the test file itself 100%.
+
+Prediction, before running. VietTelex reports 93.36% on its Wikimedia dev set, 94.63% on its
+OpenSubtitles test set and 93.32% on its FineWeb test set, but counts only syllables of its own
+lexicon in filtered sentences; here every word counts, names and English included. So lower than
+its own figures: whole sentences `wiki` 91.5%, `subs` 93.5%, `forum` 91.5%, each within 1.5 points;
+behind the small table by about 4.5, 2.2 and 1.8 points. One run per line: within 0.3 points of
+whole sentences, below it.
