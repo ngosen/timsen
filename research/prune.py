@@ -72,6 +72,10 @@ def select(m, entries, min_plain, seed=None, max_bytes=None):
     order = np.argsort(-weights, kind="stable")
     if max_bytes is not None:
         entries = fitting(m, order >= len(tw), max_bytes, min_plain)
+        # Every n-gram as heavy as the last one is kept, so stop before a weight that does not all fit.
+        ranked = weights[order]
+        if 0 < entries < len(ranked) and ranked[entries] == ranked[entries - 1]:
+            entries = int(np.searchsorted(-ranked, -ranked[entries], side="left"))
     cut = weights[order[entries - 1]] if entries else np.inf
     keep_t, keep_b = tw >= cut, bw >= cut
     assert keep_b[ctx_pos[keep_t[has_ctx]]].all(), "a kept trigram lost its context"
@@ -84,16 +88,14 @@ def fitting(m, is_bigram, max_bytes, min_plain):
     n_bi = np.cumsum(is_bigram)
     n_tri = np.arange(1, len(is_bigram) + 1) - n_bi
     n_words = int(kept_words(m, min_plain).sum())
-    fixed = table.fixed_bytes(m, min_plain)
-    if max_bytes < fixed:
-        raise ValueError(f"the table takes {fixed:,} bytes before its first n-gram")
-    free = max_bytes - fixed
     # Per bigram an id, a count code, a leftover code, a group length and its share of a base; per
     # trigram an id and a count code. At most one group in LONG trigrams is long, 8 bytes each. Ten
     # arrays are each padded by at most 7 bytes.
-    per_trigram = 3 + 8 / table.LONG
-    size = (5 + 4 / table.BLOCK) * n_bi + per_trigram * n_tri + 4 * (n_words + 1) + 4 + 1 + 10 * 7
-    return int(np.searchsorted(size, free, side="right"))
+    empty = table.fixed_bytes(m, min_plain) + 4 * (n_words + 1) + 4 + 1 + 10 * 7
+    if max_bytes < empty:
+        raise ValueError(f"the table takes {empty:,} bytes before its first n-gram")
+    size = empty + (5 + 4 / table.BLOCK) * n_bi + (3 + 8 / table.LONG) * n_tri
+    return int(np.searchsorted(size, max_bytes, side="right"))
 
 
 def main():

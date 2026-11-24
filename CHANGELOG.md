@@ -16,7 +16,8 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Fixed
 
-- `research.prune --bytes` kept every n-gram when the budget had room for none.
+- `research.prune --bytes` kept every n-gram when the budget had room for none, and could write a
+  file over the budget when many n-grams weighed the same as the last one kept.
 
 ### Added
 

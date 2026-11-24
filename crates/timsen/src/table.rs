@@ -221,11 +221,11 @@ impl Cursor<'_> {
                 }
                 long += 1;
             }
-            // `at` never passes `n`, which is at most the file length, so this cannot overflow.
-            at += len;
-            if at > n {
+            // `at` never passes `n`, so the subtraction cannot overflow; adding first could.
+            if len > n - at {
                 return Err(Error::Format("trigram groups do not add up"));
             }
+            at += len;
         }
         if at != n || long != n_long {
             return Err(Error::Format("trigram groups do not add up"));
