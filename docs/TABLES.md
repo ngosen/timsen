@@ -8,10 +8,10 @@ who mostly write long edited text.
 | --- | --- | --- |
 | File | 12.37 MB | 49.69 MB |
 | Chat + personal | 89.24% | 88.49% |
-| Chat | 82.94% | 83.95% |
+| Chat | 82.92% | 83.93% |
 | Wikipedia | 96.03% | 97.04% |
-| Subtitles | 95.75% | 96.55% |
-| Forum | 93.26% | 94.26% |
+| Subtitles | 95.74% | 96.55% |
+| Forum | 93.27% | 94.26% |
 
 On edited prose, and on chat before the personal dictionary has learned anything, the large table
 gets about one more word in 100 right. Once it has learned, the small table is ahead on chat. Keeping every n-gram of the
@@ -28,7 +28,7 @@ python -m research.prune MODEL.npz small.timsen --entries 2965860 --min-plain 10
 python -m research.prune MODEL.npz large.timsen --bytes 50000000 --min-plain 1000
 ```
 
-The figures are from "Format version 3: one byte per count, under 50 MB" in
+The figures are from "The same table file on every machine" in
 [`EXPERIMENTS.md`](EXPERIMENTS.md), on the frozen test files. The small table keeps the n-grams of
 the 22.65 MB table of format version 2; the large one replaces the 130.96 MB table, which scored
 97.15%, 96.59% and 94.30%.

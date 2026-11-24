@@ -2876,3 +2876,32 @@ right in a quarter of the file. The personal dictionary matters more here than t
 points against 1. Not tried: why the large table gains less (a fixed weight instead of `auto`, or a
 weight scaled to the number of n-grams kept), how many messages it takes for the small table to
 pass the large one (`--fractions`), and other writers.
+
+## 2026-11-25 · The same table file on every machine
+
+Question: CI rebuilt the test table and got a file that differs from the committed one in one byte
+of a count level. The levels come from `exp`, whose last bit depends on the CPU. With every stored
+float rounded to single precision, do the two tables of "Format version 3" still score the same?
+
+Setup: `research.table` rounds the count levels, the leftover levels and the per-word leftovers to
+single precision before writing. The two tables rebuilt with the same commands and scored with
+`research.evaluate` on the frozen files.
+
+No prediction was written before this run, so it proves little beyond the figures themselves. The
+expectation was the same n-grams and file sizes, and scores that move only where a word was a near
+tie.
+
+Result: the same n-grams and sizes (12,374,504 and 49,687,280 bytes).
+
+| Table | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| 12.37 MB, before → after | 96.03% → 96.03% | 95.75% → 95.74% | 93.26% → 93.27% |
+| 49.69 MB, before → after | 97.04% → 97.04% | 96.55% → 96.55% | 94.26% → 94.26% |
+
+Two figures of the small table move by 0.01. The tables in the docs are the rebuilt ones from here on. Not checked: that a
+machine with another CPU writes the same real tables byte for byte; CI checks it for the two test
+tables only.
+
+The chat set was built again from the same export and the rebuilt tables scored on it, with the
+same commands: alone 82.92% and 83.93%, with the personal dictionary 89.24% and 88.49%. The docs
+give these.

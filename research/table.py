@@ -24,7 +24,8 @@ bigram of the table. A plain form missing from the table restores as itself (<un
 
 A count is stored as the nearest of 256 levels spaced evenly in log, which restore cannot tell from
 the exact count. The leftover (Model.index_leftover) is taken from the exact counts when the table
-is written, so reading a table needs no pass over its n-grams.
+is written, so reading a table needs no pass over its n-grams. Every float but the total is rounded
+to single precision before it is stored.
 """
 
 import argparse
@@ -99,10 +100,16 @@ def ngram_bytes(n_words, n_bi, n_tri, n_long):
     return sum(padded(n) for n in (*parts, 2 * n_tri, n_tri))
 
 
+def portable(a):
+    """a rounded to single precision: exp and log differ in the last bit from one CPU to another, and
+    the same model must give the same file everywhere."""
+    return np.asarray(a, dtype=np.float64).astype(np.float32).astype(np.float64)
+
+
 def count_levels(top):
     """The counts the 256 codes stand for: evenly spaced in log from 1 to the largest count."""
     step = np.log(max(top, 2.0)) / (LEVELS - 1)
-    return np.exp(np.arange(LEVELS) * step)
+    return portable(np.exp(np.arange(LEVELS) * step))
 
 
 def count_codes(counts, levels):
@@ -110,7 +117,7 @@ def count_codes(counts, levels):
     return np.clip(np.rint(np.log(np.maximum(counts, 1)) / step), 0, LEVELS - 1).astype(np.uint8)
 
 
-LEFT_LEVELS = np.linspace(np.log(FLOOR), 0.0, LEVELS)
+LEFT_LEVELS = portable(np.linspace(np.log(FLOOR), 0.0, LEVELS))
 
 
 def left_codes(left):
@@ -199,10 +206,10 @@ def write(m, path, min_plain=0):
     head, tail, n_cand = other_sections(m, opts, keep, new_id)
     t = remapped(m, keep, bk, bc, tk, tc)
     levels = count_levels(max(bc.max(initial=1), tc.max(initial=1)))
-    f64 = np.concatenate([levels, LEFT_LEVELS, [t.left_bos]]).astype("<f8").tobytes()
+    f64 = np.concatenate([levels, LEFT_LEVELS, portable([t.left_bos])]).astype("<f8").tobytes()
     grams, n_long = ngram_sections(bk, bc, tk, tc, len(keep), levels, t.left_bi)
     header = HEADER.pack(MAGIC, VERSION, n_long, len(keep), len(bk), len(tk), len(opts), n_cand, m.total)
-    sections = [header, *head, f64, t.left_uni.astype("<f8").tobytes(), *grams, *tail]
+    sections = [header, *head, f64, portable(t.left_uni).astype("<f8").tobytes(), *grams, *tail]
     with open(path, "wb") as f:
         for s in sections:
             f.write(pad(s))

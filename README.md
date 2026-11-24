@@ -137,13 +137,13 @@ Hai bảng đều dùng chung định dạng nhị phân và hoạt động cùn
 | :--- | :--- | :--- |
 | Kích thước tệp | 12,37 MB | 49,69 MB |
 | Trò chuyện + từ điển cá nhân | 89,24% | 88,49% |
-| Trò chuyện | 82,94% | 83,95% |
+| Trò chuyện | 82,92% | 83,93% |
 | Wikipedia | 96,03% | 97,04% |
-| Phụ đề | 95,75% | 96,55% |
-| Diễn đàn | 93,26% | 94,26% |
+| Phụ đề | 95,74% | 96,55% |
+| Diễn đàn | 93,27% | 94,26% |
 
-Số liệu lấy từ hai mục "Format version 3: one byte per count, under 50 MB" và "The two version 3
-tables on Messenger chat" trong [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md):
+Số liệu lấy từ hai mục "The same table file on every machine" và "The two version 3 tables on
+Messenger chat" trong [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md):
 
 - **Bộ kiểm tra:** `wiki` (4.000 câu, 73.604 từ), `subs` (4.000 câu, 31.845 từ) và `forum` (4.000
   câu, 92.220 từ) là các tệp giữ riêng, không bao giờ dùng để huấn luyện. `chat` gồm 18.553 câu lấy từ
