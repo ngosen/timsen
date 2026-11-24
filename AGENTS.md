@@ -49,7 +49,8 @@ Every number in this repository says what was measured, on which test set, with 
 
 ## Code
 
-- **English only** for identifiers, comments, docs, commit messages and PR text.
+- **English only** for identifiers, comments, docs, commit messages and PR text. `README.md` is the
+  exception: it is in Vietnamese, like Ngó Sen's, with a short English section at the end.
 - **Comments say why, not what.** Most are one line. No measurements, dates or history in code; those
   go in `docs/EXPERIMENTS.md`, the commit message or the PR.
 - **Reuse what exists.** Tokenizing and mark handling live in `research/text.py`; the model in
