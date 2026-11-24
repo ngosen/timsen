@@ -18,6 +18,8 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 - `research.prune --bytes` kept every n-gram when the budget had room for none, and could write a
   file over the budget when many n-grams weighed the same as the last one kept.
+- A table written from the same model is now the same file on every machine: the floats it stores
+  are rounded to single precision, since `exp` and `log` differ in the last bit between CPUs.
 
 ### Added
 
