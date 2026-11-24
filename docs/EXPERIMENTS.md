@@ -2755,3 +2755,37 @@ computed for a layout no file uses yet: the next step is version 3 of the format
 `research.table` and the crate, checked against these figures. Not measured: `chat`, where the
 small and large tables were level with the personal dictionary, so the gain may be on edited text
 only.
+
+## 2026-11-25 · Format version 3: one byte per count, under 50 MB
+
+Question: "Where accuracy stops rising" sized a dense layout without writing it. Does a real file
+in that layout, read by `research.table` and by the crate, score what was computed, and what does
+the largest table under 50 MB (50,000,000 bytes) score?
+
+Setup: format version 3 (layout in `research/table.py`): per bigram a 16-bit id, a count code and a
+leftover code; per trigram a 16-bit id and a count code; the trigrams of a bigram are found from
+one length byte per bigram and a full offset every 32 bigrams. A count is the nearest of 256 levels
+spaced evenly in log between 1 and the largest count. The leftover of each context is taken from
+the exact counts when the file is written, and stored: a byte per bigram and a float per word.
+Tables from the stored model with `research.prune --min-plain 1000`, scored with
+`research.evaluate` on the frozen `wiki`, `subs` and `forum` files. The crate is compared with
+`research.table` on every run of the three files (`research.crosscheck`, then the `restore`
+example), and timed with the `latency` example in runs of 50 and 200 against `main` reading a
+version 2 table of the same n-grams, alternately, twice each; the learned text is the first 500
+lines of the frozen `subs` file.
+
+Check that the format is what changed: `--entries 2965860` keeps the n-grams of the released small
+table (912,919 bigrams and 2,052,941 trigrams), which scored 96.03%, 95.73% and 93.26% in version 2.
+
+Prediction, before writing any real table:
+
+- the small table's n-grams: 912,919 + 2,052,941 again, a file of 12.2 to 12.6 MB (11.13 MB
+  computed, plus a leftover byte per bigram and the per-word floats), each set within 0.03 points
+  of version 2;
+- `--bytes 50000000`: a file between 49.5 and 50.0 MB, about 3.2 million bigrams and 10.6 million
+  trigrams, scoring 97.05%, 96.55% and 94.25%, each within 0.1;
+- `--bytes 30000000`: 96.80%, 96.30% and 94.05%, each within 0.1;
+- the crate restores every run of the three files like `research.table`, on both tables;
+- timing on the 50 MB table: p50 per key up to 30% above version 2 with the same n-grams, since a
+  trigram lookup now adds up to 31 lengths; p99 per key under 3 ms in runs of 50 and of 200;
+  opening takes under half the time, since version 2 summed every trigram count on opening.

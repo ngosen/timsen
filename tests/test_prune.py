@@ -45,12 +45,25 @@ def test_a_byte_budget_bounds_the_file(model_path, tmp_path):
     full = Model(model_path)
     out = tmp_path / "full.timsen"
     prune.table.write(full, out)
-    budget = out.stat().st_size - 200
+    budget = out.stat().st_size - 50
     m = Model(model_path)
     prune.select(m, None, 0, max_bytes=budget)
     small = tmp_path / "small.timsen"
     prune.table.write(m, small)
     assert budget - 100 < small.stat().st_size <= budget
+
+
+def test_a_budget_with_no_room_for_n_grams_keeps_none(model_path, tmp_path):
+    m = Model(model_path)
+    fixed = prune.table.fixed_bytes(m, 0)
+    prune.select(m, None, 0, max_bytes=fixed + 80)
+    assert len(m.bk) == len(m.tk) == 0
+    out = tmp_path / "empty.timsen"
+    prune.table.write(m, out)
+    assert out.stat().st_size <= fixed + 80
+    assert prune.table.read(out).restore(["toi", "go"]) == ["tôi", "gõ"]
+    with pytest.raises(ValueError):
+        prune.select(Model(model_path), None, 0, max_bytes=fixed - 1)
 
 
 def test_min_candidate_leaves_rare_spellings_out_of_the_table(model_path, tmp_path, monkeypatch):

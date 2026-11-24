@@ -1,6 +1,7 @@
 import gzip
 import sys
 
+import numpy as np
 import pytest
 
 from research import model, paths, personal, table, train
@@ -42,7 +43,8 @@ def test_table_restores_exactly_like_the_pruned_model(model_path, tmp_path, min_
         for w in [*run, "<unk>"]:
             ids = m.options(w)
             assert [t.words[i] for i in t.options(w)] == [m.words[i] for i in ids]
-            assert (t.logp(t.options(w), t.options(w), t.options(w)) == m.logp(ids, ids, ids)).all()
+            # A table stores each count as the nearest of 256 levels.
+            assert np.abs(t.logp(t.options(w), t.options(w), t.options(w)) - m.logp(ids, ids, ids)).max() < 0.05
 
 
 def test_table_drops_words_restore_never_picks(model_path, tmp_path):

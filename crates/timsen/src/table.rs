@@ -14,10 +14,16 @@ pub const UNK: u32 = 2;
 pub const SHIFT: u32 = 21;
 
 const MAGIC: &[u8; 8] = b"TIMSEN\0\0";
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 /// N-gram sections store the last word id in 16 bits.
 const MAX_WORDS: usize = 1 << 16;
 const HEADER_LEN: usize = 64;
+/// Counts and leftovers are stored as one of this many levels.
+const LEVELS: usize = 256;
+/// A trigram group at least this long has its length in the long list.
+const LONG: usize = 255;
+/// Trigram groups per stored base.
+const BLOCK: usize = 32;
 /// Most spellings one unmarked form may have, far above what real tables use. Typing keeps a score
 /// for every pair of neighbouring spellings, so this bounds its memory per syllable.
 pub(crate) const MAX_SPELLINGS: usize = 256;
@@ -52,15 +58,28 @@ struct Strings {
     n: usize,
 }
 
-/// Byte positions of an n-gram section: `groups + 1` u32 starts, then u16 last-word ids ascending
-/// within each group, then u32 counts. Bigrams are grouped by first word, trigrams by the bigram of
-/// their first two words, with one more group for (`<s>`, `<s>`).
-struct Grams {
+/// Byte positions of the bigram section: `n_words + 1` u32 starts, then per bigram a u16 last-word
+/// id ascending within each first word, a count code and a leftover code.
+struct Bigrams {
     start: usize,
     groups: usize,
     next: usize,
-    counts: usize,
+    code: usize,
+    left: usize,
     n: usize,
+}
+
+/// Byte positions of the trigram section. Group `j` holds the trigrams after bigram `j`, and the
+/// last group those after (`<s>`, `<s>`). A group starts at the base of its block plus the lengths
+/// of the groups before it in the block; a length byte of `LONG` stands for an entry of the long list.
+struct Trigrams {
+    base: usize,
+    length: usize,
+    long_group: usize,
+    long_length: usize,
+    n_long: usize,
+    next: usize,
+    code: usize,
 }
 
 pub struct Table {
@@ -68,29 +87,19 @@ pub struct Table {
     total: f64,
     words: Strings,
     uni: usize,
-    bigrams: Grams,
-    trigrams: Grams,
+    /// The count each code stands for.
+    counts: [f64; LEVELS],
+    /// The log unkept share each leftover code stands for.
+    lefts: [f64; LEVELS],
+    /// Log unkept share of the (`<s>`, `<s>`) context.
+    left_bos: f64,
+    /// Per word, the log unkept share of its count.
+    left_uni: usize,
+    bigrams: Bigrams,
+    trigrams: Trigrams,
     plain: Strings,
     cand_start: usize,
     cand_ids: usize,
-    left: Left,
-}
-
-/// How much of each context's count the kept longer n-grams leave uncovered, read once at load.
-struct Left {
-    /// Per bigram, the summed counts of its kept trigram continuations.
-    kept: Vec<u32>,
-    /// Log unkept share of the (`<s>`, `<s>`) context.
-    bos: f64,
-    /// Per word, the log unkept share of its count.
-    uni: Vec<f64>,
-}
-
-/// Smallest unkept share, so a context that kept everything still has a finite cost.
-const FLOOR: f64 = 1e-4;
-
-fn log_share(kept: f64, count: f64) -> f64 {
-    (1.0 - kept / count).clamp(FLOOR, 1.0).ln()
 }
 
 struct Cursor<'a> {
@@ -143,7 +152,20 @@ impl Cursor<'_> {
         Ok(s)
     }
 
-    fn grams(&mut self, groups: usize, n: usize) -> Result<Grams, Error> {
+    /// `LEVELS` values that all pass `ok`.
+    fn levels(&mut self, ok: fn(f64) -> bool) -> Result<[f64; LEVELS], Error> {
+        let pos = self.take_n(LEVELS, 8)?;
+        let mut out = [0.0; LEVELS];
+        for (i, v) in out.iter_mut().enumerate() {
+            *v = f64_at(self.bytes, pos, i);
+            if !ok(*v) {
+                return Err(Error::Format("bad level"));
+            }
+        }
+        Ok(out)
+    }
+
+    fn bigrams(&mut self, groups: usize, n: usize) -> Result<Bigrams, Error> {
         let start = self.take_n(
             groups
                 .checked_add(1)
@@ -158,13 +180,57 @@ impl Cursor<'_> {
             }
             last = s;
         }
-        Ok(Grams {
+        Ok(Bigrams {
             start,
             groups,
             next: self.take_n(n, 2)?,
-            counts: self.take_n(n, 4)?,
+            code: self.take_n(n, 1)?,
+            left: self.take_n(n, 1)?,
             n,
         })
+    }
+
+    fn trigrams(&mut self, groups: usize, n_long: usize, n: usize) -> Result<Trigrams, Error> {
+        let t = Trigrams {
+            base: self.take_n(groups / BLOCK + 1, 4)?,
+            length: self.take_n(groups, 1)?,
+            long_group: self.take_n(n_long, 4)?,
+            long_length: self.take_n(n_long, 4)?,
+            n_long,
+            next: self.take_n(n, 2)?,
+            code: self.take_n(n, 1)?,
+        };
+        // Lookups add lengths up from a base without checking, so every base and every long length
+        // must be what the lengths before it add up to.
+        let (mut at, mut long) = (0usize, 0usize);
+        for j in 0..=groups {
+            if j % BLOCK == 0 && u32_at(self.bytes, t.base, j / BLOCK) as usize != at {
+                return Err(Error::Format("trigram groups do not add up"));
+            }
+            if j == groups {
+                break;
+            }
+            let mut len = usize::from(self.bytes[t.length + j]);
+            if len == LONG {
+                if long == n_long || u32_at(self.bytes, t.long_group, long) as usize != j {
+                    return Err(Error::Format("long trigram group is not listed"));
+                }
+                len = u32_at(self.bytes, t.long_length, long) as usize;
+                if len < LONG {
+                    return Err(Error::Format("long trigram group is short"));
+                }
+                long += 1;
+            }
+            // `at` never passes `n`, which is at most the file length, so this cannot overflow.
+            at += len;
+            if at > n {
+                return Err(Error::Format("trigram groups do not add up"));
+            }
+        }
+        if at != n || long != n_long {
+            return Err(Error::Format("trigram groups do not add up"));
+        }
+        Ok(t)
     }
 }
 
@@ -184,6 +250,11 @@ fn u32_at(bytes: &[u8], pos: usize, i: usize) -> u32 {
 fn u16_at(bytes: &[u8], pos: usize, i: usize) -> u16 {
     let p = pos + 2 * i;
     u16::from_le_bytes(bytes[p..p + 2].try_into().unwrap())
+}
+
+fn f64_at(bytes: &[u8], pos: usize, i: usize) -> f64 {
+    let p = pos + 8 * i;
+    f64::from_le_bytes(bytes[p..p + 8].try_into().unwrap())
 }
 
 fn u64_at(bytes: &[u8], pos: usize, i: usize) -> u64 {
@@ -252,79 +323,68 @@ impl Table {
             return Err(Error::Format("bad vocabulary size"));
         }
         let total = f64::from_le_bytes(bytes[56..64].try_into().unwrap());
+        let n_long = u32_at(&bytes, 12, 0) as usize;
         let mut c = Cursor {
             bytes: &bytes,
             pos: HEADER_LEN,
         };
         let words = c.strings(n_words)?;
         let uni = c.take_n(n_words, 4)?;
-        let bigrams = c.grams(n_words, n_bi)?;
+        let counts = c.levels(|v| v.is_finite() && v > 0.0)?;
+        let lefts = c.levels(|v| v.is_finite() && v <= 0.0)?;
+        let left_bos = f64_at(&bytes, c.take(8)?, 0);
+        let left_uni = c.take_n(n_words, 8)?;
+        let shares = (0..n_words).map(|i| f64_at(&bytes, left_uni, i));
+        if !std::iter::once(left_bos)
+            .chain(shares)
+            .all(|v| v.is_finite() && v <= 0.0)
+        {
+            return Err(Error::Format("bad leftover"));
+        }
+        let bigrams = c.bigrams(n_words, n_bi)?;
         let groups = n_bi
             .checked_add(1)
             .ok_or(Error::Format("section too large"))?;
-        let trigrams = c.grams(groups, n_tri)?;
+        let trigrams = c.trigrams(groups, n_long, n_tri)?;
         let plain = c.strings(n_plain)?;
         // n_plain + 1 cannot overflow: the plain strings section above already needed it.
         let cand_start = c.take_n(n_plain + 1, 4)?;
         let cand_ids = c.take_n(n_cand, 4)?;
         check_candidates(&bytes, cand_start, cand_ids, n_plain, n_cand, n_words)?;
-        let mut t = Table {
+        Ok(Table {
             bytes,
             total,
             words,
             uni,
+            counts,
+            lefts,
+            left_bos,
+            left_uni,
             bigrams,
             trigrams,
             plain,
             cand_start,
             cand_ids,
-            left: Left {
-                kept: Vec::new(),
-                bos: 0.0,
-                uni: Vec::new(),
-            },
-        };
-        t.left = t.index_left();
-        Ok(t)
-    }
-
-    fn index_left(&self) -> Left {
-        let b = &self.bytes;
-        let sum = |g: &Grams, group: usize| -> u64 {
-            let (lo, hi) = self.range(g, group);
-            (lo..hi).map(|i| u64::from(u32_at(b, g.counts, i))).sum()
-        };
-        let kept = (0..self.bigrams.n)
-            .map(|j| u32::try_from(sum(&self.trigrams, j)).unwrap_or(u32::MAX))
-            .collect();
-        let uni = (0..self.len())
-            .map(|id| log_share(sum(&self.bigrams, id) as f64, self.uni(id as u32).max(1.0)))
-            .collect();
-        let bos = sum(&self.trigrams, self.bigrams.n) as f64;
-        Left {
-            kept,
-            bos: log_share(bos, self.segments().max(1.0)),
-            uni,
-        }
+        })
     }
 
     /// Log unkept share of context `u v`; a context the table dropped says nothing, so it is 0.
     pub(crate) fn left(&self, u: u32, v: u32) -> f64 {
         if u == BOS && v == BOS {
-            return self.left.bos;
+            return self.left_bos;
         }
-        match self.bigram_index(u, v) {
-            Some(j) => log_share(
-                f64::from(self.left.kept[j]),
-                f64::from(u32_at(&self.bytes, self.bigrams.counts, j)),
-            ),
-            None => 0.0,
-        }
+        self.bigram_index(u, v).map_or(0.0, |j| {
+            self.lefts[usize::from(self.bytes[self.bigrams.left + j])]
+        })
     }
 
     /// Log unkept share of word `v`'s count, as the context of a bigram.
     pub(crate) fn left_uni(&self, v: u32) -> f64 {
-        self.left.uni.get(v as usize).copied().unwrap_or(0.0)
+        if (v as usize) < self.len() {
+            f64_at(&self.bytes, self.left_uni, v as usize)
+        } else {
+            0.0
+        }
     }
 
     /// Number of words, counting `<s>`, `</s>` and `<unk>`.
@@ -361,7 +421,9 @@ impl Table {
     }
 
     pub(crate) fn bigram(&self, v: u32, w: u32) -> f64 {
-        self.count(&self.bigrams, self.bigram_index(v, w))
+        self.bigram_index(v, w).map_or(0.0, |i| {
+            self.counts[usize::from(self.bytes[self.bigrams.code + i])]
+        })
     }
 
     pub(crate) fn trigram(&self, u: u32, v: u32, w: u32) -> f64 {
@@ -370,35 +432,61 @@ impl Table {
         } else {
             self.bigram_index(u, v)
         };
-        let i = ctx.and_then(|j| self.find(&self.trigrams, j, w));
-        self.count(&self.trigrams, i)
+        let t = &self.trigrams;
+        ctx.and_then(|j| self.find(t.next, self.trigram_range(j), w))
+            .map_or(0.0, |i| self.counts[usize::from(self.bytes[t.code + i])])
     }
 
     fn bigram_index(&self, v: u32, w: u32) -> Option<usize> {
-        self.find(&self.bigrams, v as usize, w)
-    }
-
-    fn count(&self, g: &Grams, i: Option<usize>) -> f64 {
-        i.map_or(0.0, |i| f64::from(u32_at(&self.bytes, g.counts, i)))
-    }
-
-    /// Positions of group `group`; the starts were checked to be in order and within the section.
-    fn range(&self, g: &Grams, group: usize) -> (usize, usize) {
-        (
-            u32_at(&self.bytes, g.start, group) as usize,
-            u32_at(&self.bytes, g.start, group + 1) as usize,
-        )
-    }
-
-    fn find(&self, g: &Grams, group: usize, w: u32) -> Option<usize> {
-        let w = u16::try_from(w).ok()?;
-        if group >= g.groups {
+        let b = &self.bigrams;
+        let group = v as usize;
+        if group >= b.groups {
             return None;
         }
-        let (mut lo, mut hi) = self.range(g, group);
+        // The starts were checked to be in order and within the section.
+        let range = (
+            u32_at(&self.bytes, b.start, group) as usize,
+            u32_at(&self.bytes, b.start, group + 1) as usize,
+        );
+        self.find(b.next, range, w)
+    }
+
+    /// Length of trigram group `j`; every long group was checked to be in the long list.
+    fn trigram_len(&self, j: usize) -> usize {
+        let t = &self.trigrams;
+        let len = usize::from(self.bytes[t.length + j]);
+        if len < LONG {
+            return len;
+        }
+        let (mut lo, mut hi) = (0, t.n_long);
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
-            match u16_at(&self.bytes, g.next, mid).cmp(&w) {
+            match (u32_at(&self.bytes, t.long_group, mid) as usize).cmp(&j) {
+                std::cmp::Ordering::Less => lo = mid + 1,
+                std::cmp::Ordering::Greater => hi = mid,
+                std::cmp::Ordering::Equal => {
+                    return u32_at(&self.bytes, t.long_length, mid) as usize;
+                }
+            }
+        }
+        0
+    }
+
+    /// Positions of trigram group `j`, which is below `groups`.
+    fn trigram_range(&self, j: usize) -> (usize, usize) {
+        let first = j - j % BLOCK;
+        let base = u32_at(&self.bytes, self.trigrams.base, j / BLOCK) as usize;
+        let start = base + (first..j).map(|i| self.trigram_len(i)).sum::<usize>();
+        (start, start + self.trigram_len(j))
+    }
+
+    /// Where `w` is among the ascending ids at `next`, between the two positions of `range`.
+    fn find(&self, next: usize, range: (usize, usize), w: u32) -> Option<usize> {
+        let w = u16::try_from(w).ok()?;
+        let (mut lo, mut hi) = range;
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            match u16_at(&self.bytes, next, mid).cmp(&w) {
                 std::cmp::Ordering::Less => lo = mid + 1,
                 std::cmp::Ordering::Greater => hi = mid,
                 std::cmp::Ordering::Equal => return Some(mid),

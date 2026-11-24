@@ -32,6 +32,28 @@ fn restores_exactly_like_the_python_model() {
 }
 
 #[test]
+fn restores_through_a_long_trigram_group_like_the_python_model() {
+    let t = Table::open(fixture("long.timsen")).unwrap();
+    let runs = std::fs::read_to_string(fixture("long.runs")).unwrap();
+    let expected = std::fs::read_to_string(fixture("long.expected")).unwrap();
+    assert_eq!(runs.lines().count(), expected.lines().count());
+    for (run, want) in runs.lines().zip(expected.lines()) {
+        let words: Vec<&str> = run.split(' ').collect();
+        assert_eq!(
+            t.restore(&words, ToneStyle::New).join(" "),
+            want,
+            "run: {run}"
+        );
+    }
+    // Only the trigram after "ta có" picks the rarer tone.
+    assert_eq!(
+        t.restore(&["ta", "co", "ba"], ToneStyle::New),
+        ["ta", "có", "bá"]
+    );
+    assert_eq!(t.restore(&["anh", "thay", "ba"], ToneStyle::New)[2], "bà");
+}
+
+#[test]
 fn keeps_capitalization_and_unknown_words() {
     let got = table().restore(&["Toi", "go", "PHIM", "Commit"], ToneStyle::New);
     assert_eq!(got, ["Tôi", "gõ", "PHÍM", "Commit"]);
