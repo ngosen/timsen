@@ -47,3 +47,12 @@ def test_shifted_output_is_an_error(test_file, tmp_path):
         external.score_sentences(test_file, restored(tmp_path, "tôi gõ phím, rồi nghỉ 5 phút.\n"))
     with pytest.raises(ValueError):
         external.score_runs(test_file, restored(tmp_path, "tôi gõ phím\nrồi nghỉ\nphút\nhoà bình\nthừa\n"))
+
+
+def test_a_stray_combining_mark_does_not_join_the_word_before_it(tmp_path, capsys):
+    path = tmp_path / "test"
+    path.write_text("mẹ về\u0300 rồi\n", encoding="utf-8")
+    external.strip(path, runs=False)
+    plain = capsys.readouterr().out
+    assert plain == "me ve  roi\n"
+    assert external.score_sentences(path, restored(tmp_path, plain))["words"] == 3

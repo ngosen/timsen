@@ -6,6 +6,8 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Added
 
+- `research.external`: scores another program's restoration of a test file on the words
+  `research.evaluate` counts; used to measure VietTelex's 2 MB model on the frozen test files.
 - `Typing::shared`, `Typing::with_shared_personal`, `Personal::shared` and `Personal::load_shared`
   take the table or dictionary as an `Arc`, so an input method can keep a run in each field with no
   lifetime. The borrowing constructors are unchanged.

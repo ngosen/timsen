@@ -8,13 +8,24 @@ instead (see text.segments), which is the context research.evaluate gives a mode
 """
 
 import argparse
+import unicodedata
 
 from .evaluate import evaluate
 from .text import TOKEN, WORD, normalize, same, segments, strip_marks
 
 
 def stripped(line):
-    return TOKEN.sub(lambda m: strip_marks(m[0]) if WORD.match(m[0]) else m[0], normalize(line.rstrip("\n")))
+    def plain(m):
+        if WORD.match(m[0]):
+            return strip_marks(m[0])
+        # A stray combining mark would join the unmarked word before it into a marked one.
+        return " " if unicodedata.combining(m[0]) else m[0]
+
+    return TOKEN.sub(plain, normalize(line.rstrip("\n")))
+
+
+def words(line):
+    return [t for t in TOKEN.findall(normalize(line)) if WORD.match(t)]
 
 
 def strip(path, runs):
@@ -36,23 +47,22 @@ def score_runs(path, restored):
 
 
 def score_sentences(path, restored):
-    words = right = sents = sents_right = 0
+    total = right = sents = sents_right = 0
     truths, gots = open(path, encoding="utf-8"), open(restored, encoding="utf-8")
     for truth, got in zip(truths, gots, strict=True):
-        want, have = TOKEN.findall(normalize(truth)), TOKEN.findall(normalize(got))
-        # A restorer that merges or splits tokens would shift every later word against the truth.
+        want, have = words(truth), words(got)
+        # A restorer that merges or splits words would shift every later word against the truth.
         if len(want) != len(have):
-            raise ValueError(f"sentence {sents + 1}: {len(have)} tokens restored for {len(want)}")
+            raise ValueError(f"sentence {sents + 1}: {len(have)} words restored for {len(want)}")
         ok = True
         for t, g in zip(want, have):
-            if WORD.match(t):
-                hit = same(t, g)
-                words += 1
-                right += hit
-                ok &= hit
+            hit = same(t, g)
+            total += 1
+            right += hit
+            ok &= hit
         sents += 1
         sents_right += ok
-    return dict(sents=sents, words=words, word=right / words, sent=sents_right / sents)
+    return dict(sents=sents, words=total, word=right / total, sent=sents_right / sents)
 
 
 def main():

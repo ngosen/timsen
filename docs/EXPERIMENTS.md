@@ -2554,3 +2554,32 @@ lexicon in filtered sentences; here every word counts, names and English include
 its own figures: whole sentences `wiki` 91.5%, `subs` 93.5%, `forum` 91.5%, each within 1.5 points;
 behind the small table by about 4.5, 2.2 and 1.8 points. One run per line: within 0.3 points of
 whole sentences, below it.
+
+Result. The checks held: the small table scored 96.03%, 95.73% and 93.26% on 73,604, 31,845 and
+92,220 words, so the rebuilt files are the frozen ones; the stripped input scored 20.03%, 15.94%
+and 16.46%, and each test file against itself 100%. One line of `subs` holds a stray combining
+mark after a word; stripped, it joined that word into a marked one and the sentence lost a token,
+so `strip` now writes a space for such a mark and `score` aligns words only (a test covers it).
+The figures below are from the run after that fix; `wiki` and `forum` did not move.
+
+| | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| Small table, 22.65 MB | 96.03% | 95.73% | 93.26% |
+| VietTelex, 1.99 MB, whole sentences | 92.94% | 94.30% | 89.54% |
+| VietTelex, one run per line | 92.98% | 94.39% | 89.61% |
+| Behind the small table (whole sentences) | 3.09 | 1.43 | 3.72 |
+| Sentences all right: small table / VietTelex | 68.12% / 50.70% | 76.55% / 70.80% | 46.67% / 31.72% |
+| Unmarked words changed: small table / VietTelex (runs) | 3.18% / 5.85% | 3.37% / 4.53% | 6.92% / 11.88% |
+
+Against the prediction: `wiki` (91.5%) and `subs` (93.5%) hit, both higher than predicted, by 1.4
+and 0.8; `forum` (91.5%) missed, 2.0 lower. The order of the gaps was wrong: predicted largest on
+`wiki` and smallest on `forum`, it is largest on `forum` and smallest on `subs`. One run per line
+is within 0.3 points as predicted, but above whole sentences, not below.
+
+Conclusion: at a twelfth of the size VietTelex is 1.4 points behind on subtitles and 3 to 4 behind
+on Wikipedia and forum text, where it leaves one sentence in two (`wiki`) and two in three
+(`forum`) with a wrong word. Half of its loss on `forum` is unmarked words it adds marks to (11.88%
+of them, against 6.92%): its lexicon holds Vietnamese syllables only, and forum text is full of
+English and abbreviations. This compares two whole systems (model, lexicon, decoder and curated
+pairs), not two table sizes: it does not say what the small table would score pruned to 2 MB,
+which needs the trained model, not rebuilt here. Seeing context across commas did not help it.
