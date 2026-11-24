@@ -4,10 +4,25 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ## Unreleased
 
+### Changed
+
+- Table format version 3: a count is one byte (one of 256 levels) and a bigram's trigrams are found
+  from a length byte, so the same n-grams take about half the file: the small table goes from
+  22.65 MB to 12.37 MB with the same accuracy. The crate reads version 3 only; a version 2 file is
+  an `Error`. Opening no longer passes over every n-gram, and the table takes no memory beyond its
+  file.
+- The large table is now 49.69 MB instead of 130.96 MB, and scores 97.04% on Wikipedia, 96.55% on
+  subtitles and 94.26% on forum text (the 130.96 MB one: 97.15%, 96.59%, 94.30%).
+
+### Fixed
+
+- `research.prune --bytes` kept every n-gram when the budget had room for none, and could write a
+  file over the budget when many n-grams weighed the same as the last one kept.
+
 ### Added
 
-- `research.quant`: scores a table with its counts rounded to a few bits and sizes the denser file
-  that would hold it; one byte per count loses nothing measurable.
+- `research.quant`: scores a table with its counts rounded to a few bits; one byte per count loses
+  nothing measurable.
 - `research.external`: scores another program's restoration of a test file on the words
   `research.evaluate` counts; used to measure VietTelex's 2 MB model on the frozen test files.
 - `Typing::shared`, `Typing::with_shared_personal`, `Personal::shared` and `Personal::load_shared`

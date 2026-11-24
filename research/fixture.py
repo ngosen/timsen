@@ -2,8 +2,9 @@
 
 usage: python -m research.fixture [OUT_DIR]   (default: crates/timsen/tests/fixtures)
 Writes tiny.timsen, tiny.runs and tiny.expected, for the personal dictionary tiny.learned and
-tiny.personal.expected, and for fixing unknown syllables tiny.fixes. Rerun after changing the table
-format or the model.
+tiny.personal.expected, and for fixing unknown syllables tiny.fixes. long.timsen, long.runs and
+long.expected are a second table where one pair of words has hundreds of continuations. Rerun after
+changing the table format or the model.
 """
 
 import gzip
@@ -58,21 +59,52 @@ FIX_RUNS = [
     "xyzzy",
     "gia dinh toi o ha noii",
 ]
+# Syllables that follow "ta có" with a rising tone and "anh thấy" with a falling one, which is the
+# commoner of the two: only the trigram after "ta có" restores the rising one.
+LONG_SYLLABLES = [
+    o + r for o in "bcdghklmnprstvx" for r in "a e i o u an en in on un am em im om um ang ong ung anh inh ay".split()
+]
+RISING, FALLING = str.maketrans("aeiou", "áéíóú"), str.maketrans("aeiou", "àèìòù")
+LONG_OTHERS = ["ta về nhà rồi", "ta ăn cơm rồi", "ta đi chợ rồi", "ta xem phim rồi"]
+
+
+def marked(syllable, tones):
+    """The syllable with a tone on its last vowel."""
+    at = max(i for i, c in enumerate(syllable) if c in "aeiou")
+    return syllable[:at] + syllable[at].translate(tones) + syllable[at + 1 :]
+
+
+def long_corpus():
+    lines = [f"ta có {marked(s, RISING)}" for s in LONG_SYLLABLES] * 5
+    lines += [f"anh thấy {marked(s, FALLING)}" for s in LONG_SYLLABLES] * 7
+    return lines + LONG_OTHERS * 5
+
+
+def long_test():
+    picked = LONG_SYLLABLES[::7]
+    lines = [f"ta có {marked(s, RISING)}, anh thấy {marked(s, FALLING)}." for s in picked]
+    return lines + [f"{marked(s, FALLING)} {marked(s, RISING)}" for s in picked[:5]] + LONG_OTHERS
+
+
+def build_table(tmp, out, name, corpus, test):
+    """Trains on the corpus, writes NAME.timsen and how it restores the runs of the test lines."""
+    with gzip.open(tmp / f"{name}.txt.gz", "wt", encoding="utf-8") as f:
+        f.write("\n".join(corpus) + "\n")
+    argv = ["train", str(tmp / f"{name}.npz"), name]
+    with mock.patch.object(paths, "DATA", tmp), mock.patch.object(sys, "argv", argv):
+        with mock.patch.object(train, "WORKERS", 1):
+            train.main()
+    table.write(Model(tmp / f"{name}.npz"), out / f"{name}.timsen")
+    (tmp / "test").write_text("\n".join(test) + "\n", encoding="utf-8")
+    crosscheck.write(out / f"{name}.timsen", tmp / "test", out / f"{name}.runs", out / f"{name}.expected")
 
 
 def build(out):
     out.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
-        with gzip.open(tmp / "tiny.txt.gz", "wt", encoding="utf-8") as f:
-            f.write("\n".join(CORPUS) + "\n")
-        argv = ["train", str(tmp / "tiny.npz"), "tiny"]
-        with mock.patch.object(paths, "DATA", tmp), mock.patch.object(sys, "argv", argv):
-            with mock.patch.object(train, "WORKERS", 1):
-                train.main()
-        table.write(Model(tmp / "tiny.npz"), out / "tiny.timsen")
-        (tmp / "test").write_text("\n".join(TEST) + "\n", encoding="utf-8")
-        crosscheck.write(out / "tiny.timsen", tmp / "test", out / "tiny.runs", out / "tiny.expected")
+        build_table(tmp, out, "long", long_corpus(), long_test())
+        build_table(tmp, out, "tiny", CORPUS, TEST)
         (tmp / "personal").write_text("\n".join(PERSONAL) + "\n", encoding="utf-8")
         learned, expected = out / "tiny.learned", out / "tiny.personal.expected"
         crosscheck.write_personal(out / "tiny.timsen", tmp / "personal", out / "tiny.runs", learned, expected)

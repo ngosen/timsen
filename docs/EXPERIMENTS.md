@@ -2755,3 +2755,82 @@ computed for a layout no file uses yet: the next step is version 3 of the format
 `research.table` and the crate, checked against these figures. Not measured: `chat`, where the
 small and large tables were level with the personal dictionary, so the gain may be on edited text
 only.
+
+## 2026-11-25 · Format version 3: one byte per count, under 50 MB
+
+Question: "Where accuracy stops rising" sized a dense layout without writing it. Does a real file
+in that layout, read by `research.table` and by the crate, score what was computed, and what does
+the largest table under 50 MB (50,000,000 bytes) score?
+
+Setup: format version 3 (layout in `research/table.py`): per bigram a 16-bit id, a count code and a
+leftover code; per trigram a 16-bit id and a count code; the trigrams of a bigram are found from
+one length byte per bigram and a full offset every 32 bigrams. A count is the nearest of 256 levels
+spaced evenly in log between 1 and the largest count. The leftover of each context is taken from
+the exact counts when the file is written, and stored: a byte per bigram and a float per word.
+Tables from the stored model with `research.prune --min-plain 1000`, scored with
+`research.evaluate` on the frozen `wiki`, `subs` and `forum` files. The crate is compared with
+`research.table` on every run of the three files (`research.crosscheck`, then the `restore`
+example), and timed with the `latency` example in runs of 50 and 200 against `main` reading a
+version 2 table of the same n-grams, alternately, twice each; the learned text is the first 500
+lines of the frozen `subs` file.
+
+Check that the format is what changed: `--entries 2965860` keeps the n-grams of the released small
+table (912,919 bigrams and 2,052,941 trigrams), which scored 96.03%, 95.73% and 93.26% in version 2.
+
+Prediction, before writing any real table:
+
+- the small table's n-grams: 912,919 + 2,052,941 again, a file of 12.2 to 12.6 MB (11.13 MB
+  computed, plus a leftover byte per bigram and the per-word floats), each set within 0.03 points
+  of version 2;
+- `--bytes 50000000`: a file between 49.5 and 50.0 MB, about 3.2 million bigrams and 10.6 million
+  trigrams, scoring 97.05%, 96.55% and 94.25%, each within 0.1;
+- `--bytes 30000000`: 96.80%, 96.30% and 94.05%, each within 0.1;
+- the crate restores every run of the three files like `research.table`, on both tables;
+- timing on the 50 MB table: p50 per key up to 30% above version 2 with the same n-grams, since a
+  trigram lookup now adds up to 31 lengths; p99 per key under 3 ms in runs of 50 and of 200;
+  opening takes under half the time, since version 2 summed every trigram count on opening.
+
+Result. Tables, scored by `research.evaluate`:
+
+| Table | File | n-grams (bigrams + trigrams) | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- | --- | --- |
+| `--entries 2965860` | 12,374,504 bytes | 912,919 + 2,052,941 | 96.03% | 95.75% | 93.26% |
+| `--bytes 30000000` | 29,821,584 bytes | 1,982,506 + 6,038,540 | 96.75% | 96.32% | 94.07% |
+| `--bytes 50000000` | 49,687,280 bytes | 3,184,296 + 10,604,400 | 97.04% | 96.55% | 94.26% |
+
+The crate against `research.table`, on the 11,765 runs of `wiki`, the 5,460 of `subs` and the
+10,179 of `forum`: no run differs, on any of the three tables. That the comparison can see a
+difference: the 50 MB and the 30 MB table restore 494 `wiki` runs differently.
+
+Timing, `latency` example, release build, Xeon E5-2696 v4, load average 5.3 at the start and 2.4 at
+the end (other jobs ran); 197,650 keys in runs of 50 and 197,600 in runs of 200, from the runs of
+the three files. `main` read a version 2 table of the same 3,184,296 + 10,604,400 n-grams
+(96.67 MB), the branch the 49.69 MB table; rounds 1 and 2:
+
+| | `main`, version 2 | branch, version 3 |
+| --- | --- | --- |
+| open | 133.0, 135.8 ms | 43.9, 44.5 ms |
+| resident after typing | 117.0, 116.8 MB | 56.4, 56.4 MB |
+| p50 per key, runs of 50 | 0.287, 0.285 ms | 0.291, 0.277 ms |
+| p99 per key, runs of 50 | 1.950, 1.931 ms | 1.987, 1.903 ms |
+| p50 per key, runs of 200 | 0.311, 0.294 ms | 0.320, 0.299 ms |
+| p99 per key, runs of 200 | 1.952, 1.869 ms | 2.021, 1.909 ms |
+| largest key | 12.2 ms | 12.4 ms |
+
+The two versions do not type the same text (the hashes of what was shown differ), as rounded
+counts allow; each is the same in both of its rounds. The 12.37 MB table opens in 16.7 ms, holds
+18.6 MB after typing and has p99 1.646 ms per key in runs of 50 (one round).
+
+Against the prediction: the small table's n-grams are the same and the file is 12.37 MB, as
+predicted; `wiki` and `forum` are equal to version 2 and `subs` is 0.02 higher. The 50 MB file is
+49.69 MB with 3.18 million bigrams and 10.60 million trigrams and scores within 0.01 of the
+prediction on every set. The 30 MB file is within 0.05. The crate restores every run alike. Timing
+missed the right way on p50: no slowdown outside the spread between rounds, not up to 30%; p99
+stays near 2 ms, under 3 ms; opening takes a third of the time, as predicted (under half).
+
+Conclusion: version 3 holds the same n-grams in about half the file with no loss in accuracy or
+speed, and a table under 50 MB scores 97.04%, 96.55% and 94.26%: 1.01, 0.82 and 1.00 points above
+the released small table, and 0.11, 0.04 and 0.04 under the 130.96 MB table of version 2. Not
+measured: `chat` with and without the personal dictionary on either version 3 table; the first key
+after opening; and a download compressed with zstd, which took the version 2 small table from
+22.65 MB to 8.06 MB.
