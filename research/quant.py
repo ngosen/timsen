@@ -43,11 +43,11 @@ def quantize(m, bits, keep_leftover):
     return m
 
 
-def dense_bytes(fixed, n_bi, n_tri, leftover):
+def dense_bytes(fixed, n_words, n_bi, n_tri, leftover):
     """File size with a 16-bit id and an 8-bit count code per n-gram, a one-byte trigram row length
     per bigram with an offset every CHECKPOINT bigrams, and optionally a leftover byte per bigram."""
     per_bigram = 2 + 1 + 1 + 4 / CHECKPOINT + (1 if leftover else 0)
-    return int(fixed + n_bi * per_bigram + n_tri * 3)
+    return int(fixed + 4 * (n_words + 1) + n_bi * per_bigram + n_tri * 3)
 
 
 def main():
@@ -63,7 +63,7 @@ def main():
     quantize(m, a.bits, a.keep_leftover)
     print(
         f"{a.table}: bits {a.bits} keep-leftover {a.keep_leftover} bigrams {n_bi:,} trigrams {n_tri:,} "
-        f"dense {dense_bytes(fixed, n_bi, n_tri, a.keep_leftover) / 1e6:.2f} MB",
+        f"dense {dense_bytes(fixed, len(m.words), n_bi, n_tri, a.keep_leftover) / 1e6:.2f} MB",
         flush=True,
     )
     for test in a.tests:

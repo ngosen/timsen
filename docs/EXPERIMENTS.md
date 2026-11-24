@@ -2649,3 +2649,26 @@ half of 22.65 MB. A step at 8 bits is about 0.07 in log score, small next to the
 8 bits with the leftover kept: within 0.05 points of exact on every set. 8 bits with the leftover
 from rounded counts: 0.1 to 0.5 points lower. 6 bits (step 0.29), leftover kept: 0.05 to 0.3 lower.
 4 bits (step 1.2): 0.5 to 2 lower.
+
+## 2026-11-24 · Where accuracy stops rising, and what fits under 50 MB
+
+Question: the owner's target changed from the smallest file to the most accurate one that can be
+brought under 50 MB. How large must a table be before more n-grams stop helping, and how close to
+that does a 30 MB or a 50 MB file come once counts take one byte ("Counts in one byte")?
+
+Setup: `research.prune --bytes` at 130958840 (the large table), 260 MB and 520 MB, and the
+unpruned model with `research.evaluate MODEL.npz`, all on the frozen `wiki`, `subs` and `forum`
+files. For the dense layout, version 2 tables of 56, 62 and 68 MB (about 30 MB dense) and of 100,
+110 and 120 MB (about 50 MB dense), each scored exact (`research.quant TABLE 0`) and with counts
+rounded to 8 bits and the leftover kept (`research.quant TABLE 8 --keep-leftover`), which prints
+the dense size. The model is the stored one (`data-store/model.npz`), not retrained: the entry
+"How small can the table go?" says the corpora were fetched again, which was started and stopped
+once the stored model was found. The stored test files are byte for byte the rebuilt ones.
+
+Prediction, before reading any of these runs. Larger tables: 130.96 MB scores 97.15%, 96.59% and
+94.30% as recorded; 260 MB adds 0.2 to 0.4 points on `wiki` and `forum`; 520 MB adds under 0.2
+more; the unpruned model is within 0.2 of 520 MB, and may be lower on `subs` or `forum`, as the
+unpruned count model was on chat. So accuracy stops rising between 260 MB and 520 MB. Dense: a
+30 MB file holds the n-grams of a 60 MB version 2 table and scores about 96.65% on `wiki`, 96.2% on
+`subs` and 93.85% on `forum`; a 50 MB file those of about 110 MB and scores about 97.05%, 96.5% and
+94.2%, within 0.15 of the large table, each within 0.2 points.
