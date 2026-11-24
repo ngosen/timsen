@@ -7,11 +7,14 @@ who mostly write long edited text.
 | | Small (default) | Large |
 | --- | --- | --- |
 | File | 12.37 MB | 49.69 MB |
+| Chat + personal | 89.24% | 88.49% |
+| Chat | 82.94% | 83.95% |
 | Wikipedia | 96.03% | 97.04% |
 | Subtitles | 95.75% | 96.55% |
 | Forum | 93.26% | 94.26% |
 
-On edited prose the large table gets about one more word in 100 right. Keeping every n-gram of the
+On edited prose, and on chat before the personal dictionary has learned anything, the large table
+gets about one more word in 100 right. Once it has learned, the small table is ahead on chat. Keeping every n-gram of the
 model would add 0.5 points on Wikipedia, 0.3 on subtitles and nothing on forum text ("Where accuracy
 stops rising, and what fits under 50 MB" in [`EXPERIMENTS.md`](EXPERIMENTS.md)), so the large table
 is close to what this model can do.
@@ -30,10 +33,11 @@ The figures are from "Format version 3: one byte per count, under 50 MB" in
 the 22.65 MB table of format version 2; the large one replaces the 130.96 MB table, which scored
 97.15%, 96.59% and 94.30%.
 
-Chat has not been measured in version 3. In version 2 the small table scored 90.61% on chat and
-92.91% with the personal dictionary, and the 130.96 MB table 90.65% and 92.78% ("Forum pages from
-every FineWeb-2 file"): on chat the small table was as good as the large one. Chat is 2,604
-sentences from one writer, so it may differ for other people. How each step got here, from the count-pruned tables of 2026-10-15: choosing n-grams by weight ("Keeping the n-grams that matter instead of the frequent ones"), the
+Chat is 18,553 sentences from one writer's Messenger messages ("The two version 3 tables on
+Messenger chat"), so it may differ for other people. It is a different set from the 2,604 prompts
+to a coding assistant used in version 2, where the small table scored 90.61% and 92.91% with the
+personal dictionary and the 130.96 MB table 90.65% and 92.78% ("Forum pages from every FineWeb-2
+file"); figures on the two sets are not comparable. How each step got here, from the count-pruned tables of 2026-10-15: choosing n-grams by weight ("Keeping the n-grams that matter instead of the frequent ones"), the
 leftover backoff ("Backoff that knows how much of a context was pruned"), the personal weight, now
 min(3000, table total / tokens learned) ("A personal weight that falls as the dictionary grows"), the denser format ("A denser table file") and the
 technology forums ("A technology-forum slice"; forum pages from the other files made it worse).

@@ -2834,3 +2834,45 @@ the released small table, and 0.11, 0.04 and 0.04 under the 130.96 MB table of v
 measured: `chat` with and without the personal dictionary on either version 3 table; the first key
 after opening; and a download compressed with zstd, which took the version 2 small table from
 22.65 MB to 8.06 MB.
+
+## 2026-11-25 · The two version 3 tables on Messenger chat
+
+Question: the 49.69 MB table is about one point above the 12.37 MB one on edited prose. Is it also
+ahead on chat, alone and with the personal dictionary? That decides which one is the default.
+
+Setup: a new chat set, not comparable with the earlier ones (those were prompts typed to a coding
+assistant): the maintainer's own messages from a Messenger export, other senders left out, links
+and repeated messages removed, the latest 20,000 kept; `research.chat_testset` makes 18,553
+sentences and 126,027 words of them. Kept in RAM and deleted after the run. Both tables from
+"Format version 3: one byte per count, under 50 MB", scored with
+`research.personal TABLE CHAT 0 auto`: weight 0 is the table alone, `auto` the personal dictionary
+learned from the other four fifths, 5-fold.
+
+Check that the personal counts are applied: `auto` must differ from weight 0 on both tables.
+
+Prediction, before any run on this set. Messages to people are less technical and more colloquial
+than the prompts, with more words the table lacks, so the table alone scores lower than the 90.6%
+of the earlier chat set: small 86% to 90%. The large table is 0.1 to 0.5 points above the small one
+alone. The personal dictionary adds 2 to 4 points to each, and with it the two tables are within
+0.3 points of each other, as on the earlier chat set (92.91% and 92.78%).
+
+Result, 123,071 words scored:
+
+| | Small, 12.37 MB | Large, 49.69 MB |
+| --- | --- | --- |
+| table alone (weight 0) | 82.94% | 83.95% |
+| with the personal dictionary (`auto`) | 89.24% | 88.49% |
+
+The check passed: `auto` differs from weight 0 by 6.30 and 4.54 points.
+
+Against the prediction: missed on every count. The table alone is 3 points under the predicted
+range (82.94%, not 86% to 90%). The large table is 1.01 above the small one alone, not 0.1 to 0.5.
+The personal dictionary adds 6.30 and 4.54 points, not 2 to 4. With it the small table is ahead by
+0.75, outside the 0.3 predicted.
+
+Conclusion: on chat the default stays the small table. The large one is better only for a user
+with no personal dictionary yet; once the dictionary has learned, the small table gets more words
+right in a quarter of the file. The personal dictionary matters more here than table size: 6
+points against 1. Not tried: why the large table gains less (a fixed weight instead of `auto`, or a
+weight scaled to the number of n-grams kept), how many messages it takes for the small table to
+pass the large one (`--fractions`), and other writers.

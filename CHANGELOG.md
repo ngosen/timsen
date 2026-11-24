@@ -12,7 +12,8 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   an `Error`. Opening no longer passes over every n-gram, and the table takes no memory beyond its
   file.
 - The large table is now 49.69 MB instead of 130.96 MB, and scores 97.04% on Wikipedia, 96.55% on
-  subtitles and 94.26% on forum text (the 130.96 MB one: 97.15%, 96.59%, 94.30%).
+  subtitles and 94.26% on forum text (the 130.96 MB one: 97.15%, 96.59%, 94.30%). On chat with
+  the personal dictionary the small table stays ahead (89.24% and 88.49%), so it stays the default.
 
 ### Fixed
 

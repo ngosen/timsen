@@ -136,26 +136,27 @@ Hai bảng đều dùng chung định dạng nhị phân và hoạt động cùn
 | Bộ kiểm tra | Bảng nhỏ (mặc định) | Bảng lớn |
 | :--- | :--- | :--- |
 | Kích thước tệp | 12,37 MB | 49,69 MB |
+| Trò chuyện + từ điển cá nhân | 89,24% | 88,49% |
+| Trò chuyện | 82,94% | 83,95% |
 | Wikipedia | 96,03% | 97,04% |
 | Phụ đề | 95,75% | 96,55% |
 | Diễn đàn | 93,26% | 94,26% |
 
-Số liệu lấy từ mục "Format version 3: one byte per count, under 50 MB" trong
-[`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md):
+Số liệu lấy từ hai mục "Format version 3: one byte per count, under 50 MB" và "The two version 3
+tables on Messenger chat" trong [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md):
 
 - **Bộ kiểm tra:** `wiki` (4.000 câu, 73.604 từ), `subs` (4.000 câu, 31.845 từ) và `forum` (4.000
-  câu, 92.220 từ) là các tệp giữ riêng, không bao giờ dùng để huấn luyện. `chat` gồm 2.604 câu lấy từ
-  tin nhắn của một người viết, nên kết quả có thể khác với người khác; bộ này chưa được đo lại ở
-  định dạng version 3.
+  câu, 92.220 từ) là các tệp giữ riêng, không bao giờ dùng để huấn luyện. `chat` gồm 18.553 câu lấy từ
+  tin nhắn Messenger của một người viết, nên kết quả có thể khác với người khác.
 - **Dữ liệu huấn luyện:** cả hai bảng đều được huấn luyện trên Wikipedia, OpenSubtitles, các tệp
   diễn đàn 1–4 của FineWeb-2 và các diễn đàn công nghệ từ tệp 1–29
   (`python -m research.train MODEL.npz wiki subs forum tech`).
 - **Tỉa bớt từ vựng:** cả hai bảng đều bỏ qua các từ không dấu xuất hiện dưới 1.000 lần mà cách
   viết duy nhất chỉ là chính nó (`--min-plain 1000`), giúp giữ nguyên từ tiếng Anh và lỗi gõ phím
   như khi gõ mà không tốn dung lượng bảng.
-- **Lựa chọn bảng:** ở định dạng version 2, khi gõ trò chuyện có kèm từ điển cá nhân, bảng nhỏ
-  đạt kết quả ngang ngửa một bảng 130,96 MB (92,91% so với 92,78%). Với văn bản biên tập chỉn
-  chu, bảng lớn đoán đúng hơn khoảng 1 từ trên 100 từ (96,03% so với 97,04% trên Wikipedia). Bảng nhỏ phát hành trước và là mặc
+- **Lựa chọn bảng:** khi gõ trò chuyện có kèm từ điển cá nhân, bảng nhỏ nhỉnh hơn bảng lớn
+  (89,24% so với 88,49%). Với văn bản biên tập chỉn chu, hoặc khi từ điển cá nhân chưa học được
+  gì, bảng lớn đoán đúng hơn khoảng 1 từ trên 100 từ (96,03% so với 97,04% trên Wikipedia). Bảng nhỏ phát hành trước và là mặc
   định; bảng lớn là tuỳ chọn cho người dùng chủ yếu soạn thảo các văn bản dài đã qua biên tập.
 - **Mức chiếm dụng bộ nhớ:** tệp bảng được đọc toàn bộ vào bộ nhớ khi mở (~17 ms với bảng nhỏ,
   ~44 ms với bảng lớn); sau khi đã gõ qua, bảng nhỏ chiếm khoảng 19 MB RAM và bảng lớn 56 MB.
