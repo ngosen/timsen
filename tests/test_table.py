@@ -85,3 +85,11 @@ def test_personal_counts_add_to_the_table_total(model_path, tmp_path):
     personal.personalize(t, base, ["tôi gõ phím"], 2)
     assert "tôi" not in t.id
     assert t.total == base[6] + 2 * (2 + 1)  # gõ, phím and one end of run; tôi is unknown
+
+
+def test_stored_floats_do_not_depend_on_the_last_bit_of_exp_and_log(model_path, tmp_path):
+    table.write(Model(model_path), tmp_path / "t.timsen")
+    t = table.read(tmp_path / "t.timsen")
+    assert (t.left_uni < 0).any()
+    for a in (table.count_levels(123457.0), table.LEFT_LEVELS, t.left_uni, np.array([t.left_bos])):
+        assert (a == a.astype(np.float32)).all()
