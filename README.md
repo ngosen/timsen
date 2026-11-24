@@ -73,10 +73,10 @@ chưa có tính năng này, và chưa có C API.
 
 Tiến độ từng bước theo [`docs/PLAN.md`](docs/PLAN.md):
 
-- **Bước 1 · Đóng gói bảng dữ liệu (Đã xong):** định dạng bảng nhị phân version 2 được ghi bởi
-  `research.table` với các n-gram chọn lọc từ `research.prune --bytes`. Cả hai bảng nhỏ (22,65 MB,
-  mặc định) và lớn (130,96 MB) đều đã được đo đạc trên trò chuyện, Wikipedia, phụ đề và văn bản
-  diễn đàn ([`docs/TABLES.md`](docs/TABLES.md)).
+- **Bước 1 · Đóng gói bảng dữ liệu (Đã xong):** định dạng bảng nhị phân version 3 được ghi bởi
+  `research.table` với các n-gram chọn lọc từ `research.prune`. Cả hai bảng nhỏ (12,37 MB, mặc
+  định) và lớn (49,69 MB) đều đã được đo đạc trên Wikipedia, phụ đề và văn bản diễn đàn
+  ([`docs/TABLES.md`](docs/TABLES.md)).
 - **Bước 2 · Thêm dấu cả đoạn trong Rust (Đã xong):** crate `timsen` (`crates/timsen`) đọc bảng
   `.timsen` và khôi phục các đoạn âm tiết không dấu khớp chính xác kết quả của `research.model`,
   giữ nguyên chữ hoa/thường và hỗ trợ cả kiểu đặt dấu thanh cũ lẫn mới.
@@ -135,31 +135,30 @@ Hai bảng đều dùng chung định dạng nhị phân và hoạt động cùn
 
 | Bộ kiểm tra | Bảng nhỏ (mặc định) | Bảng lớn |
 | :--- | :--- | :--- |
-| Kích thước tệp | 22,65 MB | 130,96 MB |
-| Trò chuyện + từ điển cá nhân | 92,91% | 92,78% |
-| Trò chuyện | 90,61% | 90,65% |
-| Wikipedia | 96,03% | 97,15% |
-| Phụ đề | 95,73% | 96,59% |
-| Diễn đàn | 93,26% | 94,30% |
+| Kích thước tệp | 12,37 MB | 49,69 MB |
+| Wikipedia | 96,03% | 97,04% |
+| Phụ đề | 95,75% | 96,55% |
+| Diễn đàn | 93,26% | 94,26% |
 
-Mọi số liệu đều lấy từ mục "Forum pages from every FineWeb-2 file" trong
+Số liệu lấy từ mục "Format version 3: one byte per count, under 50 MB" trong
 [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md):
 
 - **Bộ kiểm tra:** `wiki` (4.000 câu, 73.604 từ), `subs` (4.000 câu, 31.845 từ) và `forum` (4.000
   câu, 92.220 từ) là các tệp giữ riêng, không bao giờ dùng để huấn luyện. `chat` gồm 2.604 câu lấy từ
-  tin nhắn của một người viết, nên kết quả có thể khác với người khác.
+  tin nhắn của một người viết, nên kết quả có thể khác với người khác; bộ này chưa được đo lại ở
+  định dạng version 3.
 - **Dữ liệu huấn luyện:** cả hai bảng đều được huấn luyện trên Wikipedia, OpenSubtitles, các tệp
   diễn đàn 1–4 của FineWeb-2 và các diễn đàn công nghệ từ tệp 1–29
   (`python -m research.train MODEL.npz wiki subs forum tech`).
 - **Tỉa bớt từ vựng:** cả hai bảng đều bỏ qua các từ không dấu xuất hiện dưới 1.000 lần mà cách
   viết duy nhất chỉ là chính nó (`--min-plain 1000`), giúp giữ nguyên từ tiếng Anh và lỗi gõ phím
   như khi gõ mà không tốn dung lượng bảng.
-- **Lựa chọn bảng:** khi gõ trò chuyện có kèm từ điển cá nhân, bảng nhỏ đạt kết quả ngang ngửa
-  bảng lớn (92,91% so với 92,78%). Với văn bản biên tập chỉn chu, bảng lớn đoán đúng hơn khoảng
-  1 từ trên 100 từ (96,03% so với 97,15% trên Wikipedia). Bảng nhỏ phát hành trước và là mặc
+- **Lựa chọn bảng:** ở định dạng version 2, khi gõ trò chuyện có kèm từ điển cá nhân, bảng nhỏ
+  đạt kết quả ngang ngửa một bảng 130,96 MB (92,91% so với 92,78%). Với văn bản biên tập chỉn
+  chu, bảng lớn đoán đúng hơn khoảng 1 từ trên 100 từ (96,03% so với 97,04% trên Wikipedia). Bảng nhỏ phát hành trước và là mặc
   định; bảng lớn là tuỳ chọn cho người dùng chủ yếu soạn thảo các văn bản dài đã qua biên tập.
-- **Mức chiếm dụng bộ nhớ:** tệp bảng được đọc toàn bộ vào bộ nhớ khi mở (~40 ms), bảng nhỏ chiếm
-  khoảng 31 MB RAM sau khi đã gõ qua.
+- **Mức chiếm dụng bộ nhớ:** tệp bảng được đọc toàn bộ vào bộ nhớ khi mở (~17 ms với bảng nhỏ,
+  ~44 ms với bảng lớn); sau khi đã gõ qua, bảng nhỏ chiếm khoảng 19 MB RAM và bảng lớn 56 MB.
 
 <a id="crate-rust"></a>
 
@@ -177,7 +176,7 @@ hoặc kho git.
 use timsen::{Table, ToneStyle};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Open the small binary table (22.65 MB)
+    // Open the small binary table (12.37 MB)
     let table = Table::open("small.timsen")?;
 
     // Restore unaccented syllables

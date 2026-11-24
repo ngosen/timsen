@@ -27,10 +27,11 @@ machine; the only thing a user may choose to send is a score (see "From users").
 ## Decisions
 
 - **Model:** syllable 3-grams with stupid backoff, in two tables of the same format, built by
-  `research.prune --bytes`: small (22.65 MB), **the default**, and large (130.96 MB). Both leave out
+  `research.prune`: small (12.37 MB), **the default**, and large (49.69 MB). Both leave out
   unmarked words seen fewer than 1,000 times whose only spelling is themselves. With the personal
-  dictionary the small one is ahead on chat (92.58% and 92.21%); on edited prose the large one leads
-  by about one point (wiki 96.08% and 97.21%), `docs/TABLES.md`. The small table ships first; the
+  dictionary the small one was level with a 130.96 MB table on chat (92.91% and 92.78%, format
+  version 2); on edited prose the large one leads by about one point (wiki 96.03% and 97.04%),
+  `docs/TABLES.md`. The small table ships first; the
   large one is added later if users ask for better accuracy on longer writing. Kneser-Ney at the
   same sizes gained 0.3–0.5 points on edited prose and 0–0.3 on chat over the count-pruned tables,
   but cannot take personal counts by simple addition; revisit only with a measured way to combine it

@@ -6,28 +6,34 @@ who mostly write long edited text.
 
 | | Small (default) | Large |
 | --- | --- | --- |
-| File | 22.65 MB | 130.96 MB |
-| Chat + personal | 92.91% | 92.78% |
-| Chat | 90.61% | 90.65% |
-| Wikipedia | 96.03% | 97.15% |
-| Subtitles | 95.73% | 96.59% |
-| Forum | 93.26% | 94.30% |
+| File | 12.37 MB | 49.69 MB |
+| Wikipedia | 96.03% | 97.04% |
+| Subtitles | 95.75% | 96.55% |
+| Forum | 93.26% | 94.26% |
 
-On chat the small table is as good as the large one; on edited prose the large one gets about one
-more word in 100 right.
+On edited prose the large table gets about one more word in 100 right. Keeping every n-gram of the
+model would add 0.5 points on Wikipedia, 0.3 on subtitles and nothing on forum text ("Where accuracy
+stops rising, and what fits under 50 MB" in [`EXPERIMENTS.md`](EXPERIMENTS.md)), so the large table
+is close to what this model can do.
 
 Both are built from the model trained on Wikipedia, subtitles, forum pages from FineWeb-2 files 1
 to 4 and technology forums from files 1 to 29 (`python -m research.train MODEL.npz wiki subs forum
-tech`), in format version 2:
+tech`), in format version 3:
 
 ```
-python -m research.prune MODEL.npz small.timsen --bytes 22650896 --min-plain 1000
-python -m research.prune MODEL.npz large.timsen --bytes 130958840 --min-plain 1000
+python -m research.prune MODEL.npz small.timsen --entries 2965860 --min-plain 1000
+python -m research.prune MODEL.npz large.timsen --bytes 50000000 --min-plain 1000
 ```
 
-All figures are from "Forum pages from every FineWeb-2 file" in [`EXPERIMENTS.md`](EXPERIMENTS.md);
-chat is 2,604 sentences from one writer, so it may differ for other people, the others are the
-frozen test files. How each step got here, from the count-pruned tables of 2026-10-15: choosing n-grams by weight ("Keeping the n-grams that matter instead of the frequent ones"), the
+The figures are from "Format version 3: one byte per count, under 50 MB" in
+[`EXPERIMENTS.md`](EXPERIMENTS.md), on the frozen test files. The small table keeps the n-grams of
+the 22.65 MB table of format version 2; the large one replaces the 130.96 MB table, which scored
+97.15%, 96.59% and 94.30%.
+
+Chat has not been measured in version 3. In version 2 the small table scored 90.61% on chat and
+92.91% with the personal dictionary, and the 130.96 MB table 90.65% and 92.78% ("Forum pages from
+every FineWeb-2 file"): on chat the small table was as good as the large one. Chat is 2,604
+sentences from one writer, so it may differ for other people. How each step got here, from the count-pruned tables of 2026-10-15: choosing n-grams by weight ("Keeping the n-grams that matter instead of the frequent ones"), the
 leftover backoff ("Backoff that knows how much of a context was pruned"), the personal weight, now
 min(3000, table total / tokens learned) ("A personal weight that falls as the dictionary grows"), the denser format ("A denser table file") and the
 technology forums ("A technology-forum slice"; forum pages from the other files made it worse).
@@ -70,8 +76,8 @@ At the time the large table got about 1.7 more words in 100 right on edited pros
 pruning and the denser format, the gap is about one word in 100.
 
 The whole file is read into memory when it opens, so its size is also the memory it takes: the small
-table opens in about 40 ms and holds 31 MB once typing has touched it ("Reading the table into
-memory instead of mapping it").
+table opens in about 17 ms and holds 19 MB once typing has touched it, the large one in about 44 ms
+and 56 MB ("Format version 3: one byte per count, under 50 MB").
 
 Measured on 2026-10-15 with `research.evaluate` and `research.personal` (5-fold, weight 100); see
 "Pruned table for shipping" in [`EXPERIMENTS.md`](EXPERIMENTS.md).
