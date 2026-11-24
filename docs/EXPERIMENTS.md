@@ -2583,3 +2583,44 @@ of them, against 6.92%): its lexicon holds Vietnamese syllables only, and forum 
 English and abbreviations. This compares two whole systems (model, lexicon, decoder and curated
 pairs), not two table sizes: it does not say what the small table would score pruned to 2 MB,
 which needs the trained model, not rebuilt here. Seeing context across commas did not help it.
+
+## 2026-11-24 · How small can the table go?
+
+Question: the small table is 22.65 MB because that size was chosen from count-pruned version 1
+files; weighted pruning and the version 2 format came later and nobody looked below it again.
+VietTelex's whole model is 1.99 MB ("VietTelex's 2 MB model on the same test files"). What does
+the table lose at each size down to that, and is there a size well under 22.65 MB that loses
+little?
+
+Setup: the model trained again as in `docs/TABLES.md` (`research.train MODEL.npz wiki subs forum
+tech`; the corpora fetched again, since `/tmp` was lost), then `research.prune MODEL.npz OUT
+--bytes N --min-plain 1000` for N = 22650896, 16, 11, 8, 6, 4, 3 MB (N × 1,000,000) and 1991768,
+VietTelex's size. Scored with `research.evaluate` on the frozen `wiki`, `subs` and `forum` files,
+the same copies as in the VietTelex entry. Format and scoring unchanged, so this moves one thing:
+how many n-grams are kept. Not measured: `chat` and the personal dictionary (the chat file is not
+on this machine); the sizes that hold up here still need that run before one is shipped.
+
+Check that the retrained model is the one the tables were built from: the table pruned to
+22,650,896 bytes is byte for byte the released one (sha256 `295e88c0…1ba9`). If it is not, it
+must at least score 96.03%, 95.73% and 93.26%; anything else and the sweep is on a different
+model, to be said so.
+
+Prediction, before running. From 14.4 MB to 22.65 MB the version 2 table gained 0.43, 0.37 and
+0.57 points ("A denser table file"), about 0.65, 0.55 and 0.85 per doubling, and each halving
+should cost more than the one before. Each figure within 0.5 points:
+
+| Size | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| 22.65 MB | 96.03% | 95.73% | 93.26% |
+| 16 MB | 95.75% | 95.50% | 92.85% |
+| 11 MB | 95.30% | 95.15% | 92.30% |
+| 8 MB | 94.85% | 94.80% | 91.80% |
+| 6 MB | 94.40% | 94.45% | 91.30% |
+| 4 MB | 93.60% | 93.90% | 90.50% |
+| 3 MB | 93.00% | 93.40% | 89.80% |
+| 1.99 MB | 92.00% | 92.70% | 88.80% |
+
+So at VietTelex's size the table is expected to lose to VietTelex (92.94%, 94.30%, 89.54%) on
+all three sets: it spends 6 bytes on an n-gram and 4 more on a bigram, where VietTelex's
+quantized scores take a little over 2. If that holds, going far below 22.65 MB is a question of
+the file format before it is one of pruning.
