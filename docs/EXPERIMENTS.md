@@ -2624,3 +2624,28 @@ So at VietTelex's size the table is expected to lose to VietTelex (92.94%, 94.30
 all three sets: it spends 6 bytes on an n-gram and 4 more on a bigram, where VietTelex's
 quantized scores take a little over 2. If that holds, going far below 22.65 MB is a question of
 the file format before it is one of pruning.
+
+## 2026-11-24 · Counts in one byte
+
+Question: a version 2 file spends 6 bytes on a trigram (a 16-bit id, a 32-bit count) and 10 on a
+bigram (the same, and a 32-bit offset to its trigrams); zstd shrinks the small table from 22.65 MB
+to 8.06 MB, so most of that is slack. VietTelex stores a score in 4 to 6 bits. If each count were a
+one-byte code, and the trigram offsets one byte per bigram with a full offset every 32 bigrams,
+the same n-grams would take about half the file. Does restore still pick the same words?
+
+Setup: `research.quant TABLE BITS TESTS`, on the released small table: counts of bigrams and
+trigrams rounded in the log domain to 2^BITS levels between 1 and the largest count, word counts
+left exact, scored with `research.evaluate` on the frozen files. The leftover of a context is one
+minus the share of its count that its kept trigrams cover, so rounded counts can push an almost
+covered context to the floor or away from it; `--keep-leftover` keeps the leftover the exact counts
+gave, rounded to 256 levels, as a file with one more byte per bigram would. `dense_bytes` sizes the
+layout above from the table's own numbers of bigrams and trigrams. No file is written yet: this
+only says whether the rounding is safe and what it would save.
+
+Check: BITS 0 leaves the counts exact and must score 96.03%, 95.73% and 93.26%.
+
+Prediction, before running. Size of the small table's n-grams in the dense layout: about 11 MB,
+half of 22.65 MB. A step at 8 bits is about 0.07 in log score, small next to the backoff (0.92), so
+8 bits with the leftover kept: within 0.05 points of exact on every set. 8 bits with the leftover
+from rounded counts: 0.1 to 0.5 points lower. 6 bits (step 0.29), leftover kept: 0.05 to 0.3 lower.
+4 bits (step 1.2): 0.5 to 2 lower.
