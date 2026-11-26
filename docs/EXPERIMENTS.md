@@ -2987,3 +2987,51 @@ put right about 4 more typos in 100. Not measured: the chat set (with and
 without the personal dictionary) and the hand-labelled real typos of "Fixing unknown syllables on
 real typos", both of which need the writer's messages; the released tables stay as they are until
 chat is measured.
+
+## 2026-11-26 · Lower fix margins, decided when the word ends
+
+Question: Ngó Sen may offer the syllable fix at three levels, each a margin passed to
+`Run::fixing`, and will ship only levels with a measured precision. On the released small table, how
+do the share of fixes that are right and the typos fixed change at margins 3, 2 and 1, decided when
+the word ends as the crate does?
+
+Setup: `research.typo --typing` on the released 12.37 MB table, frozen `wiki`, `subs` and `forum`
+files, the typo model and seed of the earlier entries; the script prints every margin of
+`MARGINS`. "Fixing unknown syllables in the crate, decided when a word ends" showed the crate makes
+the same decisions as `research.typo --typing`. Fixed right is also given as a share of all typos.
+
+Check that the margins are applied: the figures must change from one margin to the next, and margin
+4 must be near that entry's figures (23.2–24.8% of scored typos fixed right, 98.0–99.5% right).
+
+Prediction, before the run:
+
+- margin 4: 22–26% of scored typos fixed right, 98.0–99.5% of fixes right on each set;
+- margin 3: 96.5–98.5% right, 2–4 points more typos fixed;
+- margin 2: 94–97% right; margin 1: 90–95% right;
+- clean words changed at most 0.03% at margin 1 on every set.
+
+Result, released small table, decided when the word ends (fixes right / typos fixed right, of the
+scored typos and of all typos / clean words changed). The forum file has sha256 prefix
+f3340b657361c8d7.
+
+| Margin | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| 4 | 99.5% / 24.0%, 13.8% / 0.005% | 98.7% / 24.7%, 12.4% / 0.006% | 98.0% / 21.5%, 11.7% / 0.004% |
+| 3 | 98.9% / 28.5%, 16.4% / 0.007% | 97.0% / 31.2%, 15.6% / 0.009% | 96.7% / 27.0%, 14.7% / 0.007% |
+| 2 | 97.4% / 33.0%, 19.0% / 0.012% | 95.1% / 37.6%, 18.8% / 0.009% | 94.8% / 31.9%, 17.4% / 0.009% |
+| 1 | 95.0% / 37.1%, 21.4% / 0.016% | 92.1% / 43.7%, 21.9% / 0.013% | 90.4% / 38.1%, 20.8% / 0.013% |
+
+The check passed: every figure moves from one margin to the next, and margin 4 is within the
+earlier entry's range (24.0%, 24.7% and 21.5% fixed right; 98.0% to 99.5% right).
+
+Against the prediction: margin 4 hit on both counts. Margin 3 is right 96.7% to 98.9% of the time:
+`subs` and `forum` in the predicted 96.5% to 98.5%, `wiki` above it; it fixes 4.5 to 6.5 points
+more of the scored typos, not 2 to 4. Margin 2 is right 94.8% to 97.4%: `wiki` above the predicted
+94% to 97%. Margin 1 hit (90.4% to 95.0%), as did clean words changed (at most 0.016%).
+
+Conclusion: each step down from 4 buys about 3 more typos fixed in 100, and costs 1 to 2 points
+of the fixes being right at margin 3, 3 to 4 at margin 2 and 5 to 8 at margin 1, where one fix in
+ten is wrong on `forum`. A setting with three levels can stand on margins 4, 3 and 2: at worst
+98.0%, 96.7% and 94.8% right. These are synthetic typos, and decided only by the words before; the
+writer's chat and real typos are not measured, and on real typos at margin 4 ("Fixing unknown
+syllables on real typos") fixes were too few to give a share.
