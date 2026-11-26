@@ -15,14 +15,13 @@ clean runs and their mistyped copies, for checking another implementation (see w
 
 import argparse
 import random
-import string
 
 import numpy as np
 
 from . import table
 from .model import UNK, Model
 from .spellcheck import local_score
-from .text import segments, strip_marks
+from .text import edits, segments, strip_marks
 
 MARGINS = [0, 1, 2, 3, 4, 5, 6, 8]
 ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
@@ -39,21 +38,6 @@ def neighbours():
 
 
 NEAR = neighbours()
-
-
-def edits(word):
-    """Every string one edit away: replace, remove or add a letter, or swap two neighbours."""
-    out = set()
-    for i in range(len(word) + 1):
-        a, b = word[:i], word[i:]
-        if b:
-            out.add(a + b[1:])
-            out.update(a + c + b[1:] for c in string.ascii_lowercase)
-        if len(b) > 1:
-            out.add(a + b[1] + b[0] + b[2:])
-        out.update(a + c + b for c in string.ascii_lowercase)
-    out.discard(word)
-    return out
 
 
 def typo(word, rng):
