@@ -36,9 +36,10 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   see, so a run never mixes two sets of counts. A file that fails to reload leaves it as it was.
 - `Dictionary::open` keeps the dictionary in a file it never loses. A file that does not load is
   left byte for byte and saving stops until `start_empty`, which renames it to `<name>.broken`.
-  `begin_save`, `SaveJob::write` and `finish_save` replace the file whole (readable by the user
-  only, synced, renamed into place), one save at a time, and drop a save begun before a clear or
-  reload. `reload_file` keeps what was learned since the last save. Lines naming a word the table
+  `begin_save`, `SaveJob::write`, `finish_save`, `SyncJob::sync` and `finish_sync` replace the
+  file whole (readable by the user only, synced, renamed into place), one save at a time, and drop
+  a save begun before a clear or reload. Writing and syncing need no access to the dictionary, so
+  an input method does both with its lock released. `reload_file` keeps what was learned since the last save. Lines naming a word the table
   cannot take are written back unchanged.
 - `Run` tracks a run as the field shows it and, when a word ends, gives one `Change`: the syllables
   it replaces as the field shows them and their new spellings, so the input method checks the old
