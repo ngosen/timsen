@@ -1,6 +1,6 @@
 """Writes a pruned model as the fixed binary table the library maps from disk, and reads it back.
 
-usage: python -m research.table MODEL.npz OUT.timsen --min-tri N --min-bi N [--min-plain N]
+usage: python -m research.table MODEL.npz OUT.timsen --min-tri N --min-bi N [--min-plain N] [--drop-typos N]
 
 Layout, little-endian, each section padded to a multiple of 8 bytes:
   header    8s magic, u32 version, u32 n_long, u64 n_words n_bigrams n_trigrams n_plain n_cand, f64 total
@@ -36,6 +36,7 @@ from collections import defaultdict
 import numpy as np
 
 from .model import BOS, EOS, FLOOR, SHIFT, UNK, Model
+from .text import MARKED, edits, is_syllable
 
 MAGIC = b"TIMSEN\0\0"
 VERSION = 3
@@ -45,6 +46,35 @@ BLOCK = 32  # trigram groups per stored base
 MAX_WORDS = 1 << 16
 HEADER = struct.Struct("<8sII5Qd")
 MASK = (1 << SHIFT) - 1
+
+
+def drop_typos(m, below):
+    """Takes typos the corpus has out of the spellings offered: a spelling seen fewer than `below`
+    times that is no syllable (khôgn) and whose plain form is one edit from a plain form whose best
+    spelling is a syllable seen at least ten times as often. Its plain form may then be left with no
+    spelling, so restore keeps it as typed and the syllable fix can reach it."""
+    if below <= 0:
+        return 0
+
+    def common(q):
+        ids = m.cand.get(q)
+        if not ids:
+            return False
+        best = max(ids, key=lambda i: m.uni[i])
+        return m.uni[best] >= 10 * below and is_syllable(m.words[best])
+
+    dropped = 0
+    for p in list(m.cand):
+        ids = m.cand[p]
+        typos = [i for i in ids if m.uni[i] < below and MARKED.search(m.words[i]) and not is_syllable(m.words[i])]
+        if typos and any(common(q) for q in edits(p)):
+            kept = [i for i in ids if i not in typos]
+            if kept:
+                m.cand[p] = kept
+            else:
+                del m.cand[p]
+            dropped += len(typos)
+    return dropped
 
 
 def options_table(m, min_plain=0):
@@ -278,8 +308,11 @@ def main():
     ap.add_argument("--min-tri", type=int, default=1)
     ap.add_argument("--min-bi", type=int, default=1)
     ap.add_argument("--min-plain", type=int, default=0, help="leave out rarer words that restore as typed")
+    ap.add_argument("--drop-typos", type=int, default=0, metavar="N", help="see drop_typos")
     a = ap.parse_args()
-    write(Model(a.model, a.min_tri, a.min_bi), a.out, a.min_plain)
+    m = Model(a.model, a.min_tri, a.min_bi)
+    drop_typos(m, a.drop_typos)
+    write(m, a.out, a.min_plain)
 
 
 if __name__ == "__main__":

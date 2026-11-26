@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import pytest
 
-from research import model, paths, personal, table, train
+from research import model, paths, personal, table, text, train
 from research.model import Model
 
 # "gỗ" ends up below the candidate threshold, so the table drops it and the n-grams that use it.
@@ -93,3 +93,31 @@ def test_stored_floats_do_not_depend_on_the_last_bit_of_exp_and_log(model_path, 
     assert (t.left_uni < 0).any()
     for a in (table.count_levels(123457.0), table.LEFT_LEVELS, t.left_uni, np.array([t.left_bos])):
         assert (a == a.astype(np.float32)).all()
+
+
+def stub(counts):
+    """A model with only the words, counts and spellings drop_typos reads."""
+    m = Model.__new__(Model)
+    m.words = ["<s>", "</s>", "<unk>", *counts]
+    m.id = {w: i for i, w in enumerate(m.words)}
+    m.uni = np.array([0, 0, 0, *counts.values()], dtype=np.float64)
+    m.cand = {}
+    for i, w in enumerate(m.words[3:], 3):
+        m.cand.setdefault(text.strip_marks(w), []).append(i)
+    return m
+
+
+def test_drop_typos_takes_out_rare_typos_of_a_common_syllable():
+    m = stub({"không": 50000, "khôgn": 100, "khogn": 16, "sôcôla": 300, "đc": 400, "dc": 300, "đặc": 9000})
+    assert table.drop_typos(m, 1000) == 1
+    assert m.cand["khogn"] == [m.id["khogn"]]
+    # No syllable one edit away (sôcôla), or none seen ten times as often (đc beside đặc, 9,000 < 10,000).
+    assert m.cand["socola"] == [m.id["sôcôla"]]
+    assert m.cand["dc"] == [m.id["đc"], m.id["dc"]]
+
+
+def test_drop_typos_keeps_common_forms_and_does_nothing_at_zero():
+    m = stub({"không": 50000, "khôgn": 1000})
+    assert table.drop_typos(m, 0) == 0
+    assert table.drop_typos(m, 1000) == 0
+    assert m.cand["khogn"] == [m.id["khôgn"]]

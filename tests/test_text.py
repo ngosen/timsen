@@ -1,4 +1,4 @@
-from research.text import BREAK, canon, marked_share, same, segments, strip_marks
+from research.text import BREAK, canon, is_syllable, marked_share, same, segments, strip_marks
 
 
 def test_strip_marks_removes_tones_hooks_and_d_bar():
@@ -34,3 +34,10 @@ def test_marked_share_counts_words_with_any_mark():
     share, n = marked_share("tôi đi học ok")
     assert n == 4
     assert share == 0.75
+
+
+def test_is_syllable_takes_hard_syllables_and_turns_away_typos():
+    for w in ["không", "nghiêng", "khuỷu", "quyển", "giữa", "gìn", "ừ", "oẳng", "thuở", "người"]:
+        assert is_syllable(w), w
+    for w in ["khôgn", "đc", "sôcôla", "bcủa", "nămm", "đamg"]:
+        assert not is_syllable(w), w

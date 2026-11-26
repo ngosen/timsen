@@ -2,7 +2,7 @@
 most frequent ones, at a fixed number of n-grams or file size.
 
 usage: python -m research.prune MODEL.npz OUT.timsen --entries N|--bytes N [--min-plain N] [--min-candidate N]
-                                [--random SEED]
+                                [--random SEED] [--drop-typos N]
 
 An n-gram's weight is its count times how far its own log score is from the score restore would use
 without it (the next shorter n-gram, with the backoff penalty), after Stolcke (1998). A bigram that is
@@ -10,6 +10,7 @@ the context of a kept trigram is always kept, since the trigram's score divides 
 --bytes keeps as many n-grams as fit in a file of that size. --random keeps the same number of
 n-grams chosen at random, to show the weights matter. --min-candidate raises how often a spelling must
 be seen to be offered; a larger corpus brings more rare spellings than a table has word ids for.
+--drop-typos leaves out rare spellings that are typos of a common syllable (see table.drop_typos).
 """
 
 import argparse
@@ -108,9 +109,11 @@ def main():
     ap.add_argument("--min-plain", type=int, default=0)
     ap.add_argument("--min-candidate", type=int, default=model_mod.MIN_CANDIDATE)
     ap.add_argument("--random", type=int, default=None, metavar="SEED")
+    ap.add_argument("--drop-typos", type=int, default=0, metavar="N", help="see table.drop_typos")
     a = ap.parse_args()
     model_mod.MIN_CANDIDATE = a.min_candidate
     m = Model(a.model)
+    print(f"dropped {table.drop_typos(m, a.drop_typos):,} typo spellings", flush=True)
     select(m, a.entries, a.min_plain, a.random, a.bytes)
     print(f"kept {len(m.bk):,} bigrams and {len(m.tk):,} trigrams", flush=True)
     table.write(m, a.out, a.min_plain)

@@ -1,6 +1,7 @@
 """Tokenizing, mark stripping and tone-placement normalization shared by every script."""
 
 import re
+import string
 import unicodedata
 
 VI_MARKED = "ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ"
@@ -12,6 +13,12 @@ MARKED = re.compile(f"[{VI_MARKED}]")
 SENTENCE_END = re.compile(r"[.!?\n]+")
 # Stands for a comma, digit or symbol inside a sentence when runs keep their context across it.
 BREAK = "<p>"
+VOWELS = "aăâeêioôơuưy" + "áàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ"
+ONSETS = "ngh|ng|nh|ch|gh|gi|kh|ph|qu|th|tr|b|c|d|đ|g|h|k|l|m|n|p|r|s|t|v|x"
+CODAS = "ch|ng|nh|c|m|n|p|t"
+# The shape of one syllable, loose on purpose: it lets through some strings no dictionary has, so it
+# never turns away a real syllable.
+SYLLABLE = re.compile(f"^(?:{ONSETS})?[{VOWELS}]{{1,3}}(?:{CODAS})?$")
 # Old tone placement puts the mark on the first vowel of oa/oe/uy at the end of a syllable (hòa, thủy).
 OLD_STYLE = re.compile("([òóỏõọ])([ae])$|([ùúủũụ])(y)$")
 
@@ -67,3 +74,23 @@ def marked_share(text):
     if not words:
         return 0.0, 0
     return sum(bool(MARKED.search(w)) for w in words) / len(words), len(words)
+
+
+def is_syllable(word):
+    """Whether a lowercase word has the shape of one Vietnamese syllable (see SYLLABLE)."""
+    return SYLLABLE.match(word) is not None
+
+
+def edits(word):
+    """Every string one edit away: replace, remove or add a letter, or swap two neighbours."""
+    out = set()
+    for i in range(len(word) + 1):
+        a, b = word[:i], word[i:]
+        if b:
+            out.add(a + b[1:])
+            out.update(a + c + b[1:] for c in string.ascii_lowercase)
+        if len(b) > 1:
+            out.add(a + b[1] + b[0] + b[2:])
+        out.update(a + c + b for c in string.ascii_lowercase)
+    out.discard(word)
+    return out

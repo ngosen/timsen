@@ -2905,3 +2905,85 @@ tables only.
 The chat set was built again from the same export and the rebuilt tables scored on it, with the
 same commands: alone 82.92% and 83.93%, with the personal dictionary 89.24% and 88.49%. The docs
 give these.
+
+## 2026-11-26 · Typos the corpus has, taken out of the table
+
+Question: both version 3 tables restore `khogn` as `khôgn`. The corpus has that Telex typo 100
+times, so the table knows `khogn` and the syllable fix never sees it: the example the docs give for
+the fix does not work on the released tables. Does leaving out rare spellings that are typos of a
+common syllable let the fix reach them, without costing accuracy on clean text?
+
+Setup: `table.drop_typos` with `--drop-typos 1000` leaves out a spelling seen fewer than 1,000 times
+that is no syllable (`text.is_syllable`: an onset, one to three vowels and a coda) and whose plain
+form is one edit from a plain form whose best spelling is a syllable seen at least 10,000 times. A
+plain form left with no spelling then restores as typed and is a fix target. A filter on the
+syllable shape alone was looked at first and set aside: on the small table it drops 16,075 spellings,
+among them loanwords people write (`sôcôla`, `milivôn`). The one-edit condition narrows that to 4,301
+on the small table (`arất`, `bcủa`, `nămm`, `đamg`, `phònng`, but also `kơho` and `carô`).
+Tables from the stored model with the commands of "Format version 3: one byte per count, under
+50 MB" plus `--drop-typos 1000`: `research.prune MODEL --entries 2965860 --min-plain 1000` and
+`--bytes 50000000 --min-plain 1000`. Scored with `research.evaluate` and `research.typo` (margin 4,
+the crate's `FIX_MARGIN`) on the frozen `wiki`, `subs` and `forum` files, against the released
+version 3 tables, which are scored with `research.typo` here for the first time.
+
+Check that the filter is applied: `prune` reports the spellings dropped, and `khogn` is missing from
+the new tables' plain forms while `không` is still there.
+
+Prediction, before building either table:
+
+- 4,000 to 12,000 spellings dropped from the model (the model keeps spellings seen 5 times or more,
+  more than either table);
+- the small table's file within 0.1 MB of 12.37 MB with the same number of n-grams;
+- `research.evaluate` within 0.02 points of the released tables on each set, on both tables;
+- `research.typo`, margin 4: the share of typos landing on a known form falls by 0.5 to 2 points on
+  each set, typos fixed right rise by 0.3 to 1.5 points, fixes stay at least 98.5% right, and
+  clean words changed stay at or under 0.01%;
+- the crate fixes `toi khogn biet` to `tôi không biết` at the end of the run on the new small table.
+
+The check passed: `prune` dropped 4,301 spellings for each table, `khogn` is no longer a plain
+form of either new table, and `khong` keeps its spellings. The released tables, scored again here,
+give the documented `research.evaluate` figures, so the numbers below compare like with like.
+
+Result. `research.evaluate`:
+
+| Table | File | n-grams | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- | --- | --- |
+| small, released | 12,374,504 bytes | 912,919 + 2,052,941 | 96.03% | 95.74% | 93.27% |
+| small, `--drop-typos 1000` | 12,161,520 bytes | 908,736 + 2,057,124 | 96.03% | 95.75% | 93.26% |
+| large, released | 49,687,280 bytes | 3,184,296 + 10,604,400 | 97.04% | 96.55% | 94.26% |
+| large, `--drop-typos 1000` | 49,684,536 bytes | 3,168,771 + 10,697,980 | 97.04% | 96.55% | 94.26% |
+
+`research.typo` at margin 4, the same typos on both tables of a size (11,248 on `wiki`, 5,364 on
+`subs`, 9,891 on `forum`). Fixed right is given as a share of all typos, since the typos that land
+on a known form, which are left out of the scored ones, are what the filter changes:
+
+| Table, set | Landed on a known form | Fixed right, of all typos | Right, of fixes | Clean words changed |
+| --- | --- | --- | --- | --- |
+| small, `wiki` | 42.41% → 33.99% | 25.97% → 29.38% | 99.4% → 99.2% | 0.005% → 0.007% |
+| small, `subs` | 49.96% → 40.14% | 24.87% → 29.93% | 99.3% → 99.1% | 0.009% → 0.009% |
+| small, `forum` | 45.46% → 36.70% | 23.78% → 27.91% | 98.7% → 98.3% | 0.011% → 0.012% |
+| large, `wiki` | 42.41% → 33.99% | 25.92% → 29.44% | 99.5% → 99.4% | 0.011% → 0.012% |
+| large, `subs` | 49.96% → 40.14% | 25.17% → 30.29% | 99.0% → 99.0% | 0.009% → 0.009% |
+| large, `forum` | 45.46% → 36.70% | 24.82% → 29.18% | 98.4% → 98.5% | 0.014% → 0.017% |
+
+The crate (`Typing::fix` on the new small table) fixes `khogn` in `toi khogn biet` to `khong`, then
+marked `không`, by a margin of 14.8; on the released table it restores `khôgn`. `khogn` typed alone
+is not fixed (margin −0.9): with no context the fix is not sure enough.
+
+Against the prediction: 4,301 spellings dropped, at the low end of 4,000 to 12,000: the model keeps
+no typo of this kind that the tables leave out. The small file is 0.21 MB smaller, outside the
+0.1 MB predicted: 5,728 fewer words, and the n-grams through them. Accuracy on clean text moved by at
+most 0.01 points, as predicted. The typo figures missed by far, the right way: typos landing on a
+known form fell by 8.4 to 9.8 points (0.5 to 2 predicted), and typos fixed right rose by 3.4 to 5.1
+points of all typos (0.3 to 1.5 predicted). Corpus typos are the very typos people make, so the few
+thousand left out took a fifth of the typos that landed on a known form. Fixes right missed on `forum` with the
+small table: 98.3%, under the 98.5% predicted, still above the 98% that "Fixing syllables the table
+does not know" asked of auto-fixing. Clean words changed stayed at or under 0.012%, against 0.01%
+predicted: missed on `forum` by 0.002 on the small table and 0.007 on the large one, at one to
+three words in 92,220.
+
+Conclusion: leaving out these spellings costs nothing measurable on clean text and lets the fix
+put right about 4 more typos in 100. Not measured: the chat set (with and
+without the personal dictionary) and the hand-labelled real typos of "Fixing unknown syllables on
+real typos", both of which need the writer's messages; the released tables stay as they are until
+chat is measured.
