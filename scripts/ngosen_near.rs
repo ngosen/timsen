@@ -14,9 +14,14 @@
 //! key, `m` one key of a doubled pair left out, `i` any other key left out. Two slips are listed
 //! only when neither is one of `f`, `e`, `i`.
 //!
+//! `NGOSEN_NEAR_WAYS=one` stops the search at one slip and `narrow` at one slip that is neither
+//! `f` nor `i`, the two kinds that take a key string for every other letter. With `NGOSEN_NEAR_COUNT` set, the number of words searched and of key strings
+//! typed for them goes to stderr at the end.
+//!
 //! Built outside this repository, in a crate with `ngosen-bamboo` (the `bamboo-rs` directory of
 //! ngosen/ngosen) as a path dependency.
 
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::ffi::{CStr, CString, c_char};
 use std::fs::File;
@@ -96,11 +101,15 @@ fn slips(typed: &[u8]) -> Vec<(Vec<u8>, char)> {
 }
 
 /// The key strings one or two slips away from `typed`, each with the kinds of slips that lead to it.
-fn nearby(typed: &[u8]) -> HashMap<Vec<u8>, BTreeSet<String>> {
+/// `ways` narrows the search: "one" to one slip, "narrow" to one slip that is neither `f` nor `i`.
+fn nearby(typed: &[u8], ways: &str) -> HashMap<Vec<u8>, BTreeSet<String>> {
     let cheap = |kind: char| "nstrpm".contains(kind);
     let mut out: HashMap<Vec<u8>, BTreeSet<String>> = HashMap::new();
     for (keys, kind) in slips(typed) {
-        if cheap(kind) && typed.len() <= LONGEST_FOR_TWO {
+        if ways == "narrow" && "fi".contains(kind) {
+            continue;
+        }
+        if ways == "all" && cheap(kind) && typed.len() <= LONGEST_FOR_TWO {
             for (keys, second) in slips(&keys) {
                 if cheap(second) {
                     let mut kinds = [kind, second];
@@ -132,7 +141,11 @@ fn take(text: *mut c_char) -> String {
     }
 }
 
-struct Core(usize);
+struct Core {
+    engine: usize,
+    ways: String,
+    typed: Cell<(u64, u64)>,
+}
 
 impl Core {
     /// An engine set up as Ngó Sen sets one up with its default settings, Telex.
@@ -165,27 +178,35 @@ impl Core {
         };
         core::EngineSetEnglishWords(engine, core::NewWordList(english));
         core::EngineSetKeepGuard(engine, core::NewWordList(keep));
-        Ok(Core(engine))
+        let ways = std::env::var("NGOSEN_NEAR_WAYS").unwrap_or_else(|_| "all".to_string());
+        Ok(Core {
+            engine,
+            ways,
+            typed: Cell::new((0, 0)),
+        })
     }
 
     /// What the field holds after these keys and a space, lowercased.
     fn shown(&self, keys: &[u8]) -> String {
-        core::ResetEngine(self.0);
-        take(core::EnginePullCommit(self.0));
+        core::ResetEngine(self.engine);
+        take(core::EnginePullCommit(self.engine));
         for &key in keys.iter().chain(b" ") {
-            core::EngineProcessKeyEvent(self.0, u32::from(key), 0);
+            core::EngineProcessKeyEvent(self.engine, u32::from(key), 0);
         }
-        let mut text = take(core::EnginePullCommit(self.0));
+        let mut text = take(core::EnginePullCommit(self.engine));
         if text.is_empty() {
-            core::EngineCommitPreedit(self.0);
-            text = take(core::EnginePullCommit(self.0));
+            core::EngineCommitPreedit(self.engine);
+            text = take(core::EnginePullCommit(self.engine));
         }
         text.trim_end().to_lowercase()
     }
 
     fn words_nearby(&self, typed: &[u8], shown: &str, known: &HashSet<String>) -> String {
         let mut words: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-        for (keys, kinds) in nearby(typed) {
+        let nearby = nearby(typed, &self.ways);
+        let (words_searched, strings) = self.typed.get();
+        self.typed.set((words_searched + 1, strings + nearby.len() as u64));
+        for (keys, kinds) in nearby {
             let word = self.shown(&keys);
             if word != shown && known.contains(&unmarked(&word)) {
                 words.entry(word).or_default().extend(kinds);
@@ -221,6 +242,10 @@ fn main() -> io::Result<()> {
             Some(_) => writeln!(out, "{shown}\t")?,
             None => writeln!(out, "{shown}")?,
         }
+    }
+    if std::env::var_os("NGOSEN_NEAR_COUNT").is_some() {
+        let (words, strings) = core.typed.get();
+        eprintln!("{words} words searched, {strings} key strings typed");
     }
     Ok(())
 }
