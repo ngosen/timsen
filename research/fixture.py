@@ -3,7 +3,7 @@
 usage: python -m research.fixture [OUT_DIR]   (default: crates/timsen/tests/fixtures)
 Writes tiny.timsen, tiny.runs and tiny.expected, for the personal dictionary tiny.learned and
 tiny.personal.expected, for fixing unknown syllables tiny.fixes, and for fixing them to words near
-their keys tiny.nearby. long.timsen, long.runs and
+their keys tiny.nearby, and decided once more with the word after tiny.nearby-after. long.timsen, long.runs and
 long.expected are a second table where one pair of words has hundreds of continuations. Rerun after
 changing the table format or the model.
 """
@@ -73,6 +73,16 @@ NEARBY = [
     ("tôi gõ", "Phsifm", {"phím": ["n"]}),
     ("", "ngwoif", {"người": ["m"], "tôi": ["nn"]}),
 ]
+# (words before, word shown, nearby words, word after): the word after settles a tie, lifts a fix that
+# was short of the margin, picks the other of two words, and is itself a word the table lacks.
+NEARBY_AFTER = [
+    ("", "ngwoif", {"người": ["m"], "tôi": ["nn"]}, "ta"),
+    ("nhà ta có", "gox", {"gỗ": ["s"], "gõ": ["s"]}, "quý"),
+    ("người ta có", "gox", {"gỗ": ["s"], "gõ": ["s"]}, "cửa"),
+    ("bàn", "phmi", {"phím": ["e"], "này": ["f"]}, "này"),
+    ("tôi gõ", "xyzzy", {"zzz": ["n"], "phmí": ["n"]}, "rất"),
+    ("tôi gõ", "Phsifm", {"phím": ["n"]}, "xyzzy"),
+]
 # Syllables that follow "ta có" with a rising tone and "anh thấy" with a falling one, which is the
 # commoner of the two: only the trigram after "ta có" restores the rising one.
 LONG_SYLLABLES = [
@@ -119,6 +129,11 @@ def write_nearby(m, path):
     nearby = {shown: (shown, words) for _, shown, words in NEARBY}
     with open(path, "w", encoding="utf-8") as f:
         telex_typo.write_fixes(m, cases, nearby, f)
+    cases = [
+        (before.split() + [shown, after], len(before.split()), shown, None) for before, shown, _, after in NEARBY_AFTER
+    ]
+    with open(path.with_name(path.name + "-after"), "w", encoding="utf-8") as f:
+        telex_typo.write_fixes(m, cases, {shown: (shown, words) for _, shown, words, _ in NEARBY_AFTER}, f, True)
 
 
 def build(out):

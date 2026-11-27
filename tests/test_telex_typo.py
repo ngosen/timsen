@@ -169,6 +169,13 @@ def test_writes_each_decision_once_for_the_rust_check(model, tmp_path):
     before, shown, near, fix, margin = first.split("\t")
     assert (before, shown, near, fix) == ("tôi gõ", "phin", "phím:1 zzz:2.5", "phím") and float(margin) > 0
     assert second == "\txyzzy\tzzz:1\t-\t-"
+    with open(tmp_path / "after", "w", encoding="utf-8") as out:
+        tt.write_fixes(model, [(["bàn", "phin", "này"], 1, "phin", None), *cases], nearby, out, after=True)
+    (only,) = (tmp_path / "after").read_text(encoding="utf-8").splitlines()
+    before, shown, near, after, fix, later = only.split("\t")
+    assert (before, shown, after, fix) == ("bàn", "phin", "này", "phím")
+    at_end = tt.choose(*tt.rate(model, [model.id["bàn"]], UNK, tt.nearby_words(model, "phin", nearby["phin"][1], 0)), 2)
+    assert float(later) > at_end[0]
 
 
 def test_shows_the_fix_of_keys_typed_after_some_words(model, driver, capsys):
