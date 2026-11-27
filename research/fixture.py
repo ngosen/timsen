@@ -2,7 +2,8 @@
 
 usage: python -m research.fixture [OUT_DIR]   (default: crates/timsen/tests/fixtures)
 Writes tiny.timsen, tiny.runs and tiny.expected, for the personal dictionary tiny.learned and
-tiny.personal.expected, and for fixing unknown syllables tiny.fixes. long.timsen, long.runs and
+tiny.personal.expected, for fixing unknown syllables tiny.fixes, and for fixing them to words near
+their keys tiny.nearby. long.timsen, long.runs and
 long.expected are a second table where one pair of words has hundreds of continuations. Rerun after
 changing the table format or the model.
 """
@@ -13,7 +14,7 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-from . import crosscheck, paths, table, train, typo
+from . import crosscheck, paths, table, telex_typo, train, typo
 from .model import Model
 
 OUT = Path(__file__).resolve().parent.parent / "crates" / "timsen" / "tests" / "fixtures"
@@ -59,6 +60,19 @@ FIX_RUNS = [
     "xyzzy",
     "gia dinh toi o ha noii",
 ]
+# (words before, word shown, {nearby word: [kinds of slip]}): a slip in context, the same word reached
+# with and without marks, two words that compete, one too costly, words the table lacks, a marked
+# syllable nothing knows, a capital, and a word at the start of a run.
+NEARBY = [
+    ("tôi gõ", "phsifm", {"phím": ["n"], "nhanh": ["f"]}),
+    ("tôi gõ", "phsim", {"phim": ["n"], "phím": ["nn", "t"]}),
+    ("nhà ta có", "gox", {"gỗ": ["s"], "gõ": ["s"]}),
+    ("bàn", "phmi", {"phím": ["e"], "này": ["f"]}),
+    ("tôi gõ", "xyzzy", {"zzz": ["n"], "phmí": ["n"]}),
+    ("chúc anh", "khoẻj", {"khoẻ": ["p"], "mạnh": ["f"]}),
+    ("tôi gõ", "Phsifm", {"phím": ["n"]}),
+    ("", "ngwoif", {"người": ["m"], "tôi": ["nn"]}),
+]
 # Syllables that follow "ta có" with a rising tone and "anh thấy" with a falling one, which is the
 # commoner of the two: only the trigram after "ta có" restores the rising one.
 LONG_SYLLABLES = [
@@ -99,6 +113,14 @@ def build_table(tmp, out, name, corpus, test):
     crosscheck.write(out / f"{name}.timsen", tmp / "test", out / f"{name}.runs", out / f"{name}.expected")
 
 
+def write_nearby(m, path):
+    """The decisions of research.telex_typo for NEARBY, as its --write-fixes writes them."""
+    cases = [(before.split() + [shown], len(before.split()), shown, None) for before, shown, _ in NEARBY]
+    nearby = {shown: (shown, words) for _, shown, words in NEARBY}
+    with open(path, "w", encoding="utf-8") as f:
+        telex_typo.write_fixes(m, cases, nearby, f)
+
+
 def build(out):
     out.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
@@ -110,6 +132,7 @@ def build(out):
         crosscheck.write_personal(out / "tiny.timsen", tmp / "personal", out / "tiny.runs", learned, expected)
         with open(out / "tiny.fixes", "w", encoding="utf-8") as f:
             typo.write_fixes(table.read(out / "tiny.timsen"), [r.split(" ") for r in FIX_RUNS], f)
+        write_nearby(table.read(out / "tiny.timsen"), out / "tiny.nearby")
 
 
 if __name__ == "__main__":

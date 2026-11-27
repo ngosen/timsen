@@ -94,7 +94,9 @@ Tiến độ từng bước theo [`docs/PLAN.md`](docs/PLAN.md):
   một âm tiết hợp lệ có khoảng cách sửa đổi là 1 khi vượt trội hơn từ đứng thứ nhì ít nhất 4 điểm
   (`FIX_MARGIN`). Được quyết định khi kết thúc từ, tính năng đoán đúng 98,0–99,5% số lần và sửa
   được 23–25% số lỗi gõ nhầm mà nó phát hiện được. Tắt sẵn theo mặc định; `Run::undo_fix` cho
-  phép hủy lần sửa gần nhất, chỉ cần một phím để hoàn tác.
+  phép hủy lần sửa gần nhất, chỉ cần một phím để hoàn tác. `Typing::fix_nearby` sửa theo các từ
+  mà bộ gõ tìm được quanh chuỗi phím đã gõ (`mguoifw` → `người`): với lỗi gõ Telex giả lập, nó
+  sửa đúng 12,6–17,1% số từ gõ nhầm (riêng `Typing::fix`: 4,3–6,0%) và đúng 99,5–99,9% số lần.
 - **Bước 6 · Sẵn sàng cho bộ gõ (Đã xong):** tệp bảng được đọc hoàn toàn vào bộ nhớ khi mở (không
   dùng `memmap2`). Crate nhắm tới bản Rust tối thiểu là 1.88. `Dictionary` cung cấp khả năng cô
   lập snapshot giữa các trường nhập để các đoạn gõ không bao giờ bị lẫn số đếm. Cơ chế lưu tệp

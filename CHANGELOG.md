@@ -63,6 +63,15 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   Only words of plain letters in lowercase, capitals or with a capital first are fixed, and keep
   that case; a word the personal dictionary knows is never fixed, so learning an undone fix as
   typed keeps it as typed.
+- `Typing::fix_nearby` and `Run::push_nearby` fix a syllable nothing knows to one of the words an
+  input method found near the keys typed (`mguoifw` → `người`), which one plain-letter edit does
+  not reach once Telex marks were typed. Each `Nearby` word has a cost, 1 for a slip made easily,
+  and loses 2 points of score per unit; the fix is the word's best spelling and must win by the
+  same margin, exactly as `research.telex_typo` decides. `Run::may_fix` says whether a syllable
+  could be fixed, so the input method looks for nearby words only then. With Ngó Sen's core
+  finding the words one slip away, at `FIX_MARGIN` it puts right 12.6% to 17.1% of mistyped Telex
+  words (`Typing::fix` alone: 4.3% to 6.0%), is right 99.5% to 99.9% of the time and changes at
+  most 0.006% of the words typed right. `Fix::word` is the form to show for either fix.
 - `scripts/abuse.sh` builds an abuse binary with Ngó Sen's release profile (`panic = "abort"`) and
   again with overflow checks, and feeds it truncated and corrupt tables and personal files, odd text
   and calls in any order; CI runs it. A table cut short is an error unless the cut took only the
