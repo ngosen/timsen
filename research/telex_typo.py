@@ -1,7 +1,7 @@
 """Fixes a word whose keys slipped (mguoifw -> người), by asking which word nearby keys would have typed.
 
 usage: python -m research.telex_typo TABLE TESTFILE... --driver NEAR DICT ENGLISH KEEP [--plain] [--rare N]
-           [--changed SCALE MARGIN] [--ways all|one|narrow] [--write-fixes OUT]
+           [--changed SCALE MARGIN] [--ways all|one|narrow] [--write-fixes OUT] [--then MARGIN]
        python -m research.telex_typo TABLE --driver NEAR DICT ENGLISH KEEP --keys KEYS... [--after WORDS] [--rare N]
 
 NEAR is scripts/ngosen_near.rs built against Ngó Sen's typing core; DICT, ENGLISH and KEEP are the word
@@ -10,7 +10,9 @@ read back through the core. A word is a fix target when the table saw what the c
 --rare times (default: never). Its candidates are the words that keys one or two slips away would have
 typed; each is scored by the trigram that ends at it, less a cost per slip, and the best one replaces
 the word when it beats the next candidate and keeping the word by the margin. The word is decided when
-it ends, so only the words before it are context.
+it ends, so only the words before it are context. With --then MARGIN a word that misses that margin at
+its end is decided once more when the word after it ends, with that word as context too; the margins of
+the tables are then those of the second decision, and a word fixed at its end counts at every one.
 
 The clean pass counts words typed right that would be changed. The mistyped pass gives one word per
 run a slip, drawn as KINDS says, and counts how often the intended word comes back; a slip the core
@@ -172,10 +174,11 @@ def spellings(m, word):
     return m.options(word)
 
 
-def rate(m, left, keep, cands):
-    """(score of keeping the word, [(word, score, units)]) after the words `left`. `cands` maps a
-    candidate to (ids, units), and each is rated as its best spelling; `keep` is the id of the word."""
-    seq = np.array([*left, UNK], dtype=np.int64)
+def rate(m, left, keep, cands, right=()):
+    """(score of keeping the word, [(word, score, units)]) after the words `left` and before the words
+    `right`. `cands` maps a candidate to (ids, units), and each is rated as its best spelling; `keep`
+    is the id of the word."""
+    seq = np.array([*left, UNK, *right], dtype=np.int64)
     rated = []
     for ids, cost in cands.values():
         s = local_score(m, seq, len(left), ids, ended=False)
@@ -197,6 +200,17 @@ def choose(stay, rated, scale):
     return ranked[0][1] - max(runner, stay), ranked[0][0]
 
 
+def staged(rated, later, scale, then):
+    """The decision at the word's end; with a margin `then`, one that misses it is made again from
+    `later`, the rating with the word after as context, and there is none without that word."""
+    first = choose(*rated, scale)
+    if then is None or first is None:
+        return first
+    if first[0] >= then:
+        return np.inf, first[1]
+    return choose(*later, scale) if later else None
+
+
 def today(m, shown):
     """Candidates of the fix the crate has now; none when the word is not its target."""
     if not shown.isascii() or known(m, shown):
@@ -210,6 +224,11 @@ def nearby_words(m, shown, words, rare):
         return {}
     ids = {w: spellings(m, w) for w in words}
     return {w: (ids[w], units(k)) for w, k in words.items() if ids[w] is not None}
+
+
+def right_ids(m, truth, i, then):
+    """Id of the word after position i, for the second decision; nothing without --then."""
+    return [] if then is None else [m.id.get(w, UNK) for w in truth[i + 1 : i + 2]]
 
 
 def left_ids(m, truth, i, plain):
@@ -241,7 +260,7 @@ class Tally:
             self.right += hit & ok(decision[1])
 
 
-def judge(m, cases, nearby, rare, plain):
+def judge(m, cases, nearby, rare, plain, then=None):
     """Tallies of the clean and the mistyped cases for today's fix and each scale, tallies per
     (scale, kind of slip), and counts of the mistyped words: `absorbed` the core read as the intended
     word, `known` it shows as a word that is no target, `reachable` with the intended word among the
@@ -261,18 +280,20 @@ def judge(m, cases, nearby, rare, plain):
             counts["known"] += seen(m, shown) >= max(rare, 1)
             counts["reachable"] += any(ok(m.words[i]) for ids, _ in new.values() for i in ids)
         out["today"][which].add(choose(*rate(m, left, UNK, old), 0) if old else None, ok)
-        rated = rate(m, left, m.id.get(shown, UNK), new) if new else None
+        keep, right = m.id.get(shown, UNK), right_ids(m, truth, i, then)
+        rated = rate(m, left, keep, new) if new else None
+        later = rate(m, left, keep, new, right) if new and right else None
         for scale in SCALES:
-            decision = choose(*rated, scale) if rated else None
+            decision = staged(rated, later, scale, then) if rated else None
             out[scale][which].add(decision, ok)
             if kind:
                 kinds.setdefault((scale, kind), Tally()).add(decision, ok)
     return out, kinds, counts
 
 
-def changed(m, cases, nearby, scale, margin, rare, plain):
+def changed(m, cases, nearby, scale, margin, rare, plain, then=None):
     """(word typed right, what replaces it, by how much) for each one the fix changes at this scale
-    and margin; scale None is today's fix."""
+    and margin; scale None is today's fix, which is never decided a second time."""
     for truth, i, keys, kind in cases:
         shown, words = nearby[keys]
         if kind or not meant(truth[i], plain)(shown):
@@ -281,9 +302,11 @@ def changed(m, cases, nearby, scale, margin, rare, plain):
         if not cands:
             continue
         keep = UNK if scale is None else m.id.get(shown, UNK)
-        won, word = choose(*rate(m, left_ids(m, truth, i, plain), keep, cands), scale or 0)
-        if won >= margin:
-            yield truth[i], word, won
+        left, right = left_ids(m, truth, i, plain), right_ids(m, truth, i, None if scale is None else then)
+        later = rate(m, left, keep, cands, right) if right else None
+        decision = staged(rate(m, left, keep, cands), later, scale or 0, None if scale is None else then)
+        if decision and decision[0] >= margin:
+            yield truth[i], decision[1], decision[0]
 
 
 def write_fixes(m, cases, nearby, out):
@@ -384,7 +407,10 @@ def main():
     ap.add_argument("--changed", nargs=2, metavar=("SCALE", "MARGIN"), help="list the clean words changed")
     ap.add_argument("--ways", choices=list(WAYS), default="all", help="which ways to a candidate count")
     ap.add_argument("--write-fixes", help="write each decision at the crate's scale to this file")
+    ap.add_argument("--then", type=float, help="decide a word that misses this margin again after the next word")
     a = ap.parse_args()
+    if a.then is not None and a.plain:
+        ap.error("--then needs the words after as typed with marks, so it does not go with --plain")
     m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model)
     if a.keys:
         return show(m, a.driver, [canon(normalize(w)) for w in a.after.split()], a.keys, a.rare, a.ways)
@@ -397,10 +423,10 @@ def main():
             continue
         if a.changed:
             scale = None if a.changed[0] == "today" else float(a.changed[0])
-            for was, now, won in changed(m, cases, nearby, scale, float(a.changed[1]), a.rare, a.plain):
+            for was, now, won in changed(m, cases, nearby, scale, float(a.changed[1]), a.rare, a.plain, a.then):
                 print(f"{test.rsplit('/', 1)[-1]}: {was} -> {now} {won:+.1f}")
             continue
-        report(test.rsplit("/", 1)[-1], *judge(m, cases, nearby, a.rare, a.plain))
+        report(test.rsplit("/", 1)[-1], *judge(m, cases, nearby, a.rare, a.plain, a.then))
 
 
 if __name__ == "__main__":

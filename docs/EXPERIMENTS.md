@@ -3420,3 +3420,104 @@ test and one unit test fail and no other.
 
 Conclusion: the crate makes the fix that was measured. What it does in an input method depends on
 the nearby words that input method finds, which is not part of the crate.
+
+## 2026-11-27 · A second decision for the typed-keys fix, once the next word is typed
+
+Question: the typed-keys fix decides a word when it ends, with the words before it as its only
+context, and at margin 4 it fixes 12.6% to 17.1% of the mistyped words. How many more does it fix
+when a word that misses the margin is decided once more after the next word, with that word as
+context too, and how many more of the words typed right does it change?
+
+Setup: `research.telex_typo --then MARGIN`. A word that reaches MARGIN at its end is fixed there as
+before. One that does not is rated again when the word after it ends, by every trigram that holds
+it, and fixed when it then beats the runner-up and keeping by the margin of the table row; the last
+word of a run gets no second decision. The word after is taken as typed right. Same table, driver,
+seed and narrow search as the entry before last, scale 2, `--then 4`.
+
+Seen before this prediction, all on the frozen `wiki`, `subs` and `forum`. A one-off script split
+their 25,693 mistyped words (those the core does not read as intended): 27.5% show a word the table
+has, so they are no target; 8.8% have no nearby word common enough; 8.0% have nearby words, the
+intended one not among them; 55.7% have it. At the word's end the intended word is the best
+candidate for 52.4%, 13.3% are fixed right at margin 4, and 38.8% have the intended word in front
+but short of the margin over keeping. Of the words with the intended word nearby, 71.1% have a word
+after them. Then `--then 4` on the same files (mistyped words fixed right / fixes right / words typed
+right that were changed):
+
+| | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| at the word's end, margin 4 | 14.2% / 99.8% / 0.000% | 12.6% / 99.5% / 0.003% | 12.6% / 99.5% / 0.001% |
+| and again at margin 6 | 23.1% / 99.8% / 0.000% | 21.9% / 99.7% / 0.003% | 22.1% / 99.6% / 0.003% |
+| and again at margin 4 | 27.3% / 99.8% / 0.001% | 27.5% / 99.7% / 0.003% | 27.0% / 99.4% / 0.005% |
+| and again at margin 2 | 31.5% / 99.4% / 0.004% | 33.3% / 99.5% / 0.003% | 32.5% / 99.1% / 0.007% |
+
+The one-off script also tried two words after: no better than one (26.2% against 27.3% over the
+three files at margin 4). Nothing with `--then` was run on the unseen files.
+
+Prediction, before the run, on the files of "The typed-keys fix on lines it was not picked on",
+second decision at margin 4.
+
+- `wiki-unseen` (17.1% / 99.9% / 0.000% at the word's end): 30.5% to 34.5% fixed right, 99.5% to
+  99.9% of fixes right, at most 0.004% of the words typed right changed. At margin 2: 34.5% to 39%,
+  99.0% to 99.6%, at most 0.008%.
+- `forum-unseen` (14.4% / 99.7% / 0.006%): 28.5% to 32.5% fixed right, 99.0% to 99.6% of fixes
+  right, 0.008% to 0.018% of the words typed right changed, most of them typos of the forum text.
+  At margin 2: 33% to 38%, 98.6% to 99.3%, 0.012% to 0.025%.
+- `social`, whose narrow search was not run before. At the word's end: 4.5% to 5.2% fixed right,
+  98.8% to 99.4% of fixes right, 0.008% to 0.012% of the words as typed changed. With the second
+  decision at margin 4: 9% to 12%, 98.0% to 99.2%, 0.02% to 0.05%.
+
+The second decision is worth building if, at margin 4 on `wiki-unseen` and on `forum-unseen`, it
+fixes right at least 1.7 times what the decision at the word's end does, at least 99% of its fixes
+are right, and it changes at most 0.012% of the words typed right. The prediction for `forum-unseen`
+says the last may fail by that count.
+
+Result (mistyped words fixed right / fixes right / words typed right that were changed, of 160,078,
+66,249 and 118,316; 21,112, 6,955 and 14,043 mistyped words scored). The run took 139 seconds.
+
+| | `wiki-unseen` | `forum-unseen` | `social` |
+| --- | --- | --- | --- |
+| at the word's end, margin 4 | 17.1% / 99.9% / 0.000% | 14.4% / 99.7% / 0.006% | 5.0% / 99.6% / 0.006% |
+| and again at margin 6 | 26.7% / 99.8% / 0.001% | 24.9% / 99.7% / 0.011% | 9.0% / 99.4% / 0.014% |
+| and again at margin 4 | 30.6% / 99.8% / 0.001% | 30.1% / 99.6% / 0.017% | 12.2% / 99.1% / 0.024% |
+| and again at margin 2 | 34.4% / 99.6% / 0.001% | 36.0% / 99.1% / 0.026% | 17.2% / 98.3% / 0.064% |
+
+Against the prediction, margin 4 first.
+
+- `wiki-unseen`: hit on all three, fixed right at the low end of the range (30.6% in 30.5% to
+  34.5%). At margin 2 it fixes 34.4%, just under the predicted 34.5% to 39%.
+- `forum-unseen`: hit on all three, the share of words typed right changed where predicted (0.017%
+  in 0.008% to 0.018%). At margin 2 that share is 0.026%, just over the predicted 0.025%.
+- `social`: at the word's end fixed right hit (5.0%), and it is safer than predicted: 99.6% of
+  fixes right, not 98.8% to 99.4%, and 0.006% changed, not 0.008% to 0.012%. With the second
+  decision it fixes 12.2%, just over the predicted 9% to 12%; the other two hit.
+
+By the measure set before the run the second decision is not confirmed: it fixes right 1.8 and 2.1
+times what the decision at the word's end does, with 99.8% and 99.6% of its fixes right, but on
+`forum-unseen` it changes 11 of the words typed right (0.017%) against a bar of 0.012%, as the
+prediction said it might.
+
+After the result, `--changed 2 4` listed the words behind that share on the three frozen files and
+the two unseen ones (423,168 words typed right), with and without `--then 4`. One reader sorted them
+from the word alone, counting a word as real when unsure.
+
+| | Changed | The text had a typo, put right | A real word changed |
+| --- | --- | --- | --- |
+| at the word's end, margin 4 | 6 | 3 | 3 |
+| and again at margin 4 | 19 | 12 | 7 |
+
+On `forum-unseen` 9 of the 11 are typos of the forum text fixed to the word meant (`khsch`, `khsc`,
+`dwuaj`, `cihsnh`, `khhufng`, `khhoong`, `khhi`, `cuocj`, `tranhh`); the other two, `oki` and
+`quant`, are changed at the word's end already. The four real words the second decision adds over
+the five files are `deutscher`, `caribbe`, `empore` and `hnay` (short for `hôm nay`), next to
+`stones`, `oki` and `quant`. "Today's" fix at margin 4 changes 19 real words in the same text.
+
+Conclusion: the second decision is the largest gain measured for this fix so far. At the same margin
+it about doubles the mistyped words fixed right, to 30% on unseen Wikipedia and forum text and 12% on
+social-media comments, and its fixes are as often right. By the count set beforehand it fails on
+unseen forum text; read by hand, what it adds there is forum typos put right, and over five files
+it changes 4 more real words in 423,168, all foreign words or slang. It is built on that reading,
+which was made after the result. What it costs the person typing was not measured: the word changes
+after the next one is on the screen, one word behind the cursor.
+
+Limits as before: synthetic slips in assumed shares, Telex only, and the word after is taken as
+typed right. Of the mistyped words 27.5% still show a word the table has and are never looked at.

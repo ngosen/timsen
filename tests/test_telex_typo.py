@@ -97,6 +97,37 @@ def test_fixes_a_slip_in_context_and_a_cost_can_stop_it(model):
     assert tt.choose(stay, [], 0) is None
 
 
+def test_the_word_after_decides_what_the_words_before_could_not(model):
+    cands = tt.nearby_words(model, "phin", {"phím": ["n"]}, 0)
+    rated = tt.rate(model, [], UNK, cands)
+    later = tt.rate(model, [], UNK, cands, [model.id["này"]])
+    first, second = tt.choose(*rated, 0), tt.choose(*later, 0)
+    assert first[1] == second[1] == "phím" and second[0] > first[0]
+    between = (first[0] + second[0]) / 2
+    assert tt.staged(rated, later, 0, None) == first
+    assert tt.staged(rated, later, 0, between) == second
+    assert tt.staged(rated, later, 0, first[0]) == (np.inf, "phím")
+    assert tt.staged(rated, None, 0, between) is None
+    assert tt.staged(tt.rate(model, [], UNK, {}), None, 0, 0) is None
+
+
+def test_a_second_decision_fixes_a_word_once_the_next_is_typed(model, driver, tmp_path):
+    truth = ["bàn", "phím", "này"]
+    cases = [(truth, 1, "phin", "near"), (["bàn", "phím"], 1, "phin", "near")]
+    nearby = {"phin": ("phin", {"phím": ["n"]})}
+    at_end = tt.choose(*tt.rate(model, [model.id["bàn"]], UNK, tt.nearby_words(model, "phin", nearby["phin"][1], 0)), 0)
+    out, _, _ = tt.judge(model, cases, nearby, 0, False, then=at_end[0] + 0.01)
+    bad = out[0][1]
+    # Only the word with one after it gets a second decision.
+    assert (bad.n, bad.made[0], bad.right[0]) == (2, 1, 1)
+    assert tt.judge(model, cases, nearby, 0, False, then=at_end[0])[0][0][1].made[0] == 2
+    assert tt.judge(model, cases, nearby, 0, False)[0][0][1].made[0] == 2
+    typed = ["bàn", "phin", "này"]
+    listed = list(tt.changed(model, [(typed, 1, "phin", None)], nearby, 0, 0, 0, False, at_end[0] + 0.01))
+    assert [(a, b) for a, b, _ in listed] == [("phin", "phím")]
+    assert list(tt.changed(model, [(typed[:2], 1, "phin", None)], nearby, 0, 0, 0, False, at_end[0] + 0.01)) == []
+
+
 def test_a_word_the_table_knows_is_no_target_until_it_counts_as_rare(model):
     assert tt.nearby_words(model, "phím", {"nhanh": ["f"]}, 0) == {}
     assert set(tt.nearby_words(model, "phím", {"nhanh": ["f"]}, 10**6)) == {"nhanh"}
