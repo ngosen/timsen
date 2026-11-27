@@ -3640,3 +3640,57 @@ and "seen under 100,000 times" at 10. Prediction (30.6% / 99.8% / 0.001%, 30.1% 
 - By the second reading "seen under 10,000 times, at 10" passes on both files, and "seen under
   1,000 times, at 8" falls short of 4 points on one of them. On `forum-unseen` 1 to 3 of the words
   either adds are real words.
+
+Result on the unseen files (of 160,078, 66,249 and 118,316 words typed right; 21,112, 6,955 and
+14,043 mistyped words scored). The row of the fix as it is repeats the entry on the second decision
+to the digit. The thirteen runs, side by side, took 14 minutes.
+
+| Known words that are targets | `wiki-unseen` | `forum-unseen` | `social` |
+| --- | --- | --- | --- |
+| none, the fix as it is | 30.6% / 99.8% / 0.001% | 30.1% / 99.6% / 0.017% | 12.2% / 99.1% / 0.024% |
+| seen under 1,000 times, at 8 | 34.9% / 99.4% / 0.004% | 34.2% / 99.3% / 0.044% | 15.0% / 98.3% / 0.138% |
+| seen under 1,000 times, at 10 | 34.1% / 99.6% / 0.001% | 33.2% / 99.4% / 0.026% | 14.1% / 98.9% / 0.086% |
+| seen under 10,000 times, at 8 | 37.1% / 99.4% / 0.006% | 36.5% / 99.2% / 0.085% | 16.2% / 97.7% / 0.255% |
+| seen under 10,000 times, at 10 | 35.9% / 99.6% / 0.002% | 35.0% / 99.4% / 0.038% | 14.7% / 98.8% / 0.127% |
+| seen under 100,000 times, at 10 | 37.2% / 99.6% / 0.005% | 35.9% / 99.4% / 0.048% | 15.2% / 98.7% / 0.145% |
+
+Against the prediction.
+
+- Seen under 1,000 times, at 8. `wiki-unseen`: hit on all three (4.3 points more, 99.4%, 0.004%).
+  `forum-unseen`: 4.1 points more and 99.3% hit; the words typed right changed missed, 0.044% where
+  0.024% to 0.036% was predicted. `social`: 2.8 points more, just over the 1.0 to 2.5 predicted;
+  98.3% hit; the words typed right changed missed by far, 0.138% where 0.030% to 0.050% was
+  predicted, 163 words where the fix as it is changes 28.
+- Seen under 10,000 times, at 10. `wiki-unseen` and `forum-unseen`: hit on all three (5.4 and 4.9
+  points more, 99.6% and 99.4%, 0.002% and 0.038%). `social`: 2.5 points more and 98.8% hit; the
+  words typed right changed missed by far, 0.127% where 0.030% to 0.055% was predicted.
+- The second reading: missed for both settings, and not as predicted. Both add 4 points on both
+  files with 99% of fixes right. Read with the line in view, the words typed right that only the
+  setting changes are, for "seen under 1,000 times, at 8", 5 on `wiki-unseen` (1 real: the name
+  `chol`) and 18 on `forum-unseen`, 4 of them real (`FDI`, `lênh đênh`, `sới bạc` and `pim`, slang
+  for `phim`) against 3 allowed; the other 14 are typos of the text put right (`ban hảnh`,
+  `đòng phục`, `tìm hiều`, `phầm mềm`). For "seen under 10,000 times, at 10" they are 2 on
+  `wiki-unseen` (1 real: `zu`) and 14 on `forum-unseen`, at least 5 of them real (`ck`, short for
+  `chồng`, three times and `nầy` twice), where 1 to 3 were predicted; for two more, `bô` and
+  `gậy`, the file has a typo and a real use and the list does not say which was changed.
+
+On `social`, which the second reading leaves out, the 20 changes made most often by "seen under
+1,000 times, at 8" are 68 of its 143 at margin 8, and most are spellings the writer chose:
+`ròi` (11 times), `đii`, `pà`, `nhưg`, `cviec`, `bnhieu`, `bme`, `bgio`, `khum`, `iem`, `bâyh`.
+Several go to a word that was not meant: `cviec` to `việc`, `bme` to `mẹ`, `khum` to `khu`, `nhưg`
+to `như`.
+
+Conclusion: not worth building, by the bar as written and by the second reading. A slip that lands
+on a rare known word can be fixed, 4 to 5 points more of the mistyped words on edited text with
+99.4% of fixes right. But how often the table has seen a word does not tell a slip from a name, an
+abbreviation or a chat spelling. On forum text most of what the setting changes is a typo put
+right and a few real words go with them; on chat text it changes five to six times the words typed
+right that the fix changes now, for 2.5 to 2.8 points more fixed. With one mistyped word in fifty,
+that is one word typed right changed in about 900 against one more slip fixed in about 1,800. The
+fix stays on words the table does not have.
+
+What is left of the mistyped words, on `wiki-unseen` and `forum-unseen` with the narrow search at
+margin 4: 26% and 28% show a known word (this entry); 21% and 15% have no intended word within the
+narrow search (the entry on the search: all ways add 0.4 to 2.0 points at 23 times the candidates);
+23% and 27% have it nearby and are not fixed, mostly short of the margin, which the strength setting
+already trades against words typed right.
