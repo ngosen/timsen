@@ -3521,3 +3521,25 @@ after the next one is on the screen, one word behind the cursor.
 
 Limits as before: synthetic slips in assumed shares, Telex only, and the word after is taken as
 typed right. Of the mistyped words 27.5% still show a word the table has and are never looked at.
+
+## 2026-11-27 · The second decision in the crate
+
+Question: does a run with `Run::fixing_again` make the second decision as `research.telex_typo
+--then` does? Setup: `--write-fixes OUT --then 4 --ways narrow` on the released small table and the
+five files writes, for each distinct word with nearby words that has a word after it, the fix and
+its margin with that word as context: 26,636 decisions. `nearby_check` pushes the words before as
+typed, the word, the word after as typed, and asks `Typing::fix_nearby` about the word, which is
+what the run asks when the next word ends.
+
+Stated before the run: every decision the same, none on the other side of `FIX_MARGIN`; and for the
+control, the crate's scale set to 1, over 100 decisions on the other side and a largest difference
+of at least 1.0.
+
+Result: 26,636 decisions, 26,636 the same fix, none on the other side of the margin, largest margin
+difference 0; 12,943 fixes are made at the margin. The control: 26,440 the same fix, 1,404 on the
+other side, largest difference 2.0. The fixture `tiny.nearby-after` holds six such decisions for
+`cargo test`. In the run itself, with the second decision never made when a word is pushed, three
+unit tests fail and no other; made whether or not `fixing_again` is set, one fails.
+
+Conclusion: the crate makes the second decision that was measured. A run asks it only for the word
+right before the one that just ended, once; a word taken back and typed again does not ask again.

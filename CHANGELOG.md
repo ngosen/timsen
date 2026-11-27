@@ -72,6 +72,11 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
   finding the words one slip away, at `FIX_MARGIN` it puts right 12.6% to 17.1% of mistyped Telex
   words (`Typing::fix` alone: 4.3% to 6.0%), is right 99.5% to 99.9% of the time and changes at
   most 0.006% of the words typed right. `Fix::word` is the form to show for either fix.
+- `Run::fixing_again` decides a syllable `Run::push_nearby` left as typed once more when the word
+  after it ends, with that word as context too, as `research.telex_typo --then` does. The fix then
+  changes the word before the last, so it is for a field whose earlier words can change
+  (`Reach::Run`). At `FIX_MARGIN` on unseen Wikipedia and forum text it puts right 30.6% and 30.1%
+  of mistyped Telex words (17.1% and 14.4% without it) and is right 99.8% and 99.6% of the time.
 - `scripts/abuse.sh` builds an abuse binary with Ngó Sen's release profile (`panic = "abort"`) and
   again with overflow checks, and feeds it truncated and corrupt tables and personal files, odd text
   and calls in any order; CI runs it. A table cut short is an error unless the cut took only the

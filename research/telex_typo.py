@@ -25,7 +25,8 @@ changes at that scale and margin; SCALE "today" is the fix the crate has now. --
 the candidates one slip away, and --ways narrow leaves out of those a far key hit instead and a key left
 out that is not one of a doubled pair, the two kinds that take a key string for every other letter: what
 a search that types fewer key strings would find. --write-fixes OUT writes, in place of the tables,
-the decision for each word with nearby words, for the crate's nearby_check example to compare.
+the decision for each word with nearby words, for the crate's nearby_check example to compare; with
+--then, the second decision of each such word that has a word after it.
 """
 
 import argparse
@@ -309,29 +310,33 @@ def changed(m, cases, nearby, scale, margin, rare, plain, then=None):
             yield truth[i], decision[1], decision[0]
 
 
-def write_fixes(m, cases, nearby, out):
+def write_fixes(m, cases, nearby, out, after=False):
     """One line per target that has nearby words, for the Rust check: the words before it, the word
     shown, each nearby word as WORD:UNITS, then the fix and its margin at the crate's scale, or `-`
-    twice when no nearby word is common enough."""
-    for before, shown, words in cases_with_words(cases, nearby):
+    twice when no nearby word is common enough. With `after`, one line per target that also has a
+    word after it, that word before the fix: the decision with it as context too."""
+    for before, shown, words, then in cases_with_words(cases, nearby, after):
         cands = {w: (ids, units(k)) for w, k in words.items() if (ids := spellings(m, w)) is not None}
         near = " ".join(f"{w}:{units(k):g}" for w, k in sorted(words.items()))
         fix, margin = "-", "-"
         if cands:
-            won, fix = choose(*rate(m, [m.id.get(w, UNK) for w in before], UNK, cands), CRATE_SCALE)
+            right = [m.id.get(w, UNK) for w in then]
+            won, fix = choose(*rate(m, [m.id.get(w, UNK) for w in before], UNK, cands, right), CRATE_SCALE)
             margin = repr(float(won))
-        print(" ".join(before), shown, near, fix, margin, sep="\t", file=out)
+        print(" ".join(before), shown, near, *then, fix, margin, sep="\t", file=out)
 
 
-def cases_with_words(cases, nearby):
-    """(words before, word shown, {nearby word: [kinds]}) of each case, once, whose keys have nearby words."""
+def cases_with_words(cases, nearby, after=False):
+    """(words before, word shown, {nearby word: [kinds]}, [word after]) of each case, once, whose
+    keys have nearby words. With `after` only the cases with a word after, else that list is empty."""
     done = set()
     for truth, i, keys, _ in cases:
         shown, words = nearby[keys]
-        key = (tuple(truth[:i]), shown)
-        if words and key not in done:
+        then = truth[i + 1 : i + 2] if after else []
+        key = (tuple(truth[:i]), shown, *then)
+        if words and key not in done and len(then) == after:
             done.add(key)
-            yield truth[:i], shown, words
+            yield truth[:i], shown, words, then
 
 
 def cases_of(path, plain):
@@ -419,7 +424,7 @@ def main():
         nearby = read_nearby(m, a.driver, cases, a.rare, a.ways)
         if a.write_fixes:
             with open(a.write_fixes, "a", encoding="utf-8") as out:
-                write_fixes(m, cases, nearby, out)
+                write_fixes(m, cases, nearby, out, a.then is not None)
             continue
         if a.changed:
             scale = None if a.changed[0] == "today" else float(a.changed[0])
