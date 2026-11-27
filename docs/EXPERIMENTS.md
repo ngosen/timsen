@@ -3543,3 +3543,34 @@ unit tests fail and no other; made whether or not `fixing_again` is set, one fai
 
 Conclusion: the crate makes the second decision that was measured. A run asks it only for the word
 right before the one that just ended, once; a word taken back and typed again does not ask again.
+
+## 2026-11-27 · Slips that land on a word the table has
+
+Question: 27.5% of the mistyped words show a word the table has seen (`lafn` for `lafm` shows
+`làn`), so the typed-keys fix never looks at them. How many does it fix when such a word is a target
+too, and how many of the words typed right does it then change? Every word typed right becomes a
+target, so the second number is the one that decides.
+
+Setup: `research.telex_typo --rare N`, which makes a target of a shown word the table has seen fewer
+than N times, with `--ways narrow`, scale 2 and `--then M`; the row of margin M is then the fix with
+both decisions at M. Keeping the word is rated as the word itself, not as `<unk>`. N is 1,000,
+100,000 and 10^12 (every word). The targets `--rare` adds are other cases than the ones without it,
+whose decisions do not change, so a setting "unknown words at margin 4, known words at margin M" is
+the row without `--rare` at `--then 4` plus the difference, at `--then M`, between the rows with and
+without `--rare`. Same table, driver and seed as the entry before.
+
+Prediction, before any run, on the frozen `wiki` and `forum` (27.3% / 99.8% / 0.001% and 27.0% /
+99.4% / 0.005% without `--rare`: mistyped words fixed right / fixes right / words typed right that
+were changed):
+
+- Every word a target, margin 4: 33% to 40% fixed right, 95% to 98.5% of fixes right, 0.05% to 0.3%
+  of the words typed right changed.
+- Every word a target, the known ones at margin 8: 1 to 3 points more fixed right than without
+  `--rare`, and at most 0.02% more of the words typed right changed.
+- `--rare 1000`, margin 4: 1.5 to 3.5 points more fixed right, 0.005% to 0.02% of the words typed
+  right changed.
+
+Worth building if some setting, on `wiki-unseen` and on `forum-unseen`, fixes right at least 4
+points more of the mistyped words than the fix does now, with at least 99% of all fixes right and
+at most 0.012% of the words typed right changed. The prediction is that none does: the settings that
+stay under 0.012% add 1 to 3 points.
