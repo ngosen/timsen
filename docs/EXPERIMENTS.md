@@ -3035,3 +3035,183 @@ ten is wrong on `forum`. A setting with three levels can stand on margins 4, 3 a
 98.0%, 96.7% and 94.8% right. These are synthetic typos, and decided only by the words before; the
 writer's chat and real typos are not measured, and on real typos at margin 4 ("Fixing unknown
 syllables on real typos") fixes were too few to give a share.
+
+## 2026-11-27 · Fixing a word by the keys it was typed with
+
+Question: the syllable fix only reaches a word shown as unmarked letters the table lacks, one
+plain-letter edit from a known form. A slip while typing Telex marks is further than that: `nguoiwff`
+(the tone key twice) and `nguwowpif` (an extra `p` beside `o`) come back from Ngó Sen's core as the
+raw keys, three letters from `nguoi`; `mguoifw` and `bguoiwd` have a neighbouring key in place of a
+letter or of the tone key; `nguooif` (`oo` for `ow`) comes out as `nguồi`, which the table has seen
+67 times against 3,186,700 for `người`. If the candidates are instead the words that keys one or two
+slips away would have typed, how many more slips are put right, and how many words typed right are
+changed?
+
+Setup: `research.telex_typo` on the released 12.37 MB table (sha256 prefix 318ec5e0), frozen `wiki`,
+`subs` and `forum` files (sha256 prefixes 5ba7b049, b0f7d4eb, f3340b65), 4,000 lines each. Each word
+is typed as Telex keys (`research.mixed_readings.telex_keys`, the tone key at the end, after its
+vowel or after the last vowel) and read back through Ngó Sen's core at its default settings:
+`scripts/ngosen_near.rs`, built against `bamboo-rs` of ngosen/ngosen at dc730ec2, with its
+dictionary, English list and keep list. For a target the driver types every key string one slip
+away, and two slips away when neither is a far key, an unrelated extra key or an unrelated missing
+key, and gives the words the core shows for them. A candidate must have been seen 1,000 times. It is
+scored by the trigram that ends at it, less a cost per slip: 1 unit for a neighbouring key, `oo` for
+`ow`, two keys swapped, a key hit twice, an extra key beside its neighbour and one key of a doubled
+pair left out; 2 for any other extra or missing key; 2.5 for any other key. The scale turns units
+into the score's unit; scales 0, 2, 4 and 6 and margins 0 to 12 are all printed. The fix is decided
+when the word ends, so only the words before it are context, and those are taken as typed right.
+`--plain` types every word without marks instead; the words before are then what restore guesses.
+`--rare 1000` also makes a target of a shown word the table has seen fewer than 1,000 times, kept at
+its own score instead of the unknown word's.
+
+One word per run gets a slip, in any word of two keys or more, known to the table or not. The share
+of each kind is assumed, not measured: a neighbouring key 35%, two keys swapped 15%, an extra key
+beside the one before or after 15%, a key left out 15%, a key hit twice 10%, a far key 5%, `oo` for
+`ow` or back 5%; one mistyped word in ten gets a second slip onto a neighbouring key ("two"). The
+candidates are drawn from the same kinds of slip, so the typos suit the fix, as in "Fixing syllables
+the table does not know". A slip the core reads as the intended word anyway (`nguoifw`) is counted
+and left out. "today" is the crate's fix on the same words, scored the same way.
+
+Seen before this prediction: the driver's output for the five key strings above (after one slip or
+two, `người` is among the words nearby for each; `mguoifw` also gives `mười` and `bguoiwd` gives
+`bưởi`); the table's counts for the spellings of `nguoi`; one run on six made-up sentences, to see
+that the script works; the driver takes 52 ms a word on one core (2,000 known forms, 6.1 keys on
+average), about 3,400 key strings typed per word. No figure on the test files.
+
+Checks. `--keys` after `mọi`: `mguoifw`, `bguoiwd`, `nguoiwff` and `nguwowpif` must each give
+`người` at scales 0 and 2 with a margin of 4 or more; `nguooif` must give nothing without `--rare`
+and `người` with `--rare 1000`. After `tháng`, `mguoifw` must give `mười` at scales 0 and 2: the
+words before decide between two candidates. In `--plain`, "today" at margin 4 must be right 97% to
+99.6% of the time, near the 98.0% to 99.5% of "Lower fix margins, decided when the word ends"; the
+slips differ, so the share fixed is not comparable.
+
+Prediction, before the run, the same on each set unless said.
+
+- Slips the core reads as intended: 8% to 15% with marks typed.
+- "today", marks typed, margin 4: 3% to 7% of the mistyped words fixed right; clean words changed at
+  most 0.01%. With `--plain`: 9% to 14% fixed right.
+- Nearby keys, marks typed, scale 0, margin 4: 30% to 45% fixed right, 96% to 99% of fixes right,
+  clean words changed at most 0.02%. Scale 2, margin 4: 25% to 40% fixed right, 98% to 99.5% of
+  fixes right, clean words changed at most 0.01%.
+- By kind, scale 2, margin 4: a key hit twice, `oo` for `ow`, a neighbouring key, an extra key
+  beside and two keys swapped each 35% to 50% fixed right; a key left out, a far key and two slips
+  each 10% to 25%.
+- `--plain`, scale 0, margin 4: 14% to 22% fixed right, more than "today" because a slip onto a mark
+  key shows a marked word that "today" does not look at.
+- `--rare 1000`, marks typed: 1 to 3 points more fixed right at the same scale and margin, and clean
+  words changed 0.02% to 0.08% at scale 0, margin 4; it needs scale 4 or margin 8 to come under
+  0.012%.
+
+The fix is worth building if, with marks typed, some scale and margin on all three sets changes at
+most 0.012% of the words typed right (the most the fix changes today, at margin 2), is right at
+least 98% of the time and fixes right at least twice as many mistyped words as "today".
+
+Result. The checks passed: after `mọi`, `mguoifw`, `bguoiwd`, `nguoiwff` and `nguwowpif` give
+`người` by 9.4 at scale 0 and by 5.4 to 7.4 at scale 2; `nguooif` gives nothing without `--rare`
+and `người` by 8.2 with `--rare 1000`; after `tháng`, `mguoifw` gives `mười` (6.4 and 2.4). "today"
+in `--plain` at margin 4 is right 98.0% to 98.6% of the time.
+
+Where the mistyped words went, marks typed (share of the scored ones). The script printed these
+three counts only from a second run on; that run gave the same figures as the first in every other
+line.
+
+| | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| Read as the intended word, left out | 577 | 294 | 533 |
+| Scored | 11,026 | 5,153 | 9,514 |
+| Shows a word the table knows, so no target | 2,802 (25.4%) | 1,609 (31.2%) | 2,644 (27.8%) |
+| Intended word among the candidates | 7,412 (67.2%) | 3,364 (65.3%) | 6,533 (68.7%) |
+| Neither | 812 (7.4%) | 180 (3.5%) | 337 (3.5%) |
+
+Marks typed, without `--rare` (mistyped words fixed right / fixes right / words typed right that
+were changed, of 73,104, 31,746 and 91,991):
+
+| | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| today, margin 4 | 5.3% / 98.5% / 0.007% | 5.2% / 96.0% / 0.006% | 4.3% / 95.6% / 0.004% |
+| today, margin 2 | 6.6% / 94.8% / 0.015% | 7.3% / 92.1% / 0.009% | 6.3% / 92.7% / 0.007% |
+| scale 0, margin 0 | 40.5% / 88.8% / 0.090% | 40.3% / 83.3% / 0.079% | 39.2% / 83.1% / 0.077% |
+| scale 0, margin 4 | 21.4% / 98.9% / 0.007% | 20.5% / 98.9% / 0.013% | 20.3% / 98.3% / 0.005% |
+| scale 2, margin 4 | 15.8% / 99.8% / 0.000% | 13.0% / 99.7% / 0.003% | 13.6% / 99.5% / 0.001% |
+| scale 2, margin 2 | 22.5% / 99.4% / 0.004% | 23.7% / 98.9% / 0.009% | 22.1% / 98.8% / 0.002% |
+| scale 4, margin 0 | 21.4% / 99.3% / 0.000% | 22.6% / 99.1% / 0.009% | 21.3% / 98.7% / 0.003% |
+
+Fixed right by kind of slip, scale 2, margin 4:
+
+| Kind | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| a key hit twice | 21.9% | 17.9% | 21.3% |
+| an extra key beside | 20.0% | 21.5% | 17.3% |
+| two keys swapped | 19.8% | 14.9% | 15.1% |
+| a neighbouring key | 17.6% | 15.0% | 15.2% |
+| `oo` for `ow` or back | 14.6% | 10.2% | 13.7% |
+| two slips | 12.1% | 9.0% | 11.1% |
+| a far key | 10.1% | 3.0% | 7.3% |
+| a key left out | 5.5% | 2.4% | 3.3% |
+
+`--plain` (11,304, 5,259 and 9,778 mistyped words scored; 42.0%, 51.1% and 45.6% of them show a word
+the table knows, and 51.1%, 46.2% and 51.1% have the intended word among the candidates):
+
+| | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| today, margin 4 | 11.5% / 98.6% / 0.007% | 11.1% / 98.0% / 0.006% | 11.8% / 98.2% / 0.003% |
+| scale 0, margin 4 | 11.2% / 97.2% / 0.008% | 9.1% / 96.0% / 0.013% | 10.5% / 96.0% / 0.004% |
+| scale 2, margin 2 | 13.3% / 98.1% / 0.007% | 13.1% / 97.3% / 0.009% | 13.6% / 97.6% / 0.001% |
+| scale 2, margin 4 | 8.9% / 99.6% / 0.000% | 6.8% / 99.7% / 0.003% | 7.9% / 99.4% / 0.000% |
+
+`--rare 1000`, marks typed (the intended word is then among the candidates for 8,385, 3,938 and
+7,415 of the mistyped words):
+
+| | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| scale 0, margin 4 | 24.3% / 98.7% / 0.015% | 23.9% / 98.5% / 0.038% | 22.9% / 98.2% / 0.025% |
+| scale 2, margin 2 | 28.3% / 98.1% / 0.030% | 30.4% / 97.6% / 0.038% | 27.2% / 97.0% / 0.051% |
+| scale 2, margin 4 | 20.0% / 99.7% / 0.010% | 17.9% / 98.8% / 0.016% | 17.0% / 98.8% / 0.018% |
+| scale 2, margin 6 | 11.0% / 99.8% / 0.001% | 8.2% / 99.8% / 0.009% | 8.6% / 99.8% / 0.008% |
+| scale 4, margin 4 | 12.9% / 99.1% / 0.008% | 10.8% / 98.9% / 0.009% | 10.4% / 98.3% / 0.017% |
+
+Each run of the three files took 94 to 100 seconds on 44 copies of the driver.
+
+Against the prediction: most of it missed, on the high side.
+
+- Slips the core reads as intended: 5.0%, 5.4% and 5.3%, not 8% to 15%.
+- "today" hit: 4.3% to 5.3% fixed right with marks typed, 11.1% to 11.8% with `--plain`, clean
+  words changed at most 0.007%.
+- Nearby keys, scale 0, margin 4: 20.3% to 21.4% fixed right, not 30% to 45%. Fixes right (98.3%
+  to 98.9%) and clean words changed (at most 0.013%) hit. Scale 2, margin 4: 13.0% to 15.8%, not
+  25% to 40%; fixes are right 99.5% to 99.8% of the time, at or above the predicted 98% to 99.5%.
+- By kind: none of the five kinds predicted at 35% to 50% passes 22%. A key left out is at 2.4% to
+  5.5%, not 10% to 25%; a far key and two slips reach 10% only on `wiki` and, for two slips, on
+  `forum`.
+- `--plain`, scale 0, margin 4: 9.1% to 11.2%, not 14% to 22%, and below "today" on every set. The
+  reason given for expecting more was wrong: with no marks typed, about half of the slips land on a
+  word the table knows, which neither fix touches.
+- `--rare 1000`: 2.6 to 3.4 points more fixed right at scale 0, margin 4 (predicted 1 to 3) and 3.4
+  to 4.9 more at scale 2. Clean words changed are 0.015% to 0.038% at scale 0, margin 4 (`wiki`
+  below the predicted 0.02% to 0.08%). Scale 4 at margin 4 does not bring `forum` under 0.012%;
+  scale 2 at margin 6 does, on every set.
+
+Conclusion: with marks typed the fix meets the bar set before the run. At scale 2, margin 2 it puts
+right 22.1% to 23.7% of the mistyped words, 4.2 to 5.1 times what the fix does today at margin 4;
+its fixes are right 98.8% to 99.4% of the time and it changes at most 0.009% of the words typed
+right. Scale 4, margin 0 does the same within a point. Both were picked after seeing these files,
+and 0.009% on `subs` is 3 words where the bar is 4, so the pick wants a run on lines it has not
+seen before anything is built on it.
+
+What holds it back is the context, not the search: the intended word is among the candidates for
+two mistyped words in three, and with no margin and no cost the words before pick it for only 40%
+of the mistyped words. A quarter to a third of the slips show a word the table already knows and are
+never looked at.
+`--rare 1000` looks at some of those, but every rare word typed right then becomes a target too: at
+a like share of clean words changed (scale 2, margin 6) it fixes 8.2% to 11.0%, less than half of
+what scale 2, margin 2 does without it. A slip that lands on a real word (`nguooif` as `nguồi`)
+needs a narrower rule than "rare", not measured here.
+
+Typing without marks gains nothing: no scale and margin is right 98% of the time on `subs` while
+fixing more than "today".
+
+Limits. The slips are synthetic, drawn from the same seven kinds the candidates are made of, in
+shares that were assumed; a writer's real slips are not measured. Only the words before are
+context. Telex only. One word in `subs` is 0.003% of its clean words, so the shares of clean words
+changed stand on a handful of words. The driver types about 3,400 key strings for each word, 52 ms
+on one core: a fix in the input method needs another way to find the candidates.
