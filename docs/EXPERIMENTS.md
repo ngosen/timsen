@@ -3317,3 +3317,80 @@ all of them foreign words or names, which an input method can keep out of the fi
 
 Limits as in the entry before: synthetic slips in assumed shares, the words before as the only
 context, Telex only. The hand sorting is one reader's, after the result.
+
+## 2026-11-27 · A search for the typed-keys fix that an input method can afford
+
+Question: the two entries before found the candidates by typing every key string one or two slips
+away through the core, too many to type when a word ends. How much of the fix is left when the
+search stops at one slip, and when it also leaves out the two kinds of slip that need a key string
+for every other letter?
+
+Setup: `scripts/ngosen_near.rs` with `NGOSEN_NEAR_WAYS` and `NGOSEN_NEAR_COUNT`, on the 2,000 known
+forms of the speed test (6.1 keys on average), one core:
+
+| Search | Key strings typed per word | Time per word |
+| --- | --- | --- |
+| all: one slip, or two that are neither `f`, `e` nor `i` | 969 | 52.9 ms |
+| `one`: one slip of any kind | 342 | 16.5 ms |
+| `narrow`: one slip, neither `f` (a far key instead) nor `i` (a key left out, not of a doubled pair) | 42 | 2.2 ms |
+
+Each string is counted once; the 3,400 of the first entry counted them as generated, repeats
+included. `research.telex_typo --ways one|narrow` keeps, of the candidates the full search finds,
+those such a search would find. Checked on the 2,000 forms: the driver's own narrowed search lists
+the same words with the same kinds as the script's filter, 2,000 lines of 2,000, for `one` and for
+`narrow`. Same table, driver, seed and files as before: the frozen `wiki`, `subs` and `forum` and
+the two unseen files, marks typed, no `--rare`. The setting is scale 2 with margin 4, which met the
+bar on all five; margin 2 is printed too.
+
+Seen before this prediction: the table above; that `mguoifw` and `nguwowpif` still give `người` in
+the narrow search (the extra `p` counts as `e`, 2 units, since `o` is two keys before it), that
+`mguoiwff` (two slips) gives nothing in `one`, and that `zguoifw` (a far key) gives nothing in
+`narrow`. No figure on the test files with `--ways`.
+
+Prediction, before the run, scale 2, margin 4, on each of the five files. With all ways 15.8%,
+13.0%, 13.6%, 19.1% and 15.2% of the mistyped words are fixed right.
+
+- `one`: 1.0 to 1.6 points fewer fixed right: what two slips gave. Fixes right within 0.3 points
+  of all ways; no more than one more clean word changed on any file.
+- `narrow`: 1.8 to 3.0 points fewer than all ways. Fixes right within 0.3 points; no more than one
+  more clean word changed on any file. It stays at twice what "today" fixes right on four files
+  and may fall just short on `subs` (10.0% to 11.2% against 10.4%).
+- At margin 2, `narrow` fixes right 2.5 to 4.5 points fewer than all ways.
+
+The narrow search is the one to build if, at scale 2 with margin 4 on every file, it keeps at least
+85% of what all ways fix right and changes at most one clean word more.
+
+Result. `--ways all` printed the figures of the two entries before again, line for line on the
+frozen files. Scale 2, margin 4 (mistyped words fixed right / fixes right / words typed right that
+were changed):
+
+| | all ways | `one` | `narrow` |
+| --- | --- | --- | --- |
+| `wiki` | 15.8% / 99.8% / 0.000% | 15.1% / 99.9% / 0.000% | 14.2% / 99.8% / 0.000% |
+| `subs` | 13.0% / 99.7% / 0.003% | 12.8% / 99.7% / 0.003% | 12.6% / 99.5% / 0.003% |
+| `forum` | 13.6% / 99.5% / 0.001% | 13.1% / 99.5% / 0.001% | 12.6% / 99.5% / 0.001% |
+| `wiki-unseen` | 19.1% / 99.8% / 0.000% | 18.0% / 99.9% / 0.000% | 17.1% / 99.9% / 0.000% |
+| `forum-unseen` | 15.2% / 99.5% / 0.005% | 14.8% / 99.7% / 0.006% | 14.4% / 99.7% / 0.006% |
+
+At margin 2 the narrow search fixes right 19.8%, 21.7%, 20.0%, 22.9% and 22.0%, against 22.5%,
+23.7%, 22.1%, 26.0% and 24.0% with all ways. The intended word is among the candidates of the
+narrow search for 55.1%, 54.3%, 57.0%, 53.4% and 57.1% of the mistyped words, against 67.2%, 65.3%,
+68.7%, 64.7% and 68.4%.
+
+Against the prediction: the loss is smaller than predicted on four files of five.
+
+- `one`: 0.7, 0.2, 0.5, 1.1 and 0.4 points fewer fixed right, where 1.0 to 1.6 were predicted;
+  only `wiki-unseen` is in the range. Fixes right and clean words changed hit (one more word on
+  `forum-unseen`).
+- `narrow`: 1.6, 0.4, 1.0, 2.0 and 0.8 points fewer, where 1.8 to 3.0 were predicted; again only
+  `wiki-unseen` is in the range. Fixes right within 0.2 points; one more clean word changed on
+  `forum-unseen`, none elsewhere. It stays above twice "today" on every file, `subs` included
+  (12.6% against 10.4%), which the prediction doubted.
+- Margin 2, `narrow`: 2.7, 2.0, 2.1, 3.1 and 2.0 points fewer, where 2.5 to 4.5 were predicted.
+
+Conclusion: the narrow search is the one to build. For 42 key strings a word in place of 969 it
+keeps 89.5% to 96.9% of what all ways fix right at scale 2 with margin 4 and changes one clean word
+more on one file. Two slips and the two wide kinds find the intended word for another 11 to 12
+mistyped words in 100, but at 2 units or more each they seldom win by the margin. The time is the
+driver's, 2.2 ms a word on one core; the input method's own search has yet to be timed. Limits as
+in the two entries before.

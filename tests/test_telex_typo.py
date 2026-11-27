@@ -121,7 +121,7 @@ def test_judges_clean_and_mistyped_words_apart(model, driver, tmp_path):
 
 
 def test_shows_the_fix_of_keys_typed_after_some_words(model, driver, capsys):
-    tt.show(model, driver, ["tôi", "gõ"], ["phin", "xyzzy"], 0)
+    tt.show(model, driver, ["tôi", "gõ"], ["phin", "xyzzy"], 0, "all")
     first, second = capsys.readouterr().out.splitlines()
     assert first.startswith("phin -> phin: phím +")
     assert second == "xyzzy -> xyzzy: "
@@ -135,3 +135,16 @@ def test_lists_the_words_typed_right_that_the_fix_changes(model, driver):
     assert (was, now, rest) == ("phin", "phím", []) and won > 0
     assert list(tt.changed(model, cases, nearby, 0, won + 1, 0, False)) == []
     assert [(a, b) for a, b, _ in tt.changed(model, cases, nearby, None, 0, 0, False)] == [("phin", "phím")]
+
+
+def test_a_narrower_search_keeps_only_the_ways_it_would_try():
+    words = {"người": ["f", "s"], "hoà": ["nn"], "ngồi": ["i", "nt"], "mười": ["e", "n"]}
+    assert tt.only(words, "all") == words
+    assert tt.only(words, "one") == {"người": ["f", "s"], "ngồi": ["i"], "mười": ["e", "n"]}
+    assert tt.only(words, "narrow") == {"người": ["s"], "mười": ["e", "n"]}
+
+
+def test_the_ways_reach_the_candidates_read_from_the_driver(model, driver):
+    cases = [(None, None, "phin", None)]
+    assert tt.read_nearby(model, driver, cases, 0, "all")["phin"][1] == {"phím": ["n", "nn"], "phin": ["e"]}
+    assert tt.read_nearby(model, driver, cases, 0, "narrow")["phin"][1] == {"phím": ["n"], "phin": ["e"]}

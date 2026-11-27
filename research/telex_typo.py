@@ -1,7 +1,7 @@
 """Fixes a word whose keys slipped (mguoifw -> người), by asking which word nearby keys would have typed.
 
 usage: python -m research.telex_typo TABLE TESTFILE... --driver NEAR DICT ENGLISH KEEP [--plain] [--rare N]
-           [--changed SCALE MARGIN]
+           [--changed SCALE MARGIN] [--ways all|one|narrow]
        python -m research.telex_typo TABLE --driver NEAR DICT ENGLISH KEEP --keys KEYS... [--after WORDS] [--rare N]
 
 NEAR is scripts/ngosen_near.rs built against Ngó Sen's typing core; DICT, ENGLISH and KEEP are the word
@@ -19,7 +19,10 @@ unmarked letters the table lacks, one plain-letter edit away.
 
 --keys prints, for each of the keys typed after WORDS, what the core shows and the fix with its margin
 at each scale. --changed SCALE MARGIN lists, in place of the tables, each word typed right that the fix
-changes at that scale and margin; SCALE "today" is the fix the crate has now.
+changes at that scale and margin; SCALE "today" is the fix the crate has now. --ways one keeps only
+the candidates one slip away, and --ways narrow leaves out of those a far key hit instead and a key left
+out that is not one of a doubled pair, the two kinds that take a key string for every other letter: what
+a search that types fewer key strings would find.
 """
 
 import argparse
@@ -52,6 +55,12 @@ KINDS = {"near": 0.35, "swap": 0.15, "beside": 0.15, "twice": 0.1, "drop": 0.15,
 # Share of mistyped words that get a second slip onto a neighbouring key.
 SECOND = 0.1
 LETTERS = "abcdefghijklmnopqrstuvwxyz"
+# Which ways to a candidate count, each way a string with one letter per slip.
+WAYS = {
+    "all": lambda way: True,
+    "one": lambda way: len(way) == 1,
+    "narrow": lambda way: len(way) == 1 and way not in "fi",
+}
 
 
 def near_keys():
@@ -129,6 +138,12 @@ def read_near(line):
         word, _, kinds = item.partition("=")
         words.setdefault(canon(normalize(word)), []).extend(kinds.split(","))
     return canon(normalize(shown.strip())), words
+
+
+def only(words, ways):
+    """The words nearby that a way of this sort still leads to, with those ways."""
+    kept = {word: [k for k in kinds if WAYS[ways](k)] for word, kinds in words.items()}
+    return {word: kinds for word, kinds in kept.items() if kinds}
 
 
 def units(kinds):
@@ -284,7 +299,7 @@ def cases_of(path, plain):
     return clean + bad
 
 
-def read_nearby(m, driver, cases, rare):
+def read_nearby(m, driver, cases, rare, ways="all"):
     """{keys: (shown, {word: [kinds]})}; the words nearby only for keys whose shown word is a target."""
     keys = sorted({c[2] for c in cases})
     shown = [canon(normalize(s.strip())) for s in through(driver, keys)]
@@ -292,7 +307,8 @@ def read_nearby(m, driver, cases, rare):
     with tempfile.NamedTemporaryFile("w", suffix=".known", encoding="utf-8") as f:
         f.write("\n".join(sorted({strip_marks(w) for w in m.id} | set(m.cand))) + "\n")
         f.flush()
-        near = dict(zip(targets, map(read_near, through(driver, targets, f.name))))
+        read = (read_near(line) for line in through(driver, targets, f.name))
+        near = {k: (shown, only(words, ways)) for k, (shown, words) in zip(targets, read)}
     return {k: near.get(k, (s, {})) for k, s in zip(keys, shown)}
 
 
@@ -315,10 +331,10 @@ def report(name, out, kinds, counts):
         print(f"    {kind:7} {kinds[SCALES[0], kind].n:6}  {row}")
 
 
-def show(m, driver, after, keys, rare):
+def show(m, driver, after, keys, rare, ways):
     """Prints, for each of the keys typed after the words `after`, what is shown and the fix per scale."""
     left = [m.id.get(w, UNK) for w in after]
-    nearby = read_nearby(m, driver, [(None, None, k, None) for k in keys], rare)
+    nearby = read_nearby(m, driver, [(None, None, k, None) for k in keys], rare, ways)
     for k in keys:
         shown, words = nearby[k]
         cands = nearby_words(m, shown, words, rare)
@@ -337,13 +353,14 @@ def main():
     ap.add_argument("--after", default="", help="with --keys: the words typed before them")
     ap.add_argument("--keys", nargs="+", help="show the fix of each of these keys instead of scoring test files")
     ap.add_argument("--changed", nargs=2, metavar=("SCALE", "MARGIN"), help="list the clean words changed")
+    ap.add_argument("--ways", choices=list(WAYS), default="all", help="which ways to a candidate count")
     a = ap.parse_args()
     m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model)
     if a.keys:
-        return show(m, a.driver, [canon(normalize(w)) for w in a.after.split()], a.keys, a.rare)
+        return show(m, a.driver, [canon(normalize(w)) for w in a.after.split()], a.keys, a.rare, a.ways)
     for test in a.tests:
         cases = cases_of(test, a.plain)
-        nearby = read_nearby(m, a.driver, cases, a.rare)
+        nearby = read_nearby(m, a.driver, cases, a.rare, a.ways)
         if a.changed:
             scale = None if a.changed[0] == "today" else float(a.changed[0])
             for was, now, won in changed(m, cases, nearby, scale, float(a.changed[1]), a.rare, a.plain):
