@@ -374,11 +374,12 @@ def report(name, out, kinds, counts):
     print(f"  {counts['known']} show a word that is no target, {counts['reachable']} have the intended word nearby")
     for label, (clean, bad) in out.items():
         print(f"  {label if label == 'today' else f'scale {label}'}: {clean.n} typed right, {bad.n} mistyped")
-        print("    margin  clean-changed  fixed  fixed-right  right-of-fixed")
+        print("    margin  clean-changed  fixed  fixed-right  right-of-fixed  (the three counts)")
         for k, margin in enumerate(MARGINS):
             print(
                 f"    {margin:6}  {clean.made[k] / max(clean.n, 1):13.3%}  {bad.made[k] / max(bad.n, 1):5.1%}  "
-                f"{bad.right[k] / max(bad.n, 1):11.1%}  {bad.right[k] / max(bad.made[k], 1):14.1%}",
+                f"{bad.right[k] / max(bad.n, 1):11.1%}  {bad.right[k] / max(bad.made[k], 1):14.1%}  "
+                f"({clean.made[k]:g} {bad.made[k]:g} {bad.right[k]:g})",
                 flush=True,
             )
     at = MARGINS.index(4)
