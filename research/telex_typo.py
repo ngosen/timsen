@@ -1,6 +1,7 @@
 """Fixes a word whose keys slipped (mguoifw -> người), by asking which word nearby keys would have typed.
 
 usage: python -m research.telex_typo TABLE TESTFILE... --driver NEAR DICT ENGLISH KEEP [--plain] [--rare N]
+           [--changed SCALE MARGIN]
        python -m research.telex_typo TABLE --driver NEAR DICT ENGLISH KEEP --keys KEYS... [--after WORDS] [--rare N]
 
 NEAR is scripts/ngosen_near.rs built against Ngó Sen's typing core; DICT, ENGLISH and KEEP are the word
@@ -17,7 +18,8 @@ reads as the intended word anyway is left out. "today" is the fix the crate has 
 unmarked letters the table lacks, one plain-letter edit away.
 
 --keys prints, for each of the keys typed after WORDS, what the core shows and the fix with its margin
-at each scale.
+at each scale. --changed SCALE MARGIN lists, in place of the tables, each word typed right that the fix
+changes at that scale and margin; SCALE "today" is the fix the crate has now.
 """
 
 import argparse
@@ -249,6 +251,22 @@ def judge(m, cases, nearby, rare, plain):
     return out, kinds, counts
 
 
+def changed(m, cases, nearby, scale, margin, rare, plain):
+    """(word typed right, what replaces it, by how much) for each one the fix changes at this scale
+    and margin; scale None is today's fix."""
+    for truth, i, keys, kind in cases:
+        shown, words = nearby[keys]
+        if kind or not meant(truth[i], plain)(shown):
+            continue
+        cands = today(m, shown) if scale is None else nearby_words(m, shown, words, rare)
+        if not cands:
+            continue
+        keep = UNK if scale is None else m.id.get(shown, UNK)
+        won, word = choose(*rate(m, left_ids(m, truth, i, plain), keep, cands), scale or 0)
+        if won >= margin:
+            yield truth[i], word, won
+
+
 def cases_of(path, plain):
     """(truth, i, keys, kind) for every word typed right (kind None), then for one mistyped word per
     run that has a word of two keys or more."""
@@ -318,6 +336,7 @@ def main():
     ap.add_argument("--rare", type=int, default=0, help="a word seen fewer times than this is a fix target")
     ap.add_argument("--after", default="", help="with --keys: the words typed before them")
     ap.add_argument("--keys", nargs="+", help="show the fix of each of these keys instead of scoring test files")
+    ap.add_argument("--changed", nargs=2, metavar=("SCALE", "MARGIN"), help="list the clean words changed")
     a = ap.parse_args()
     m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model)
     if a.keys:
@@ -325,6 +344,11 @@ def main():
     for test in a.tests:
         cases = cases_of(test, a.plain)
         nearby = read_nearby(m, a.driver, cases, a.rare)
+        if a.changed:
+            scale = None if a.changed[0] == "today" else float(a.changed[0])
+            for was, now, won in changed(m, cases, nearby, scale, float(a.changed[1]), a.rare, a.plain):
+                print(f"{test.rsplit('/', 1)[-1]}: {was} -> {now} {won:+.1f}")
+            continue
         report(test.rsplit("/", 1)[-1], *judge(m, cases, nearby, a.rare, a.plain))
 
 
