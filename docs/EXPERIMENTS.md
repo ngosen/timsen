@@ -3543,3 +3543,154 @@ unit tests fail and no other; made whether or not `fixing_again` is set, one fai
 
 Conclusion: the crate makes the second decision that was measured. A run asks it only for the word
 right before the one that just ended, once; a word taken back and typed again does not ask again.
+
+## 2026-11-27 · Slips that land on a word the table has
+
+Question: 27.5% of the mistyped words show a word the table has seen (`lafn` for `lafm` shows
+`làn`), so the typed-keys fix never looks at them. How many does it fix when such a word is a target
+too, and how many of the words typed right does it then change? Every word typed right becomes a
+target, so the second number is the one that decides.
+
+Setup: `research.telex_typo --rare N`, which makes a target of a shown word the table has seen fewer
+than N times, with `--ways narrow`, scale 2 and `--then M`; the row of margin M is then the fix with
+both decisions at M. Keeping the word is rated as the word itself, not as `<unk>`. N is 1,000,
+100,000 and 10^12 (every word). The targets `--rare` adds are other cases than the ones without it,
+whose decisions do not change, so a setting "unknown words at margin 4, known words at margin M" is
+the row without `--rare` at `--then 4` plus the difference, at `--then M`, between the rows with and
+without `--rare`. Same table, driver and seed as the entry before.
+
+Prediction, before any run, on the frozen `wiki` and `forum` (27.3% / 99.8% / 0.001% and 27.0% /
+99.4% / 0.005% without `--rare`: mistyped words fixed right / fixes right / words typed right that
+were changed):
+
+- Every word a target, margin 4: 33% to 40% fixed right, 95% to 98.5% of fixes right, 0.05% to 0.3%
+  of the words typed right changed.
+- Every word a target, the known ones at margin 8: 1 to 3 points more fixed right than without
+  `--rare`, and at most 0.02% more of the words typed right changed.
+- `--rare 1000`, margin 4: 1.5 to 3.5 points more fixed right, 0.005% to 0.02% of the words typed
+  right changed.
+
+Worth building if some setting, on `wiki-unseen` and on `forum-unseen`, fixes right at least 4
+points more of the mistyped words than the fix does now, with at least 99% of all fixes right and
+at most 0.012% of the words typed right changed. The prediction is that none does: the settings that
+stay under 0.012% add 1 to 3 points.
+
+Result on the frozen files (mistyped words fixed right / fixes right / words typed right that were
+changed, of 73,104, 31,746 and 91,991; 11,026, 5,153 and 9,514 mistyped words scored). "At M" is the
+setting described above: unknown words at margin 4, the known words `--rare` adds at margin M. After
+the first twelve runs `--rare 10000` and `--then 10` were added, and the table of
+`research.telex_typo` got its three counts: shares put together from percentages with one decimal
+were up to 0.3 points off on fixes right.
+
+| Known words that are targets | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| none, the fix as it is | 27.3% / 99.8% / 0.001% | 27.5% / 99.7% / 0.003% | 27.0% / 99.4% / 0.005% |
+| every word, at 4 | 39.3% / 96.6% / 0.398% | 44.0% / 95.7% / 0.410% | 39.3% / 94.8% / 0.700% |
+| every word, at 8 | 35.6% / 99.3% / 0.029% | 38.5% / 99.3% / 0.076% | 35.2% / 98.6% / 0.073% |
+| seen under 100,000 times, at 8 | 34.7% / 99.4% / 0.018% | 37.6% / 99.3% / 0.050% | 34.3% / 98.7% / 0.057% |
+| seen under 100,000 times, at 10 | 32.9% / 99.6% / 0.012% | 34.9% / 99.7% / 0.022% | 32.5% / 99.3% / 0.034% |
+| seen under 10,000 times, at 8 | 33.1% / 99.4% / 0.005% | 36.0% / 99.5% / 0.032% | 32.9% / 98.7% / 0.029% |
+| seen under 10,000 times, at 10 | 31.9% / 99.6% / 0.004% | 33.8% / 99.7% / 0.016% | 31.5% / 99.3% / 0.017% |
+| seen under 1,000 times, at 4 | 33.0% / 97.9% / 0.023% | 35.2% / 97.8% / 0.016% | 32.8% / 97.8% / 0.040% |
+| seen under 1,000 times, at 6 | 32.2% / 99.0% / 0.012% | 34.4% / 98.7% / 0.016% | 31.9% / 98.6% / 0.024% |
+| seen under 1,000 times, at 8 | 31.4% / 99.4% / 0.003% | 33.3% / 99.5% / 0.009% | 31.0% / 99.1% / 0.016% |
+| seen under 1,000 times, at 10 | 30.6% / 99.6% / 0.003% | 32.0% / 99.6% / 0.009% | 30.1% / 99.3% / 0.012% |
+
+Against the prediction, on `wiki` and `forum`: all three missed, the same way.
+
+- Every word a target, margin 4: fixed right hit (39.3% on both). Fixes right hit on `wiki` (96.6%)
+  and fell just under on `forum` (94.8%). The words typed right changed missed: 0.398% and 0.700%,
+  not 0.05% to 0.3%.
+- Every word, the known ones at margin 8: 8.3 and 8.2 points more fixed right, not 1 to 3, and
+  0.028% and 0.068% more of the words typed right changed, not 0.02% at most.
+- `--rare 1000`, margin 4: 5.7 points more on both, not 1.5 to 3.5, and 0.023% and 0.040% of the
+  words typed right changed, not 0.005% to 0.02%.
+
+A slip onto a known word is fixed far more often than predicted, at a high margin too, and a word
+typed right is changed far more often. No setting meets the bar on `forum`; "seen under 1,000 times,
+at 8" and "seen under 10,000 times, at 10" meet it on `wiki` and miss on `forum` by 4 and 5 words.
+
+After the result, `--changed 2 8 --rare 1000 --then 8` listed the 14 words typed right that the
+known words at margin 8 change on the three files, and one reader sorted them with the line in view.
+Eight are typos of the text put right (`hướng đẫn`, `có lé rằng`, `lịnh vực`, `xụp đổ`,
+`dức hạnh`, `bõ rơi`, `đia vị`, `trằn Anh` for `Trần Anh`), one is a typo changed to another
+wrong word (`dnah dự` to `đánh`), and five are real words: the brand `A'pieu` four times, changed
+to `liệu`, and `empore`, which the fix as it is changes at this margin too.
+
+Before the unseen files. The bar above cannot be met on `forum-unseen`: the fix as it is changes
+0.017% of the words typed right there (11 words, 9 of them typos of the text), which was not looked
+up when the bar was written. It stays as written, so by it the answer is already no. A second
+reading is set here, before any run on the unseen files, of what a setting adds to the fix as it
+is: at least 4 points more of the mistyped words fixed right on `wiki-unseen` and on
+`forum-unseen`, at least 99% of all fixes right, and among the words typed right that it changes
+and the fix as it is does not, read with the line in view and counted as real when unsure, real
+words that are at most 0.006% of the words typed right (9 of 160,078 and 3 of 66,249).
+
+The settings run are "seen under 1,000 times" and "seen under 10,000 times", each at 8 and at 10,
+and "seen under 100,000 times" at 10. Prediction (30.6% / 99.8% / 0.001%, 30.1% / 99.6% / 0.017% and
+12.2% / 99.1% / 0.024% as the fix is, on `wiki-unseen`, `forum-unseen` and `social`):
+
+- Seen under 1,000 times, at 8. `wiki-unseen`: 3.5 to 5.0 points more fixed right, 99.2% to 99.7%
+  of fixes right, 0.002% to 0.006% of the words typed right changed. `forum-unseen`: 3.2 to 4.8
+  points more, 98.9% to 99.5%, 0.024% to 0.036%. `social`: 1.0 to 2.5 points more, 98.2% to 99.0%,
+  0.030% to 0.050%.
+- Seen under 10,000 times, at 10. `wiki-unseen`: 3.8 to 5.5 points more, 99.3% to 99.8%, 0.002% to
+  0.008%. `forum-unseen`: 3.6 to 5.4 points more, 99.0% to 99.5%, 0.024% to 0.040%. `social`: 1.2
+  to 3.0 points more, 98.2% to 99.0%, 0.030% to 0.055%.
+- By the second reading "seen under 10,000 times, at 10" passes on both files, and "seen under
+  1,000 times, at 8" falls short of 4 points on one of them. On `forum-unseen` 1 to 3 of the words
+  either adds are real words.
+
+Result on the unseen files (of 160,078, 66,249 and 118,316 words typed right; 21,112, 6,955 and
+14,043 mistyped words scored). The row of the fix as it is repeats the entry on the second decision
+to the digit. The thirteen runs, side by side, took 14 minutes.
+
+| Known words that are targets | `wiki-unseen` | `forum-unseen` | `social` |
+| --- | --- | --- | --- |
+| none, the fix as it is | 30.6% / 99.8% / 0.001% | 30.1% / 99.6% / 0.017% | 12.2% / 99.1% / 0.024% |
+| seen under 1,000 times, at 8 | 34.9% / 99.4% / 0.004% | 34.2% / 99.3% / 0.044% | 15.0% / 98.3% / 0.138% |
+| seen under 1,000 times, at 10 | 34.1% / 99.6% / 0.001% | 33.2% / 99.4% / 0.026% | 14.1% / 98.9% / 0.086% |
+| seen under 10,000 times, at 8 | 37.1% / 99.4% / 0.006% | 36.5% / 99.2% / 0.085% | 16.2% / 97.7% / 0.255% |
+| seen under 10,000 times, at 10 | 35.9% / 99.6% / 0.002% | 35.0% / 99.4% / 0.038% | 14.7% / 98.8% / 0.127% |
+| seen under 100,000 times, at 10 | 37.2% / 99.6% / 0.005% | 35.9% / 99.4% / 0.048% | 15.2% / 98.7% / 0.145% |
+
+Against the prediction.
+
+- Seen under 1,000 times, at 8. `wiki-unseen`: hit on all three (4.3 points more, 99.4%, 0.004%).
+  `forum-unseen`: 4.1 points more and 99.3% hit; the words typed right changed missed, 0.044% where
+  0.024% to 0.036% was predicted. `social`: 2.8 points more, just over the 1.0 to 2.5 predicted;
+  98.3% hit; the words typed right changed missed by far, 0.138% where 0.030% to 0.050% was
+  predicted, 163 words where the fix as it is changes 28.
+- Seen under 10,000 times, at 10. `wiki-unseen` and `forum-unseen`: hit on all three (5.4 and 4.9
+  points more, 99.6% and 99.4%, 0.002% and 0.038%). `social`: 2.5 points more and 98.8% hit; the
+  words typed right changed missed by far, 0.127% where 0.030% to 0.055% was predicted.
+- The second reading: missed for both settings, and not as predicted. Both add 4 points on both
+  files with 99% of fixes right. Read with the line in view, the words typed right that only the
+  setting changes are, for "seen under 1,000 times, at 8", 5 on `wiki-unseen` (1 real: the name
+  `chol`) and 18 on `forum-unseen`, 4 of them real (`FDI`, `lênh đênh`, `sới bạc` and `pim`, slang
+  for `phim`) against 3 allowed; the other 14 are typos of the text put right (`ban hảnh`,
+  `đòng phục`, `tìm hiều`, `phầm mềm`). For "seen under 10,000 times, at 10" they are 2 on
+  `wiki-unseen` (1 real: `zu`) and 14 on `forum-unseen`, at least 5 of them real (`ck`, short for
+  `chồng`, three times and `nầy` twice), where 1 to 3 were predicted; for two more, `bô` and
+  `gậy`, the file has a typo and a real use and the list does not say which was changed.
+
+On `social`, which the second reading leaves out, the 20 changes made most often by "seen under
+1,000 times, at 8" are 68 of its 143 at margin 8, and most are spellings the writer chose:
+`ròi` (11 times), `đii`, `pà`, `nhưg`, `cviec`, `bnhieu`, `bme`, `bgio`, `khum`, `iem`, `bâyh`.
+Several go to a word that was not meant: `cviec` to `việc`, `bme` to `mẹ`, `khum` to `khu`, `nhưg`
+to `như`.
+
+Conclusion: not worth building, by the bar as written and by the second reading. A slip that lands
+on a rare known word can be fixed, 4 to 5 points more of the mistyped words on edited text with
+99.4% of fixes right. But how often the table has seen a word does not tell a slip from a name, an
+abbreviation or a chat spelling. On forum text most of what the setting changes is a typo put
+right and a few real words go with them; on chat text it changes five to six times the words typed
+right that the fix changes now, for 2.5 to 2.8 points more fixed. With one mistyped word in fifty,
+that is one word typed right changed in about 900 against one more slip fixed in about 1,800. The
+fix stays on words the table does not have.
+
+What is left of the mistyped words, on `wiki-unseen` and `forum-unseen` with the narrow search at
+margin 4: 26% and 28% show a known word (this entry); 21% and 15% have no intended word within the
+narrow search (the entry on the search: all ways add 0.4 to 2.0 points at 23 times the candidates);
+23% and 27% have it nearby and are not fixed, mostly short of the margin, which the strength setting
+already trades against words typed right.
