@@ -3394,3 +3394,29 @@ more on one file. Two slips and the two wide kinds find the intended word for an
 mistyped words in 100, but at 2 units or more each they seldom win by the margin. The time is the
 driver's, 2.2 ms a word on one core; the input method's own search has yet to be timed. Limits as
 in the two entries before.
+
+## 2026-11-27 · The typed-keys fix in the crate
+
+Question: does `Typing::fix_nearby` decide as `research.telex_typo` does at scale 2? Setup:
+`research.telex_typo TABLE FILES --ways narrow --write-fixes OUT` on the released small table and
+the five files of the entry before writes, for each distinct word shown with the words before it
+that has nearby words, the fix and its margin: 36,718 decisions, 2,269 of them with no nearby word
+common enough. `cargo run --release --example nearby_check TABLE OUT` pushes the words before as
+typed, then the word, and asks the crate.
+
+One thing changed in the script first, and `--ways all` printed the tables of the entry before
+again with no line different: a candidate must now be a share of the table's words (1.87e-6, which
+is 1,000 occurrences in this table), so the rule also means something on a small fixture table.
+
+No prediction was written before this run; the aim of the port was the same decision on every line.
+For the control the expectation was stated first: with the crate's scale set to 1, over 100
+decisions on the other side of the margin and a largest difference of at least 1.0.
+
+Result: 36,718 decisions, 36,718 the same fix, none on the other side of `FIX_MARGIN`, largest
+margin difference 0; 7,910 fixes are made at the margin. The control: 36,292 the same fix, 1,762 on
+the other side, largest difference 2.0. The fixture `tiny.nearby` holds eight decisions for
+`cargo test`; with the scale at 1, or with two candidates of one spelling left to compete, that
+test and one unit test fail and no other.
+
+Conclusion: the crate makes the fix that was measured. What it does in an input method depends on
+the nearby words that input method finds, which is not part of the crate.

@@ -105,6 +105,14 @@ machine; the only thing a user may choose to send is a score (see "From users").
      2.5 ms but for one loaded round at 2.9 ms). Decided at word end, from the words before it only,
      it fixes 23–25% of the typos it can see, not 45–50%, and is right 98.0–99.5% of the time
      ("Fixing unknown syllables in the crate, decided when a word ends"). Off by default.
+   - `Typing::fix_nearby`, `Run::push_nearby` and `Run::may_fix`: a syllable nothing knows is fixed
+     to a word the input method found near the keys typed (`mguoifw` → `người`), which an edit of
+     plain letters does not reach once Telex marks were typed. The same decision as
+     `research.telex_typo` on all 36,718 decisions of the three frozen files and two unseen ones.
+     With the words one slip away, found by Ngó Sen's core in 42 key strings a word, it puts right
+     12.6% to 17.1% of mistyped words at margin 4 against 4.3% to 6.0%, is right 99.5% to 99.9% of
+     the time and changes at most 0.006% of the words typed right; synthetic slips, Telex only ("A
+     search for the typed-keys fix that an input method can afford").
    - The integration proof again, with fixing: all of step 6's tests pass on the new crate, fixing
      off or on, except that with fixing on a name the fixture table lacks (`ngo`) is fixed to `gõ`
      until the dictionary learns it ("The integration proof again, with fixing").
