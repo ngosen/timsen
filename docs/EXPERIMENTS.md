@@ -3199,8 +3199,9 @@ and 0.009% on `subs` is 3 words where the bar is 4, so the pick wants a run on l
 seen before anything is built on it.
 
 What holds it back is the context, not the search: the intended word is among the candidates for
-two mistyped words in three, and with no margin and no cost the words before pick it for only 40%.
-A quarter to a third of the slips show a word the table already knows and are never looked at.
+two mistyped words in three, and with no margin and no cost the words before pick it for only 40%
+of the mistyped words. A quarter to a third of the slips show a word the table already knows and are
+never looked at.
 `--rare 1000` looks at some of those, but every rare word typed right then becomes a target too: at
 a like share of clean words changed (scale 2, margin 6) it fixes 8.2% to 11.0%, less than half of
 what scale 2, margin 2 does without it. A slip that lands on a real word (`nguooif` as `nguồi`)
