@@ -1,0 +1,326 @@
+"""Fixes a word whose keys slipped (mguoifw -> người), by asking which word nearby keys would have typed.
+
+usage: python -m research.telex_typo TABLE TESTFILE... --driver NEAR DICT ENGLISH KEEP [--plain] [--rare N]
+       python -m research.telex_typo TABLE --driver NEAR DICT ENGLISH KEEP --keys KEYS... [--after WORDS] [--rare N]
+
+NEAR is scripts/ngosen_near.rs built against Ngó Sen's typing core; DICT, ENGLISH and KEEP are the word
+lists it loads. Each word of a test file is typed as Telex keys (--plain: as its unmarked letters) and
+read back through the core. A word is a fix target when the table saw what the core shows fewer than
+--rare times (default: never). Its candidates are the words that keys one or two slips away would have
+typed; each is scored by the trigram that ends at it, less a cost per slip, and the best one replaces
+the word when it beats the next candidate and keeping the word by the margin. The word is decided when
+it ends, so only the words before it are context.
+
+The clean pass counts words typed right that would be changed. The mistyped pass gives one word per
+run a slip, drawn as KINDS says, and counts how often the intended word comes back; a slip the core
+reads as the intended word anyway is left out. "today" is the fix the crate has now: a word shown as
+unmarked letters the table lacks, one plain-letter edit away.
+
+--keys prints, for each of the keys typed after WORDS, what the core shows and the fix with its margin
+at each scale.
+"""
+
+import argparse
+import os
+import random
+import subprocess
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+
+import numpy as np
+
+from . import table
+from .mixed_readings import telex_keys
+from .model import UNK, Model
+from .spellcheck import local_score
+from .text import MARKED, canon, edits, normalize, same, segments, strip_marks
+from .typo import known
+
+MARGINS = [0, 2, 4, 6, 8, 10, 12]
+# How much each slip costs, in units of the scale: letters as scripts/ngosen_near.rs prints them.
+UNITS = {"n": 1, "s": 1, "t": 1, "r": 1, "p": 1, "m": 1, "e": 2, "i": 2, "f": 2.5}
+SCALES = [0, 2, 4, 6]
+# A candidate must itself be common: the table also holds the typos of its corpus.
+COMMON = 1000
+# Each row of letter keys with how far it is shifted to the right of the top row, in key widths.
+ROWS = [("qwertyuiop", 0.0), ("asdfghjkl", 0.25), ("zxcvbnm", 0.75)]
+# Share of each kind of slip, assumed: a neighbouring key instead, two keys swapped, an extra key beside
+# the one before or after, a key hit twice, a key left out, any other key instead, oo for ow.
+KINDS = {"near": 0.35, "swap": 0.15, "beside": 0.15, "twice": 0.1, "drop": 0.15, "far": 0.05, "shape": 0.05}
+# Share of mistyped words that get a second slip onto a neighbouring key.
+SECOND = 0.1
+LETTERS = "abcdefghijklmnopqrstuvwxyz"
+
+
+def near_keys():
+    place = {c: (r, i + shift) for r, (row, shift) in enumerate(ROWS) for i, c in enumerate(row)}
+    return {
+        a: [b for b, (s, y) in place.items() if b != a and abs(s - r) <= 1 and abs(y - x) <= 1]
+        for a, (r, x) in place.items()
+    }
+
+
+NEAR = near_keys()
+
+
+def shape_spots(keys):
+    """Places where the letter again and w each add a mark to the a or o before them."""
+    return [i for i in range(1, len(keys)) if keys[i - 1] in "ao" and keys[i] in (keys[i - 1], "w")]
+
+
+def slip(keys, rng, kind):
+    """The keys with one slip of this kind; a kind with no place for it falls back to a neighbouring key."""
+    spots = {
+        "shape": shape_spots(keys),
+        "swap": [i for i in range(len(keys) - 1) if keys[i] != keys[i + 1]],
+    }.get(kind) or range(len(keys))
+    i = rng.choice(spots)
+    a, key, b = keys[:i], keys[i], keys[i + 1 :]
+    if kind == "shape" and shape_spots(keys):
+        return a + ("w" if key != "w" else a[-1]) + b
+    if kind == "swap" and b and b[0] != key:
+        return a + b[0] + key + b[1:]
+    if kind == "beside":
+        extra = rng.choice(NEAR[key])
+        return a + rng.choice([extra + key, key + extra]) + b
+    if kind == "twice":
+        return a + key + key + b
+    if kind == "drop" and len(keys) > 1:
+        return a + b
+    if kind == "far":
+        return a + rng.choice([c for c in LETTERS if c != key and c not in NEAR[key]]) + b
+    return a + rng.choice(NEAR[key]) + b
+
+
+def mistype(keys, rng):
+    """(keys with a slip, kind); one time in ten a second slip onto a neighbouring key, kind `two`."""
+    kind = rng.choices(list(KINDS), weights=list(KINDS.values()))[0]
+    bad = slip(keys, rng, kind)
+    if rng.random() < SECOND:
+        # A second slip can put the first key back.
+        bad, kind = next(b for b in iter(lambda: slip(bad, rng, "near"), None) if b != keys), "two"
+    return bad, kind
+
+
+def through(driver, lines, known_path=None):
+    """What the driver prints for each line, in order, from as many copies of it as half the cores."""
+    lines = list(lines)
+    cmd = list(driver) + ([known_path] if known_path else [])
+    step = max(1, -(-len(lines) // max(1, (os.cpu_count() or 2) // 2)))
+    chunks = [lines[k : k + step] for k in range(0, len(lines), step)]
+
+    def run(chunk):
+        out = subprocess.run(cmd, input="\n".join(chunk) + "\n", text=True, capture_output=True, check=True)
+        got = out.stdout.split("\n")[: len(chunk)]
+        assert len(got) == len(chunk), "the driver must print one line per word"
+        return got
+
+    with ThreadPoolExecutor(len(chunks) or 1) as pool:
+        return [line for got in pool.map(run, chunks) for line in got]
+
+
+def read_near(line):
+    """(shown, {word: [kinds]}) from one line of the driver, the words in the table's tone placement."""
+    shown, _, rest = line.partition("\t")
+    words = {}
+    for item in rest.split():
+        word, _, kinds = item.partition("=")
+        words.setdefault(canon(normalize(word)), []).extend(kinds.split(","))
+    return canon(normalize(shown.strip())), words
+
+
+def units(kinds):
+    """The cheapest of the ways to reach a word, each a string with one letter per slip."""
+    return min(sum(UNITS[k] for k in way) for way in kinds)
+
+
+def seen(m, word):
+    """How often the table saw a word, or the best spelling of an unmarked form."""
+    counts = [m.uni[i] for i in m.cand.get(word, [])]
+    if word in m.id:
+        counts.append(m.uni[m.id[word]])
+    return max(counts, default=0)
+
+
+def spellings(m, word):
+    """The ids a candidate stands for: itself when marked, every spelling when not; None when rare."""
+    if seen(m, word) < COMMON:
+        return None
+    if MARKED.search(word):
+        return np.array([m.id[word]], dtype=np.int64)
+    return m.options(word)
+
+
+def rate(m, left, keep, cands):
+    """(score of keeping the word, [(word, score, units)]) after the words `left`. `cands` maps a
+    candidate to (ids, units), and each is rated as its best spelling; `keep` is the id of the word."""
+    seq = np.array([*left, UNK], dtype=np.int64)
+    rated = []
+    for ids, cost in cands.values():
+        s = local_score(m, seq, len(left), ids, ended=False)
+        k = int(s.argmax())
+        rated.append((m.words[ids[k]], s[k], cost))
+    stay = local_score(m, seq, len(left), np.array([keep], dtype=np.int64), ended=False)[0]
+    return stay, rated
+
+
+def choose(stay, rated, scale):
+    """(margin, word) of the best candidate, over the next word and over keeping; None without any."""
+    best = {}
+    for word, score, cost in rated:
+        best[word] = max(best.get(word, -np.inf), score - scale * cost)
+    if not best:
+        return None
+    ranked = sorted(best.items(), key=lambda x: (-x[1], x[0]))
+    runner = ranked[1][1] if len(ranked) > 1 else -np.inf
+    return ranked[0][1] - max(runner, stay), ranked[0][0]
+
+
+def today(m, shown):
+    """Candidates of the fix the crate has now; none when the word is not its target."""
+    if not shown.isascii() or known(m, shown):
+        return {}
+    return {c: (m.options(c), 0) for c in edits(shown) if known(m, c)}
+
+
+def nearby_words(m, shown, words, rare):
+    """Candidates among the words nearby keys would have typed; none when the word is not a target."""
+    if seen(m, shown) >= max(rare, 1):
+        return {}
+    ids = {w: spellings(m, w) for w in words}
+    return {w: (ids[w], units(k)) for w, k in words.items() if ids[w] is not None}
+
+
+def left_ids(m, truth, i, plain):
+    """Ids of the words before position i: as typed with marks, or as restore guesses them."""
+    if not plain:
+        return [m.id.get(w, UNK) for w in truth[:i]]
+    guessed = m.restore([strip_marks(w) for w in truth[:i]], ended=False) if i else []
+    return [m.id.get(w, UNK) for w in guessed]
+
+
+def meant(truth, plain):
+    """Tells whether a word is the one meant; typed without marks, its letters are what was meant."""
+    if plain:
+        return lambda word: strip_marks(word) == strip_marks(truth)
+    return lambda word: same(word, truth)
+
+
+class Tally:
+    """Per margin: decisions made, and those that gave the intended word."""
+
+    def __init__(self):
+        self.n, self.made, self.right = 0, np.zeros(len(MARGINS)), np.zeros(len(MARGINS))
+
+    def add(self, decision, ok):
+        self.n += 1
+        if decision:
+            hit = np.array([decision[0] >= t for t in MARGINS])
+            self.made += hit
+            self.right += hit & ok(decision[1])
+
+
+def judge(m, cases, nearby, rare, plain):
+    """Tallies of the clean and the mistyped cases for today's fix and each scale, tallies per
+    (scale, kind of slip), and how many slips the core read as the intended word."""
+    out = {name: (Tally(), Tally()) for name in ["today", *SCALES]}
+    kinds, absorbed = {}, 0
+    for truth, i, keys, kind in cases:
+        shown, words = nearby[keys]
+        ok = meant(truth[i], plain)
+        if ok(shown) != (kind is None):
+            absorbed += kind is not None
+            continue
+        old, new = today(m, shown), nearby_words(m, shown, words, rare)
+        left = left_ids(m, truth, i, plain) if old or new else []
+        which = 0 if kind is None else 1
+        out["today"][which].add(choose(*rate(m, left, UNK, old), 0) if old else None, ok)
+        rated = rate(m, left, m.id.get(shown, UNK), new) if new else None
+        for scale in SCALES:
+            decision = choose(*rated, scale) if rated else None
+            out[scale][which].add(decision, ok)
+            if kind:
+                kinds.setdefault((scale, kind), Tally()).add(decision, ok)
+    return out, kinds, absorbed
+
+
+def cases_of(path, plain):
+    """(truth, i, keys, kind) for every word typed right (kind None), then for one mistyped word per
+    run that has a word of two keys or more."""
+    rng = random.Random(11)
+    clean, bad = [], []
+    for line in open(path, encoding="utf-8"):
+        for truth in segments(line, tone_style=True):
+            keys = [strip_marks(w) if plain else telex_keys(w, rng) for w in truth]
+            clean += [(truth, i, k, None) for i, k in enumerate(keys)]
+            spots = [i for i, k in enumerate(keys) if len(k) > 1 and k.isascii()]
+            if spots:
+                i = rng.choice(spots)
+                slipped, kind = mistype(keys[i], rng)
+                bad.append((truth, i, slipped, kind))
+    return clean + bad
+
+
+def read_nearby(m, driver, cases, rare):
+    """{keys: (shown, {word: [kinds]})}; the words nearby only for keys whose shown word is a target."""
+    keys = sorted({c[2] for c in cases})
+    shown = [canon(normalize(s.strip())) for s in through(driver, keys)]
+    targets = [k for k, s in zip(keys, shown) if seen(m, s) < max(rare, 1) and k.isascii() and k.isalpha()]
+    with tempfile.NamedTemporaryFile("w", suffix=".known", encoding="utf-8") as f:
+        f.write("\n".join(sorted({strip_marks(w) for w in m.id} | set(m.cand))) + "\n")
+        f.flush()
+        near = dict(zip(targets, map(read_near, through(driver, targets, f.name))))
+    return {k: near.get(k, (s, {})) for k, s in zip(keys, shown)}
+
+
+def report(name, out, kinds, absorbed):
+    print(f"{name}: {absorbed} slips read as the intended word anyway")
+    for label, (clean, bad) in out.items():
+        print(f"  {label if label == 'today' else f'scale {label}'}: {clean.n} typed right, {bad.n} mistyped")
+        print("    margin  clean-changed  fixed  fixed-right  right-of-fixed")
+        for k, margin in enumerate(MARGINS):
+            print(
+                f"    {margin:6}  {clean.made[k] / max(clean.n, 1):13.3%}  {bad.made[k] / max(bad.n, 1):5.1%}  "
+                f"{bad.right[k] / max(bad.n, 1):11.1%}  {bad.right[k] / max(bad.made[k], 1):14.1%}",
+                flush=True,
+            )
+    at = MARGINS.index(4)
+    print("  fixed right at margin 4, by kind of slip, for each scale:")
+    for kind in sorted({k for _, k in kinds}):
+        row = "  ".join(f"{kinds[s, kind].right[at] / max(kinds[s, kind].n, 1):6.1%}" for s in SCALES)
+        print(f"    {kind:7} {kinds[SCALES[0], kind].n:6}  {row}")
+
+
+def show(m, driver, after, keys, rare):
+    """Prints, for each of the keys typed after the words `after`, what is shown and the fix per scale."""
+    left = [m.id.get(w, UNK) for w in after]
+    nearby = read_nearby(m, driver, [(None, None, k, None) for k in keys], rare)
+    for k in keys:
+        shown, words = nearby[k]
+        cands = nearby_words(m, shown, words, rare)
+        rated = rate(m, left, m.id.get(shown, UNK), cands)
+        fixes = [choose(*rated, scale) for scale in SCALES]
+        print(f"{k} -> {shown}: " + "  ".join(f"{word} {margin:+.1f}" for margin, word in filter(None, fixes)))
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("model")
+    ap.add_argument("tests", nargs="*")
+    ap.add_argument("--driver", nargs=4, required=True, metavar=("NEAR", "DICT", "ENGLISH", "KEEP"))
+    ap.add_argument("--plain", action="store_true", help="type every word without marks")
+    ap.add_argument("--rare", type=int, default=0, help="a word seen fewer times than this is a fix target")
+    ap.add_argument("--after", default="", help="with --keys: the words typed before them")
+    ap.add_argument("--keys", nargs="+", help="show the fix of each of these keys instead of scoring test files")
+    a = ap.parse_args()
+    m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model)
+    if a.keys:
+        return show(m, a.driver, [canon(normalize(w)) for w in a.after.split()], a.keys, a.rare)
+    for test in a.tests:
+        cases = cases_of(test, a.plain)
+        nearby = read_nearby(m, a.driver, cases, a.rare)
+        report(test.rsplit("/", 1)[-1], *judge(m, cases, nearby, a.rare, a.plain))
+
+
+if __name__ == "__main__":
+    main()
