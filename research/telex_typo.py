@@ -222,18 +222,23 @@ class Tally:
 
 def judge(m, cases, nearby, rare, plain):
     """Tallies of the clean and the mistyped cases for today's fix and each scale, tallies per
-    (scale, kind of slip), and how many slips the core read as the intended word."""
+    (scale, kind of slip), and counts of the mistyped words: `absorbed` the core read as the intended
+    word, `known` it shows as a word that is no target, `reachable` with the intended word among the
+    candidates."""
     out = {name: (Tally(), Tally()) for name in ["today", *SCALES]}
-    kinds, absorbed = {}, 0
+    kinds, counts = {}, dict(absorbed=0, known=0, reachable=0)
     for truth, i, keys, kind in cases:
         shown, words = nearby[keys]
         ok = meant(truth[i], plain)
         if ok(shown) != (kind is None):
-            absorbed += kind is not None
+            counts["absorbed"] += kind is not None
             continue
         old, new = today(m, shown), nearby_words(m, shown, words, rare)
         left = left_ids(m, truth, i, plain) if old or new else []
         which = 0 if kind is None else 1
+        if kind:
+            counts["known"] += seen(m, shown) >= max(rare, 1)
+            counts["reachable"] += any(ok(m.words[i]) for ids, _ in new.values() for i in ids)
         out["today"][which].add(choose(*rate(m, left, UNK, old), 0) if old else None, ok)
         rated = rate(m, left, m.id.get(shown, UNK), new) if new else None
         for scale in SCALES:
@@ -241,7 +246,7 @@ def judge(m, cases, nearby, rare, plain):
             out[scale][which].add(decision, ok)
             if kind:
                 kinds.setdefault((scale, kind), Tally()).add(decision, ok)
-    return out, kinds, absorbed
+    return out, kinds, counts
 
 
 def cases_of(path, plain):
@@ -273,8 +278,9 @@ def read_nearby(m, driver, cases, rare):
     return {k: near.get(k, (s, {})) for k, s in zip(keys, shown)}
 
 
-def report(name, out, kinds, absorbed):
-    print(f"{name}: {absorbed} slips read as the intended word anyway")
+def report(name, out, kinds, counts):
+    print(f"{name}: {counts['absorbed']} slips read as the intended word anyway; of the other mistyped words")
+    print(f"  {counts['known']} show a word that is no target, {counts['reachable']} have the intended word nearby")
     for label, (clean, bad) in out.items():
         print(f"  {label if label == 'today' else f'scale {label}'}: {clean.n} typed right, {bad.n} mistyped")
         print("    margin  clean-changed  fixed  fixed-right  right-of-fixed")

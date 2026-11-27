@@ -110,9 +110,10 @@ def test_judges_clean_and_mistyped_words_apart(model, driver, tmp_path):
     cases = [c for c in tt.cases_of(test, plain=True) if c[3] is None]
     truth = cases[0][0]
     cases += [(truth, 2, "phin", "near"), (truth, 2, "xyzzy", "far"), (truth, 2, "phim", "drop")]
-    out, kinds, absorbed = tt.judge(model, cases, tt.read_nearby(model, driver, cases, 0), 0, plain=True)
+    out, kinds, counts = tt.judge(model, cases, tt.read_nearby(model, driver, cases, 0), 0, plain=True)
     clean, bad = out[0]
-    assert (clean.n, clean.made[0], absorbed) == (3, 0, 1)
+    assert (clean.n, clean.made[0]) == (3, 0)
+    assert counts == dict(absorbed=1, known=0, reachable=1)
     assert (bad.n, bad.made[0], bad.right[0]) == (2, 1, 1)
     assert kinds[0, "near"].right[0] == 1 and kinds[0, "far"].made[0] == 0
     # phin is one letter from phim, so today's fix reaches it too; it has nothing for xyzzy either.
