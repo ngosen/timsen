@@ -125,3 +125,13 @@ def test_shows_the_fix_of_keys_typed_after_some_words(model, driver, capsys):
     first, second = capsys.readouterr().out.splitlines()
     assert first.startswith("phin -> phin: phím +")
     assert second == "xyzzy -> xyzzy: "
+
+
+def test_lists_the_words_typed_right_that_the_fix_changes(model, driver):
+    truth = ["tôi", "gõ", "phin"]
+    cases = [(truth, i, w, None) for i, w in enumerate(["tooi", "gox", "phin"])] + [(truth, 2, "phin", "near")]
+    nearby = {"tooi": ("tôi", {}), "gox": ("gõ", {}), "phin": ("phin", {"phím": ["n"]})}
+    (was, now, won), *rest = tt.changed(model, cases, nearby, 0, 0, 0, False)
+    assert (was, now, rest) == ("phin", "phím", []) and won > 0
+    assert list(tt.changed(model, cases, nearby, 0, won + 1, 0, False)) == []
+    assert [(a, b) for a, b, _ in tt.changed(model, cases, nearby, None, 0, 0, False)] == [("phin", "phím")]

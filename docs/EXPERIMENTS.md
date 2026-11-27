@@ -3259,3 +3259,61 @@ The pick is confirmed if scale 2 with margin 2 meets the bar on `wiki-unseen` an
 at most 0.012% of the words typed right changed, 98% of fixes right, twice what "today" fixes right
 at margin 4. `social` has no bar: it shows what the fix costs on writing full of words the table
 lacks.
+
+Result (mistyped words fixed right / fixes right / words typed right that were changed, of 160,078,
+66,249 and 118,316; 21,112, 6,955 and 14,043 mistyped words scored). The run took 159 seconds.
+
+| | `wiki-unseen` | `forum-unseen` | `social` |
+| --- | --- | --- | --- |
+| today, margin 4 | 6.0% / 99.0% / 0.005% | 4.6% / 95.5% / 0.012% | 2.2% / 93.4% / 0.043% |
+| scale 2, margin 2 | 26.0% / 99.6% / 0.002% | 24.0% / 98.5% / 0.018% | 10.8% / 96.6% / 0.056% |
+| scale 2, margin 4 | 19.1% / 99.8% / 0.000% | 15.2% / 99.5% / 0.005% | 5.2% / 99.1% / 0.010% |
+| scale 4, margin 0 | 25.0% / 99.5% / 0.002% | 23.2% / 98.7% / 0.021% | 10.3% / 98.1% / 0.037% |
+
+The core read 4.9%, 5.4% and 5.1% of the slips as the intended word. Of the others, 64.7%, 68.4%
+and 62.0% have the intended word among the candidates.
+
+Against the prediction.
+
+- `wiki-unseen`: more is fixed right than predicted, by "today" (6.0%, not 4.8% to 5.8%) and by both
+  settings (26.0% and 25.0%, not 21% to 24% and 20% to 23%). Fixes right and clean words changed hit.
+- `forum-unseen`: "today" hit; scale 2 with margin 2 hit on fixed right (24.0%) and fixes right
+  (98.5%); scale 4 with margin 0 fixes 23.2%, a little over the predicted 23%. Clean words changed
+  missed for both: 0.018% and 0.021%, not at most 0.008%.
+- `social`: hit, except scale 2 with margin 2 fixed right, 10.8% and not 12% to 18%.
+
+The pick is not confirmed. Scale 2 with margin 2 meets the bar on `wiki-unseen` and misses it on
+`forum-unseen`, where it changes 12 of the words typed right (0.018%) against a bar of 0.012%, which
+is what "today" changes there at margin 4 (8 words).
+
+After the result, the words behind those shares were listed with `--changed`, added for this, on the
+three frozen files and the two unseen ones (423,168 words typed right; the counts agree with the
+tables). One reader sorted them, with the line in view for `forum-unseen` and from the word alone
+elsewhere, counting a word as real when unsure.
+
+| | Changed | The text had a typo, put right | A real word changed |
+| --- | --- | --- | --- |
+| today, margin 4 | 27 | 8 | 19 |
+| scale 2, margin 2 | 24 | 10 | 14 |
+| scale 2, margin 4 | 5 | 4 | 1 |
+
+On `forum-unseen`, 8 of the 12 are typos the forum text has (`khsch`, `khhoong`, `tranhh`, `dwuaj`)
+fixed to the word meant; the other 4 are `oki` once and `quad` three times. Every real word changed,
+by either fix, is a foreign word or a name (`stones`, `argentine`, `olaf`, `jw`, `planets`, `voip`).
+
+Conclusion: by the measure set before the run, margin 2 at scale 2 does not hold on unseen forum
+text, so it is not the setting to ship as the default. Scale 2 with margin 4 meets the bar on all
+five files, frozen and unseen: at most 0.005% of the words typed right changed, 99.5% to 99.8% of
+fixes right, and 13.0% to 19.1% of the mistyped words fixed right against 4.3% to 6.0% for "today".
+It was not the setting named beforehand, so this is a second pick, made on files that include the
+unseen ones.
+
+The measure itself overstates the harm on forum text: test lines carry their writers' typos, and a
+fix that puts one right is counted as a clean word changed. Read by hand, the typed-keys fix at
+margin 2 changes fewer real words than the fix does today at margin 4 (14 against 19 in 423,168),
+all of them foreign words or names, which an input method can keep out of the fix by other means
+(its own English list); that was not measured. On `social`, at the same share of words changed
+(0.010%), it fixes 5.2% of the slips and "today" 1.1% (margin 6).
+
+Limits as in the entry before: synthetic slips in assumed shares, the words before as the only
+context, Telex only. The hand sorting is one reader's, after the result.
