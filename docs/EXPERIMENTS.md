@@ -3215,3 +3215,47 @@ shares that were assumed; a writer's real slips are not measured. Only the words
 context. Telex only. One word in `subs` is 0.003% of its clean words, so the shares of clean words
 changed stand on a handful of words. The driver types about 3,400 key strings for each word, 52 ms
 on one core: a fix in the input method needs another way to find the candidates.
+
+## 2026-11-27 · The typed-keys fix on lines it was not picked on
+
+Question: "Fixing a word by the keys it was typed with" picked scale 2 with margin 2, and scale 4
+with margin 0, after seeing the frozen files, and its share of clean words changed stood on 3 words
+in `subs`. Do the two settings still meet that entry's bar on held-out text they were not picked on?
+
+Setup: the same script, table, driver and seed, marks typed, no `--rare`. Three files, none of them
+read in that entry:
+
+- `wiki-unseen`: the held-out Wikipedia sentences after the 4,000 of the test set, written by
+  `research.wiki_rest`, which stops unless the first 4,000 it finds are `test/wiki` line for line;
+  less the lines the frozen file also has. 9,170 lines, 167,878 words by `wc -w`, sha256 prefix
+  df836b36f36f0f30.
+- `forum-unseen`: lines 1,774 on of `forum-3` and all of `forum-4`, less 5 lines the frozen file
+  also has. 2,742 lines, 67,483 words, sha256 prefix 250dbd7b904d002f.
+- `social`: the 9,780 ViLexNorm comments as typed, 123,509 words, sha256 prefix 44fa1104f5ecadbe.
+  Slang, abbreviations and the writers' own typos are words typed right here, so a change to one of
+  them counts as a clean word changed even where it corrects a real typo.
+
+There are no more subtitles to use: by the rule of `fetch_subs` on the same OPUS file (its first
+4,000 usable held-out lines are `test/subs` line for line), 116 lines are left.
+
+Seen before this prediction: the line and word counts above. The count of shared lines was checked
+with the frozen forum file against itself (3,911 of 3,911 distinct lines found). Nothing from the
+script on these files.
+
+Prediction, before the run.
+
+- `wiki-unseen`. "today", margin 4: 4.8% to 5.8% of the mistyped words fixed right, 97.5% to 99.2%
+  of fixes right. Scale 2, margin 2: 21% to 24% fixed right, 99.0% to 99.7% of fixes right, at most
+  0.008% of the words typed right changed. Scale 4, margin 0: 20% to 23%, 98.8% to 99.6%, at most
+  0.005%.
+- `forum-unseen`. "today", margin 4: 3.8% to 5.0% fixed right, 94.5% to 98.0% of fixes right. Scale
+  2, margin 2: 20% to 24%, 98.2% to 99.3%, at most 0.008%. Scale 4, margin 0: 19.5% to 23%, 98.0%
+  to 99.2%, at most 0.008%.
+- `social`. Slips the core reads as intended: 4.5% to 6%. "today", margin 4: 2% to 4% fixed right,
+  0.02% to 0.08% of the words as typed changed. Scale 2, margin 2: 12% to 18% fixed right, 96% to
+  98.5% of fixes right, 0.03% to 0.15% of the words as typed changed.
+
+The pick is confirmed if scale 2 with margin 2 meets the bar on `wiki-unseen` and on `forum-unseen`:
+at most 0.012% of the words typed right changed, 98% of fixes right, twice what "today" fixes right
+at margin 4. `social` has no bar: it shows what the fix costs on writing full of words the table
+lacks.
