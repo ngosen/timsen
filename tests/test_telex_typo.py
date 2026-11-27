@@ -21,7 +21,6 @@ def model(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["train", str(out), "tiny"])
     monkeypatch.setattr(train, "WORKERS", 1)
     train.main()
-    monkeypatch.setattr(tt, "COMMON", 1)
     return Model(out)
 
 
@@ -118,6 +117,27 @@ def test_judges_clean_and_mistyped_words_apart(model, driver, tmp_path):
     assert kinds[0, "near"].right[0] == 1 and kinds[0, "far"].made[0] == 0
     # phin is one letter from phim, so today's fix reaches it too; it has nothing for xyzzy either.
     assert np.array_equal(out["today"][1].made, out["today"][1].right) and out["today"][1].right[0] == 1
+
+
+def test_writes_each_decision_once_for_the_rust_check(model, tmp_path):
+    truth = ["tôi", "gõ", "phin"]
+    cases = [
+        (truth, 2, "phin", None),
+        (truth, 2, "phin", "near"),
+        (truth, 1, "gox", None),
+        (["xyzzy"], 0, "xyzzy", None),
+    ]
+    nearby = {
+        "phin": ("phin", {"phím": ["n", "nn"], "zzz": ["f"]}),
+        "gox": ("gõ", {}),
+        "xyzzy": ("xyzzy", {"zzz": ["n"]}),
+    }
+    with open(tmp_path / "fixes", "w", encoding="utf-8") as out:
+        tt.write_fixes(model, cases, nearby, out)
+    first, second = (tmp_path / "fixes").read_text(encoding="utf-8").splitlines()
+    before, shown, near, fix, margin = first.split("\t")
+    assert (before, shown, near, fix) == ("tôi gõ", "phin", "phím:1 zzz:2.5", "phím") and float(margin) > 0
+    assert second == "\txyzzy\tzzz:1\t-\t-"
 
 
 def test_shows_the_fix_of_keys_typed_after_some_words(model, driver, capsys):

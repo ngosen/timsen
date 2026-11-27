@@ -1,7 +1,7 @@
 """Fixes a word whose keys slipped (mguoifw -> người), by asking which word nearby keys would have typed.
 
 usage: python -m research.telex_typo TABLE TESTFILE... --driver NEAR DICT ENGLISH KEEP [--plain] [--rare N]
-           [--changed SCALE MARGIN] [--ways all|one|narrow]
+           [--changed SCALE MARGIN] [--ways all|one|narrow] [--write-fixes OUT]
        python -m research.telex_typo TABLE --driver NEAR DICT ENGLISH KEEP --keys KEYS... [--after WORDS] [--rare N]
 
 NEAR is scripts/ngosen_near.rs built against Ngó Sen's typing core; DICT, ENGLISH and KEEP are the word
@@ -22,7 +22,8 @@ at each scale. --changed SCALE MARGIN lists, in place of the tables, each word t
 changes at that scale and margin; SCALE "today" is the fix the crate has now. --ways one keeps only
 the candidates one slip away, and --ways narrow leaves out of those a far key hit instead and a key left
 out that is not one of a doubled pair, the two kinds that take a key string for every other letter: what
-a search that types fewer key strings would find.
+a search that types fewer key strings would find. --write-fixes OUT writes, in place of the tables,
+the decision for each word with nearby words, for the crate's nearby_check example to compare.
 """
 
 import argparse
@@ -45,8 +46,11 @@ MARGINS = [0, 2, 4, 6, 8, 10, 12]
 # How much each slip costs, in units of the scale: letters as scripts/ngosen_near.rs prints them.
 UNITS = {"n": 1, "s": 1, "t": 1, "r": 1, "p": 1, "m": 1, "e": 2, "i": 2, "f": 2.5}
 SCALES = [0, 2, 4, 6]
-# A candidate must itself be common: the table also holds the typos of its corpus.
-COMMON = 1000
+# A candidate must itself be common, as a share of the table's words: 1,000 occurrences in the
+# released small table. A table also holds the typos of its corpus.
+COMMON = 1.87e-6
+# The scale the crate uses (NEARBY_SCALE), for --write-fixes.
+CRATE_SCALE = 2
 # Each row of letter keys with how far it is shifted to the right of the top row, in key widths.
 ROWS = [("qwertyuiop", 0.0), ("asdfghjkl", 0.25), ("zxcvbnm", 0.75)]
 # Share of each kind of slip, assumed: a neighbouring key instead, two keys swapped, an extra key beside
@@ -161,7 +165,7 @@ def seen(m, word):
 
 def spellings(m, word):
     """The ids a candidate stands for: itself when marked, every spelling when not; None when rare."""
-    if seen(m, word) < COMMON:
+    if seen(m, word) < COMMON * m.total:
         return None
     if MARKED.search(word):
         return np.array([m.id[word]], dtype=np.int64)
@@ -282,6 +286,31 @@ def changed(m, cases, nearby, scale, margin, rare, plain):
             yield truth[i], word, won
 
 
+def write_fixes(m, cases, nearby, out):
+    """One line per target that has nearby words, for the Rust check: the words before it, the word
+    shown, each nearby word as WORD:UNITS, then the fix and its margin at the crate's scale, or `-`
+    twice when no nearby word is common enough."""
+    for before, shown, words in cases_with_words(cases, nearby):
+        cands = {w: (ids, units(k)) for w, k in words.items() if (ids := spellings(m, w)) is not None}
+        near = " ".join(f"{w}:{units(k):g}" for w, k in sorted(words.items()))
+        fix, margin = "-", "-"
+        if cands:
+            won, fix = choose(*rate(m, [m.id.get(w, UNK) for w in before], UNK, cands), CRATE_SCALE)
+            margin = repr(float(won))
+        print(" ".join(before), shown, near, fix, margin, sep="\t", file=out)
+
+
+def cases_with_words(cases, nearby):
+    """(words before, word shown, {nearby word: [kinds]}) of each case, once, whose keys have nearby words."""
+    done = set()
+    for truth, i, keys, _ in cases:
+        shown, words = nearby[keys]
+        key = (tuple(truth[:i]), shown)
+        if words and key not in done:
+            done.add(key)
+            yield truth[:i], shown, words
+
+
 def cases_of(path, plain):
     """(truth, i, keys, kind) for every word typed right (kind None), then for one mistyped word per
     run that has a word of two keys or more."""
@@ -354,6 +383,7 @@ def main():
     ap.add_argument("--keys", nargs="+", help="show the fix of each of these keys instead of scoring test files")
     ap.add_argument("--changed", nargs=2, metavar=("SCALE", "MARGIN"), help="list the clean words changed")
     ap.add_argument("--ways", choices=list(WAYS), default="all", help="which ways to a candidate count")
+    ap.add_argument("--write-fixes", help="write each decision at the crate's scale to this file")
     a = ap.parse_args()
     m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model)
     if a.keys:
@@ -361,6 +391,10 @@ def main():
     for test in a.tests:
         cases = cases_of(test, a.plain)
         nearby = read_nearby(m, a.driver, cases, a.rare, a.ways)
+        if a.write_fixes:
+            with open(a.write_fixes, "a", encoding="utf-8") as out:
+                write_fixes(m, cases, nearby, out)
+            continue
         if a.changed:
             scale = None if a.changed[0] == "today" else float(a.changed[0])
             for was, now, won in changed(m, cases, nearby, scale, float(a.changed[1]), a.rare, a.plain):
