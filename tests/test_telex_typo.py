@@ -111,6 +111,40 @@ def test_the_word_after_decides_what_the_words_before_could_not(model):
     assert tt.staged(tt.rate(model, [], UNK, {}), None, 0, 0) is None
 
 
+def test_two_words_after_decide_what_one_could_not(model):
+    cands = tt.nearby_words(model, "phin", {"phím": ["n"]}, 0)
+    rated = tt.rate(model, [], UNK, cands)
+    later = tt.rate(model, [], UNK, cands, [model.id["này"]])
+    latest = tt.rate(model, [], UNK, cands, [model.id["này"], model.id["gõ"]])
+    first, second, third = (tt.choose(*r, 0) for r in (rated, later, latest))
+    assert first[0] < second[0] < third[0]
+    between = (second[0] + third[0]) / 2
+    assert tt.staged(rated, later, 0, between, latest=latest) == second
+    assert tt.staged(rated, later, 0, between, latest=latest, third=True) == third
+    assert tt.staged(rated, later, 0, second[0], latest=latest, third=True) == (np.inf, "phím")
+    assert tt.staged(rated, later, 0, between, after=True, latest=latest, third=True) == third
+    # One word after and no second: a second decision short of the margin is no fix.
+    assert tt.staged(rated, later, 0, between, third=True) is None
+    assert tt.staged(rated, None, 0, between, third=True) is None
+
+
+def test_a_third_decision_needs_two_words_after(model):
+    truth = ["bàn", "phím", "này", "gõ"]
+    nearby = {"phin": ("phin", {"phím": ["n"]})}
+    cands = tt.nearby_words(model, "phin", nearby["phin"][1], 0)
+    left, after = [model.id["bàn"]], [model.id["này"]]
+    second = tt.choose(*tt.rate(model, left, UNK, cands, after), 0)
+    then = second[0] + 0.01
+    cases = [(truth, 1, "phin", "near"), (truth[:3], 1, "phin", "near")]
+    bad = tt.judge(model, cases, nearby, 0, False, then=then, third=True)[0][0][1]
+    assert (bad.n, bad.made[0], bad.right[0]) == (2, 1, 1)
+    typed = ["bàn", "phin", "này", "gõ"]
+    listed = list(tt.changed(model, [(typed, 1, "phin", None)], nearby, 0, 0, 0, False, then, third=True))
+    assert [(a, b, around) for a, b, _, around in listed] == [("phin", "phím", "bàn phin này gõ")]
+    # Without the third decision the second, short of `then`, is all there is.
+    assert list(tt.changed(model, [(typed, 1, "phin", None)], nearby, 0, then, 0, False, then)) == []
+
+
 def test_a_second_decision_fixes_a_word_once_the_next_is_typed(model, driver, tmp_path):
     truth = ["bàn", "phím", "này"]
     cases = [(truth, 1, "phin", "near"), (["bàn", "phím"], 1, "phin", "near")]
