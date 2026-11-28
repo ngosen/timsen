@@ -3739,3 +3739,67 @@ and the fix as it is does not, read with the line in view and counted as real wh
 words at most 0.006% of the words typed right (the second reading of the entry before), with at most
 0.060% of the words typed right on `social` changed in all (0.024% as the fix is; "seen under 1,000
 times, at 8" of the entry before changed 0.138%).
+
+Result on the frozen files (mistyped words fixed right / fixes right / words typed right that were
+changed; the same 73,104, 31,746 and 91,991 words typed right as the entry before, and 11,026, 5,153
+and 9,514 mistyped words with `--slip mixed`). The rows of the fix as it is with `--slip mixed`
+repeat the entry before to the digit.
+
+| `--slip mark` | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| the fix as it is | 3.8% / 99.5% / 0.001% | 4.2% / 99.5% / 0.003% | 3.5% / 99.7% / 0.005% |
+| marks search, unknown words at 4 | 4.3% / 100.0% / 0.001% | 4.3% / 99.5% / 0.003% | 3.8% / 99.7% / 0.005% |
+| seen under 1,000 times, at 8 | 9.4% / 99.9% / 0.005% | 9.0% / 99.3% / 0.016% | 8.8% / 99.5% / 0.014% |
+| seen under 10,000 times, at 8 | 14.2% / 99.9% / 0.007% | 14.7% / 99.3% / 0.032% | 14.1% / 99.5% / 0.029% |
+| seen under 10,000 times, at 10 | 12.1% / 99.9% / 0.004% | 12.2% / 99.5% / 0.019% | 11.6% / 99.6% / 0.017% |
+| seen under 100,000 times, at 8 | 20.5% / 99.9% / 0.018% | 20.8% / 99.4% / 0.047% | 21.0% / 99.6% / 0.060% |
+| seen under 100,000 times, at 10 | 16.8% / 99.9% / 0.011% | 16.3% / 99.5% / 0.028% | 16.4% / 99.7% / 0.042% |
+| every word, at 8 | 45.1% / 99.9% / 0.027% | 48.3% / 99.8% / 0.072% | 45.2% / 99.7% / 0.089% |
+| every word, at 10 | 34.3% / 100.0% / 0.016% | 34.8% / 99.8% / 0.038% | 32.8% / 99.8% / 0.052% |
+
+| `--slip mixed` | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| the fix as it is | 27.3% / 99.8% / 0.001% | 27.5% / 99.7% / 0.003% | 27.0% / 99.4% / 0.005% |
+| marks search, unknown words at 4 | 27.4% / 99.8% / 0.001% | 27.6% / 99.7% / 0.003% | 27.0% / 99.4% / 0.005% |
+| seen under 1,000 times, at 8 | 28.7% / 99.3% / 0.005% | 29.3% / 98.8% / 0.016% | 28.7% / 98.9% / 0.014% |
+| seen under 10,000 times, at 8 | 29.5% / 99.1% / 0.007% | 30.3% / 98.6% / 0.032% | 29.5% / 98.9% / 0.029% |
+| seen under 10,000 times, at 10 | 29.1% / 99.5% / 0.004% | 29.7% / 99.3% / 0.019% | 29.0% / 99.2% / 0.017% |
+| seen under 100,000 times, at 8 | 30.3% / 99.2% / 0.018% | 31.2% / 98.6% / 0.047% | 30.3% / 98.8% / 0.060% |
+| seen under 100,000 times, at 10 | 29.7% / 99.5% / 0.011% | 30.3% / 99.3% / 0.028% | 29.6% / 99.2% / 0.042% |
+| every word, at 8 | 31.3% / 99.1% / 0.027% | 32.7% / 98.5% / 0.072% | 31.3% / 98.9% / 0.089% |
+| every word, at 10 | 30.4% / 99.5% / 0.016% | 31.4% / 99.3% / 0.038% | 30.3% / 99.2% / 0.052% |
+
+Against the prediction, on `wiki` and `forum`:
+
+- `--slip mark`, the fix as it is: missed, 3.8% and 3.5%, not 10% to 22%.
+- The marks search, unknown words only: missed, 0.5 and 0.3 points, not 3 to 8.
+- Seen under 1,000 times at 8: missed, 5.6 and 5.3 points, not 8 to 18. Seen under 10,000 times
+  at 10: missed, 8.3 and 8.1 points, not 10 to 22.
+- `--slip mixed`: the marks search adds 0.1 and 0.0 points, under 0.3 to 1.5; seen under 1,000
+  times at 8 adds 1.4 and 1.7 points (hit), with 99.3% and 98.9% of fixes right, a miss on `forum`.
+- Words typed right changed: the marks search adds nothing (hit); seen under 1,000 times at 8,
+  0.005% and 0.014% (hit); every word at 8, 0.027% (hit) and 0.089% (missed, over 0.08%).
+
+A mark key left out almost never shows a word the table lacks, and mostly shows a word it has seen
+often: `nhưng` for `những`, `la` for `là`, `co` for `có`. Every word as a target puts right 45% of
+these slips, ten times the fix as it is; the targets seen under 100,000 times, a fifth of that. So
+the threshold that keeps words typed right safe also keeps most of these slips out of reach.
+
+Before the unseen files. The bar stays as written. The settings it is read on are "seen under
+10,000 times, at 8", "seen under 100,000 times, at 10" and "seen under 100,000 times, at 8"; the
+others are run for the record. `--changed` lists, for each of the three, the words typed right it
+changes, which are read with the line in view as in the entry before.
+
+Prediction (30.6% / 99.8% / 0.001%, 30.1% / 99.6% / 0.017% and 12.2% / 99.1% / 0.024% with
+`--slip mixed` as the fix is, on `wiki-unseen`, `forum-unseen` and `social`):
+
+- Seen under 10,000 times, at 8: 9 to 12 points more of the `--slip mark` words put right on
+  `wiki-unseen` and `forum-unseen`; with `--slip mixed` 99.0% to 99.4% of fixes right on
+  `wiki-unseen` and 98.6% to 99.2% on `forum-unseen`; words typed right changed 0.004% to 0.010%,
+  0.030% to 0.060% and, on `social`, 0.06% to 0.15%.
+- Seen under 100,000 times, at 10: 11 to 15 points more; 99.3% to 99.6% and 99.0% to 99.4% of fixes
+  right; 0.008% to 0.016%, 0.040% to 0.080% and 0.08% to 0.20%.
+- Seen under 100,000 times, at 8: 15 to 19 points more; 99.0% to 99.4% and 98.6% to 99.2%; 0.015%
+  to 0.025%, 0.06% to 0.10% and 0.12% to 0.30%.
+- Real words among what each changes and the fix as it is does not, on `forum-unseen`: 3 to 10,
+  over the 3 allowed, and `social` over 0.060% for all three. So none passes the bar.
