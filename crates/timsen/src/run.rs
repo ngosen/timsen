@@ -172,7 +172,8 @@ impl<'t> Run<'t> {
     /// `nearby` the words that keys near the ones typed would have shown and that differ from it
     /// only in marks. It is shown as typed; when the word after it ends, it is fixed to one of
     /// those that wins over keeping it by [`MARKS_MARGIN`] ([`Typing::fix_marks`]). That needs
-    /// fixing on and [`Run::fixing_again`].
+    /// fixing on and [`Run::fixing_again`]. A syllable nothing knows is fixed as [`Run::push`]
+    /// fixes it.
     pub fn push_marks(&mut self, syllable: &str, raw: Option<&str>, nearby: &[Nearby<'_>]) {
         match raw {
             Some(raw) => self.push_either(syllable, raw),
@@ -1124,6 +1125,18 @@ mod tests {
         assert!(run.undo_fix());
         let back = run.change(false, Reach::Run, ToneStyle::New).unwrap();
         assert_eq!((back.first, &back.new), (1, &strings(&["gỗ"])));
+    }
+
+    #[test]
+    fn a_raw_reading_that_fits_is_not_fixed_in_its_marks() {
+        let t = table();
+        let run = Run::new(Typing::new(&t), 0.99).fixing(Some(FIX_MARGIN));
+        let mut run = run.fixing_again(true);
+        type_words(&mut run, &["tôi"], Reach::Run);
+        type_marks(&mut run, "gỗ", Some("gõ"), &[("gõ", 1.0)]);
+        type_words(&mut run, &["phím"], Reach::Run);
+        assert_eq!(run.shown()[1], "gõ");
+        assert!(!run.undo_fix(), "read so, not fixed");
     }
 
     #[test]

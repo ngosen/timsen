@@ -95,7 +95,7 @@ impl Typing<'_> {
                 })
             })
             .collect();
-        self.best_fix(i, ended, cands, false, UNK)
+        self.best_fix(i, ended, cands, false, &[UNK])
     }
 
     /// The fix for syllable `i` among `nearby`, the words the input method would have shown for
@@ -108,21 +108,22 @@ impl Typing<'_> {
             return None;
         }
         let cands = self.nearby_candidates(nearby);
-        self.best_fix(i, ended, cands, true, UNK)
+        self.best_fix(i, ended, cands, true, &[UNK])
     }
 
     /// The fix for syllable `i`, which the table may know, among `nearby`, words that differ from
     /// it only in marks; `None` when none is common enough. Scored as [`Typing::fix_nearby`] does,
-    /// except that keeping the syllable is scored as the word it is, not as an unknown one.
+    /// except that keeping the syllable is scored as the best of its readings, not as an unknown
+    /// word: English keys read as a word with marks must not lose to a word near that one.
     pub fn fix_marks(&self, i: usize, ended: bool, nearby: &[Nearby<'_>]) -> Option<Fix> {
-        let typed = self.typed.get(i)?;
+        let (typed, readings) = (self.typed.get(i)?, self.opts.get(i)?);
         if typed.len() > MAX_TARGET {
             return None;
         }
         let itself = tone::to_new(&typed.to_lowercase());
         let mut cands = self.nearby_candidates(nearby);
         cands.retain(|c| c.word != itself);
-        self.best_fix(i, ended, cands, true, self.id_of(typed))
+        self.best_fix(i, ended, cands, true, readings)
     }
 
     fn nearby_candidates(&self, nearby: &[Nearby<'_>]) -> Vec<Candidate> {
@@ -164,7 +165,7 @@ impl Typing<'_> {
         (seen >= NEARBY_SHARE * table.total()).then_some(ids)
     }
 
-    /// The best of `cands` at syllable `i`, over keeping it as `keep`. With `spelled`, a candidate
+    /// The best of `cands` at syllable `i`, over keeping it as the best of `keep`. With `spelled`, a candidate
     /// counts as its best spelling, so two that come to the same spelling are one.
     fn best_fix(
         &self,
@@ -172,7 +173,7 @@ impl Typing<'_> {
         ended: bool,
         cands: Vec<Candidate>,
         spelled: bool,
-        keep: u32,
+        keep: &[u32],
     ) -> Option<Fix> {
         let picks = self.best_path(ended);
         let seq: Vec<u32> = (0..self.opts.len())
@@ -200,7 +201,9 @@ impl Typing<'_> {
         rated.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.total_cmp(&a.1)));
         rated.dedup_by(|later, first| later.0 == first.0);
         let best = (0..rated.len()).reduce(|b, k| if rated[k].1 > rated[b].1 { k } else { b })?;
-        let keep = self.local(&seq, i, keep, ended);
+        let keep = (keep.iter())
+            .map(|&id| self.local(&seq, i, id, ended))
+            .fold(f64::NEG_INFINITY, f64::max);
         let runner = (0..rated.len())
             .filter(|&k| k != best)
             .map(|k| rated[k].1)
