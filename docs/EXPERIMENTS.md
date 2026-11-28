@@ -4150,3 +4150,67 @@ have the right reading at index 1 to 3 or as typed; typed without marks on the s
 75% of wrong words are wrong while among the last 3 and, of the runs with every wrong word in the
 phrase, at least 70% have the right reading at index 1 to 3 or as typed; and typing a word again
 points at at least 85% of wrong words both ways.
+
+Result (last 3 unless marked; runs with every wrong word in the phrase / right reading: first press,
+2 to 3, 4 to 5, only as typed, nowhere / wrong words wrong while among the last 3 / typing a word
+again points at). Each file took under four minutes, five at once.
+
+| typed as written | wrong words | in the phrase | first, 2-3, 4-5, as typed, nowhere | in reach | typed again |
+| --- | --- | --- | --- | --- | --- |
+| `wiki` | 0.60% | 57.4% | 65.8, 28.3, 0.0, 5.8, 0.0 | 100.0% | 99.3% |
+| `forum` | 1.00% | 39.2% | 60.0, 27.2, 3.3, 9.5, 0.0 | 99.9% | 95.4% |
+| `wiki-unseen` | 0.35% | 54.5% | 61.7, 29.6, 0.7, 8.0, 0.0 | 100.0% | 98.9% |
+| `forum-unseen` | 0.61% | 50.1% | 59.4, 28.9, 1.1, 10.6, 0.0 | 99.3% | 98.3% |
+| `social` | 2.23% | 47.4% | 58.0, 22.5, 0.6, 18.9, 0.0 | 100.0% | 97.9% |
+
+| typed without marks | wrong words | in the phrase | first, 2-3, 4-5, as typed, nowhere | in reach | typed again |
+| --- | --- | --- | --- | --- | --- |
+| `wiki` | 4.33% | 42.1% | 47.8, 26.3, 4.2, 0.5, 21.2 | 99.4% | 84.8% |
+| `forum` | 7.00% | 32.2% | 44.8, 24.9, 7.0, 0.9, 22.4 | 99.5% | 82.8% |
+| `wiki-unseen` | 2.61% | 36.1% | 55.2, 22.9, 4.4, 1.1, 16.4 | 99.5% | 82.9% |
+| `forum-unseen` | 5.05% | 33.2% | 50.4, 24.4, 7.8, 1.3, 16.1 | 99.5% | 82.6% |
+| `social` | 17.31% | 25.5% | 31.5, 23.5, 6.8, 0.3, 37.9 | 99.8% | 75.3% |
+
+With the last 2 words, 6 to 11 points fewer runs have every wrong word in the phrase on every file
+and both ways; the first press is right more often typed without marks (by 2 to 5 points) and not
+typed as written (wiki 63.9% against 65.8%).
+
+Against the prediction:
+
+- Typed without marks: wrong words missed on all three files of the prediction, lower on `wiki` and
+  `forum` (4.33%, 7.00%), higher on `social` (17.31%). Every wrong word in the phrase: hit on `wiki`
+  and `wiki-unseen`, missed below on the other three (25.5% to 33.2%). First press: hit on three,
+  missed on `wiki-unseen` (55.2%) and `social` (31.5%). 2 to 3 hit but on `wiki` (26.3%); 4 to 5 hit
+  on all; only as typed hit on two; nowhere hit on two, under on two, over on `social` (37.9%). Wrong
+  while among the last 3: missed on all, far over (99.4% to 99.8% against 75% to 90%). Typing again:
+  hit but on `social` (75.3%).
+- Typed as written: wrong words hit on all. Every wrong word in the phrase: missed on all, below
+  (39.2% to 57.4% against 60% to 80%). First press: missed on all, below (58.0% to 65.8% against 70%
+  to 90%). Nowhere: hit, 0 on all. Wrong while among the last 3: over the range on all (99.3% to
+  100%). Typing again: hit on all.
+- Last 2 against last 3: fewer runs in the phrase, hit; the first press right more often, hit typed
+  without marks, missed typed as written.
+
+By the bar set before the run the key as planned is not confirmed. Typed as written, every wrong
+word is in the last-3 phrase for 50.1% and 47.4% of runs with one on `forum-unseen` and `social`,
+under 60% (the right reading at index 1 to 3 or as typed for 98.9% and 99.4% of those passes); typed
+without marks, that share is 55.3% on `social`, under 70% (76.1% on `forum-unseen` passes); and typing
+a word again points at 82.6% and 75.3% of wrong words typed without marks, under 85%. Wrong while
+among the last 3 passes, at 99.5% and 99.8%.
+
+What the run shows that the bar did not ask: almost every wrong word is shown wrong while it is still
+among the last 3 words, while at the end of the run only a third to a half of the runs with a wrong
+word have them all there. A key used when the wrong word appears reaches nearly all of them; one used
+at the end of the line, half. Where the right reading is at that earlier moment was not measured.
+Typed as written, the words as typed are by construction always right, so a press that gives them
+back fixes every phrase that holds the wrong words. On `social` typed as written, 2.23% of words are
+changed wrongly, many of them shorthands written without marks; Ngó Sen's keep list, which this run
+does not load, holds some of them, so the share in Ngó Sen is lower by an amount not measured.
+
+Conclusion: a key over the changed words of the last 3 reaches the wrong words of the line in only
+half the lines when used at the end, so it is no way to fix a line after it is typed. Used while the
+wrong word is among the last 3, it reaches nearly all of them; typed as written, giving the words back
+as typed is then always right, and the next reading or one of the two after it is right for 80% to
+94% of phrases. Pointing at a word by typing it again reaches 95% to 99% of wrong words typed as
+written. Limits: synthetic typing, every word right as typed or wholly without marks; the shorthand
+list and the typo fixes of Ngó Sen are not part of it.
