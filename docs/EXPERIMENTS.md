@@ -3694,3 +3694,48 @@ margin 4: 26% and 28% show a known word (this entry); 21% and 15% have no intend
 narrow search (the entry on the search: all ways add 0.4 to 2.0 points at 23 times the candidates);
 23% and 27% have it nearby and are not fixed, mostly short of the margin, which the strength setting
 already trades against words typed right.
+
+## 2026-11-28 · A mark key left out
+
+Question: a Telex word with one mark key left out (`nguoif` for `nguowif`, `dduowc` for `dduowcj`)
+mostly shows a word the table has seen, often a typo of its corpus (`đươc`, `ngươi`, the keys
+`nguoif` themselves), so the typed-keys fix never looks at it, and the narrow search does not try a
+mark key left out. How many of these does the fix put right when (a) the search tries a mark key
+left out, and (b) a word the table saw rarely is a target too, but only for words that differ from
+it in marks? The entry before shows that a rare known word as a target for any nearby word changes
+chat spellings (`cviec` to `việc`, `khum` to `khu`); (b) cannot change letters, except where the
+core shows the keys, so most of those are out of its reach. `ròi` to `rồi` is not.
+
+Setup: `research.telex_typo` at scale 2, with `--ways marks` (the narrow search and a mark key `s f r
+x j w` left out, one unit like the other near slips) and `--marks N` for (b), N 1,000, 10,000,
+100,000 and 10^12. Each setting is run with `--slip mixed` (the slips of the entries before) and
+`--slip mark` (each run's mistyped word has one key left out that changes only marks: a mark key
+after a vowel, or the second of aa, ee, oo, dd); both have the same words typed right. As in the
+entry before, "at M" means unknown words at margin 4 with the marks search, and the targets
+`--marks` adds at margin M: the row of `--ways marks --then 4` plus the difference, at `--then M`,
+between the rows with and without `--marks`. Same table, driver and seed as the entry before.
+
+What this does not model: Ngó Sen marks a word typed with no mark key at all from the words around
+it, so `khong` and `nguoi` are put right there before this fix; here they count as mistyped words
+the fix did not fix.
+
+Prediction, before any run, on the frozen `wiki` and `forum` (mistyped words fixed right / fixes
+right / words typed right that were changed):
+
+- `--slip mark`, the fix as it is (`--ways narrow --then 4`): 10% to 22% fixed right; a doubled
+  vowel left out often shows a word the table lacks, a mark key left out rarely.
+- `--slip mark`, `--ways marks`, unknown words only, at 4: 3 to 8 points more than the fix as it is.
+- `--slip mark`, seen under 1,000 times, at 8: 8 to 18 points more than the fix as it is; seen
+  under 10,000 times, at 10: 10 to 22 points more.
+- `--slip mixed`: the marks search adds 0.3 to 1.5 points; seen under 1,000 times at 8 adds 1 to 3
+  points in all, with 99% or more of fixes right.
+- Words typed right changed: the marks search adds at most 0.002%. Seen under 1,000 times at 8:
+  0.002% to 0.010% on `wiki`, 0.005% to 0.025% on `forum`; every word at 8: 0.02% to 0.08%.
+
+Worth an experimental setting, off by default, if some setting, on `wiki-unseen` and on
+`forum-unseen`, puts right at least 10 points more of the `--slip mark` words than the fix as it is,
+keeps 99% of all fixes right with `--slip mixed`, and among the words typed right that it changes
+and the fix as it is does not, read with the line in view and counted as real when unsure, has real
+words at most 0.006% of the words typed right (the second reading of the entry before), with at most
+0.060% of the words typed right on `social` changed in all (0.024% as the fix is; "seen under 1,000
+times, at 8" of the entry before changed 0.138%).
