@@ -3803,3 +3803,63 @@ Prediction (30.6% / 99.8% / 0.001%, 30.1% / 99.6% / 0.017% and 12.2% / 99.1% / 0
   to 0.025%, 0.06% to 0.10% and 0.12% to 0.30%.
 - Real words among what each changes and the fix as it is does not, on `forum-unseen`: 3 to 10,
   over the 3 allowed, and `social` over 0.060% for all three. So none passes the bar.
+
+Result on the unseen files (of 160,078, 66,249 and 118,316 words typed right; 21,112, 6,955 and
+14,043 mistyped words with `--slip mixed`). The rows of the fix as it is with `--slip mixed` repeat
+the entry before to the digit.
+
+| `--slip mark` | `wiki-unseen` | `forum-unseen` | `social` |
+| --- | --- | --- | --- |
+| the fix as it is | 4.7% / 99.9% / 0.001% | 4.2% / 99.3% / 0.017% | 1.4% / 100.0% / 0.024% |
+| marks search, unknown words at 4 | 5.3% / 99.9% / 0.001% | 4.5% / 99.7% / 0.017% | 1.6% / 100.0% / 0.024% |
+| seen under 1,000 times, at 8 | 10.6% / 99.9% / 0.002% | 9.4% / 99.5% / 0.033% | 4.2% / 98.5% / 0.073% |
+| seen under 10,000 times, at 8 | 16.0% / 99.9% / 0.006% | 14.8% / 99.7% / 0.059% | 6.9% / 98.5% / 0.116% |
+| seen under 10,000 times, at 10 | 14.1% / 99.9% / 0.003% | 12.1% / 99.7% / 0.039% | 4.9% / 99.7% / 0.062% |
+| seen under 100,000 times, at 8 | 23.3% / 99.9% / 0.016% | 21.8% / 99.8% / 0.091% | 10.2% / 98.8% / 0.151% |
+| seen under 100,000 times, at 10 | 19.6% / 99.9% / 0.007% | 17.0% / 99.8% / 0.054% | 6.7% / 99.7% / 0.077% |
+| every word, at 8 | 52.4% / 99.9% / 0.032% | 48.5% / 99.8% / 0.130% | 22.0% / 99.3% / 0.232% |
+| every word, at 10 | 41.9% / 99.9% / 0.017% | 35.1% / 99.8% / 0.075% | 13.0% / 99.7% / 0.111% |
+
+| `--slip mixed` | `wiki-unseen` | `forum-unseen` | `social` |
+| --- | --- | --- | --- |
+| the fix as it is | 30.6% / 99.8% / 0.001% | 30.1% / 99.6% / 0.017% | 12.2% / 99.1% / 0.024% |
+| seen under 10,000 times, at 8 | 32.9% / 99.0% / 0.006% | 32.8% / 98.7% / 0.059% | 13.6% / 97.0% / 0.116% |
+| seen under 100,000 times, at 8 | 33.7% / 99.0% / 0.016% | 33.5% / 98.7% / 0.091% | 14.0% / 96.8% / 0.151% |
+| seen under 100,000 times, at 10 | 33.2% / 99.5% / 0.007% | 32.7% / 99.5% / 0.054% | 13.3% / 98.2% / 0.077% |
+
+Against the prediction.
+
+- Seen under 10,000 times, at 8: 11.3 and 10.6 points more (hit); 99.0% and 98.7% of fixes right
+  (hit); words typed right changed 0.006% and 0.059% (hit), `social` 0.116% (hit).
+- Seen under 100,000 times, at 10: 14.9 and 12.8 points more (hit); 99.5% and 99.5% of fixes
+  right (hit on `wiki-unseen`; missed on `forum-unseen`, over 99.0% to 99.4%); words typed right
+  changed 0.007% (missed, under 0.008%), 0.054% (hit), `social` 0.077% (missed, under 0.08%).
+- Seen under 100,000 times, at 8: 18.6 and 17.6 points more (hit); 99.0% and 98.7% (hit); 0.016%
+  (hit), 0.091% (hit), `social` 0.151% (hit).
+- Real words among what each changes and the fix as it is does not, on `forum-unseen`, read with
+  the line in view and counted as real when unsure. Seen under 10,000 times, at 8: 28 changes, 11
+  real (`nầy` five times, `gậy`, `hàu`, `nhá`, `trọ`, `vùi`, `ơ`). Seen under 100,000 times, at 10:
+  25 changes, 15 real (`nầy` twice, `hưu` to `hữu`, `kí` to `kĩ`, `ảo` to `áo`, `nghỉ` to `nghĩ`,
+  `đam` to `đảm`, `gõ`, `gậy`, `lỗ`, `thề`, `trọ`, `xông`, `đói`, `ơ`). The other ten of these are
+  typos of the text put right (`cùa`, `lơn` twice, `lằm`, `mưng`, `nết`, `rỏ`, `xuoi`, `đòng`,
+  `hảnh`). Seen under 100,000 times, at 8: 49 changes, not read one by one. Over the 3 allowed for
+  the two read: hit.
+
+By the bar: no setting passes. The one closest, "seen under 100,000 times, at 10", puts right 13 to
+15 points more of the words with a mark key left out, keeps 99.5% of fixes right, and on
+`wiki-unseen` its real words are 6 of 160,078, under the 9 allowed; it fails on the real words of
+`forum-unseen` (15 against 3) and on `social` (0.077% against 0.060%).
+
+One flaw found in reading the lists: a candidate reached by a mark key left out is let through even
+when the letters change, because `r`, `s` and `x` are letters too: `tước` to `trước` on
+`wiki-unseen` (a real word, among its 6) is `r` read as the consonant of `tr`. The rule was meant
+for keys the core shows as they are; it changes 1 of the 11 changes on `wiki-unseen` and none on
+`forum-unseen`, so the result stands.
+
+Conclusion: a word with a mark key left out mostly shows a real word, and a real word is often
+what was typed: `nầy`, `hưu`, `kí`, `ảo`, `nghỉ` are written right far more often than they are a
+slip. How rarely the table has seen a word does not tell them apart, as it did not for slips onto
+other letters in the entry before. Marks-only targets do not remove the chat spellings either:
+on `social` the changes made most often are `ròi` and `ồi` to `rồi`, `cọ` to `có`, `ẻm` to `em`.
+What fixes these slips needs to know the word after: a later entry may try deciding the rare
+known words only on the second decision, with that word as context.
