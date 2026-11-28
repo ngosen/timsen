@@ -3863,3 +3863,38 @@ other letters in the entry before. Marks-only targets do not remove the chat spe
 on `social` the changes made most often are `ròi` and `ồi` to `rồi`, `cọ` to `có`, `ẻm` to `em`.
 What fixes these slips needs to know the word after: a later entry may try deciding the rare
 known words only on the second decision, with that word as context.
+
+## 2026-11-28 · A mark key left out, decided only once the next word ends
+
+Question: the entry before decides a rare known word at its end, from the two words before it, and
+again after the next word only when the first decision misses the margin. A guess, not checked: most
+of the real words it changes (`hưu` to `hữu`, `ảo` to `áo`, `nghỉ` to `nghĩ`) are changed by that
+first decision, from too little context. If a word typed with marks is decided only once the next
+word ends, with that word as context too, and at a higher margin, how many of the slips are still
+put right, and how many words typed right are changed?
+
+Setup: as the entry before, with `--marks-after`, which leaves out the first decision for the
+targets `--marks` adds (the words the table lacks are decided as before). `--changed` now prints the
+words around each change. N is 10,000, 100,000 and 10^12, the margin 10 and 12.
+
+How the changes are read changes too. A user of the input method, reading the lists of the entry
+before, asked that the fix bring words to the standard spelling: nobody writing formally uses
+`nầy` or `ròi`. So a change from a spelling no standard dictionary has (`nầy` to `này`, `ròi` and
+`ồi` to `rồi`) counts as a typo put right; a real word is a standard spelling the writer meant,
+read with the line in view and counted as real when unsure, as before.
+
+Prediction, before any run, on the frozen `wiki` and `forum`, `--slip mark` (fixed right / words
+typed right changed; the entry before, decided at the word's end too: 16.8% / 0.011% and 16.4% /
+0.042% for "seen under 100,000 times, at 10"):
+
+- Seen under 10,000 times, at 10: 10% to 12% and 0.002% to 0.004% on `wiki`; 9% to 11% and 0.010%
+  to 0.016% on `forum`.
+- Seen under 100,000 times, at 10: 13% to 16% and 0.006% to 0.009%; 12% to 15% and 0.020% to
+  0.035%.
+- Every word, at 12: 25% to 35% and 0.008% to 0.015%; 22% to 32% and 0.030% to 0.050%.
+- With `--slip mixed`, 99.4% or more of fixes right for all six settings.
+
+Worth an experimental setting, off by default, by the bar of the entry before (at least 10 points
+more of the `--slip mark` words put right on `wiki-unseen` and `forum-unseen`, 99% of fixes right
+with `--slip mixed`, real words at most 0.006% of the words typed right on both, at most 0.060% of
+the words typed right on `social` changed), with real words read as above.
