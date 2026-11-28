@@ -2,7 +2,7 @@
 
 usage: python -m research.telex_typo TABLE TESTFILE... --driver NEAR DICT ENGLISH KEEP [--plain] [--rare N]
            [--changed SCALE MARGIN] [--ways all|one|narrow|marks] [--write-fixes OUT] [--then MARGIN]
-           [--marks N] [--slip mixed|mark]
+           [--marks N] [--marks-after] [--slip mixed|mark]
        python -m research.telex_typo TABLE --driver NEAR DICT ENGLISH KEEP --keys KEYS... [--after WORDS] [--rare N]
 
 NEAR is scripts/ngosen_near.rs built against Ngó Sen's typing core; DICT, ENGLISH and KEEP are the word
@@ -22,16 +22,17 @@ unmarked letters the table lacks, one plain-letter edit away.
 
 --keys prints, for each of the keys typed after WORDS, what the core shows and the fix with its margin
 at each scale. --changed SCALE MARGIN lists, in place of the tables, each word typed right that the fix
-changes at that scale and margin; SCALE "today" is the fix the crate has now. --ways one keeps only
-the candidates one slip away, and --ways narrow leaves out of those a far key hit instead and a key left
-out that is not one of a doubled pair, the two kinds that take a key string for every other letter: what
-a search that types fewer key strings would find; --ways marks keeps a mark key left out as well.
---marks N makes a word the table saw fewer than N times, and at least --rare times, a target for the
-words that differ from it only in marks or that a mark key left out leads to. --slip mark gives the
-mistyped word of each run, in place of a slip drawn as KINDS says, one key left out that changes only
-marks: a mark key after a vowel, or the second of aa, ee, oo, dd. --write-fixes OUT writes, in place of the tables,
-the decision for each word with nearby words, for the crate's nearby_check example to compare; with
---then, the second decision of each such word that has a word after it.
+changes at that scale and margin, with the words around it; SCALE "today" is the fix the crate has now.
+--ways one keeps only the candidates one slip away, and --ways narrow leaves out of those a far key hit
+instead and a key left out that is not one of a doubled pair, the two kinds that take a key string for
+every other letter: what a search that types fewer key strings would find; --ways marks keeps a mark key
+left out as well. --marks N makes a word the table saw fewer than N times, and at least --rare times, a
+target for the words that differ from it only in marks or that a mark key left out leads to, decided
+only once the next word ends with --marks-after. --slip mark gives the mistyped word of each run, in
+place of a slip drawn as KINDS says, one key left out that changes only marks: a mark key after a vowel,
+or the second of aa, ee, oo, dd. --write-fixes OUT writes, in place of the tables, the decision for each
+word with nearby words, for the crate's nearby_check example to compare; with --then, the second
+decision of each such word that has a word after it.
 """
 
 import argparse
@@ -216,9 +217,12 @@ def choose(stay, rated, scale):
     return ranked[0][1] - max(runner, stay), ranked[0][0]
 
 
-def staged(rated, later, scale, then):
+def staged(rated, later, scale, then, after=False):
     """The decision at the word's end; with a margin `then`, one that misses it is made again from
-    `later`, the rating with the word after as context, and there is none without that word."""
+    `later`, the rating with the word after as context, and there is none without that word. With
+    `after` only the decision from `later` is made."""
+    if after:
+        return choose(*later, scale) if later else None
     first = choose(*rated, scale)
     if then is None or first is None:
         return first
@@ -281,7 +285,7 @@ class Tally:
             self.right += hit & ok(decision[1])
 
 
-def judge(m, cases, nearby, rare, plain, then=None, marks=0):
+def judge(m, cases, nearby, rare, plain, then=None, marks=0, marks_after=False):
     """Tallies of the clean and the mistyped cases for today's fix and each scale, tallies per
     (scale, kind of slip), and counts of the mistyped words: `absorbed` the core read as the intended
     word, `known` it shows as a word that is no target, `reachable` with the intended word among the
@@ -305,16 +309,17 @@ def judge(m, cases, nearby, rare, plain, then=None, marks=0):
         rated = rate(m, left, keep, new) if new else None
         later = rate(m, left, keep, new, right) if new and right else None
         for scale in SCALES:
-            decision = staged(rated, later, scale, then) if rated else None
+            after = marks_after and seen(m, shown) >= max(rare, 1)
+            decision = staged(rated, later, scale, then, after) if rated else None
             out[scale][which].add(decision, ok)
             if kind:
                 kinds.setdefault((scale, kind), Tally()).add(decision, ok)
     return out, kinds, counts
 
 
-def changed(m, cases, nearby, scale, margin, rare, plain, then=None, marks=0):
-    """(word typed right, what replaces it, by how much) for each one the fix changes at this scale
-    and margin; scale None is today's fix, which is never decided a second time."""
+def changed(m, cases, nearby, scale, margin, rare, plain, then=None, marks=0, marks_after=False):
+    """(word typed right, what replaces it, by how much, the words around it) for each one the fix
+    changes at this scale and margin; scale None is today's fix, which is never decided a second time."""
     for truth, i, keys, kind in cases:
         shown, words = nearby[keys]
         if kind or not meant(truth[i], plain)(shown):
@@ -325,9 +330,10 @@ def changed(m, cases, nearby, scale, margin, rare, plain, then=None, marks=0):
         keep = UNK if scale is None else m.id.get(shown, UNK)
         left, right = left_ids(m, truth, i, plain), right_ids(m, truth, i, None if scale is None else then)
         later = rate(m, left, keep, cands, right) if right else None
-        decision = staged(rate(m, left, keep, cands), later, scale or 0, None if scale is None else then)
+        after = scale is not None and marks_after and seen(m, shown) >= max(rare, 1)
+        decision = staged(rate(m, left, keep, cands), later, scale or 0, None if scale is None else then, after)
         if decision and decision[0] >= margin:
-            yield truth[i], decision[1], decision[0]
+            yield truth[i], decision[1], decision[0], " ".join(truth[max(0, i - 3) : i + 3])
 
 
 def write_fixes(m, cases, nearby, out, after=False):
@@ -443,8 +449,11 @@ def main():
     ap.add_argument("--write-fixes", help="write each decision at the crate's scale to this file")
     ap.add_argument("--then", type=float, help="decide a word that misses this margin again after the next word")
     ap.add_argument("--marks", type=int, default=0, help="a word seen fewer times than this is a target for marks")
+    ap.add_argument("--marks-after", action="store_true", help="decide the --marks targets after the next word only")
     ap.add_argument("--slip", choices=["mixed", "mark"], default="mixed", help="the slips of the mistyped words")
     a = ap.parse_args()
+    if a.marks_after and a.then is None:
+        ap.error("--marks-after needs --then")
     if a.then is not None and a.plain:
         ap.error("--then needs the words after as typed with marks, so it does not go with --plain")
     m = table.read(a.model) if a.model.endswith(".timsen") else Model(a.model)
@@ -461,10 +470,11 @@ def main():
         if a.changed:
             scale = None if a.changed[0] == "today" else float(a.changed[0])
             margin = float(a.changed[1])
-            for was, now, won in changed(m, cases, nearby, scale, margin, a.rare, a.plain, a.then, a.marks):
-                print(f"{test.rsplit('/', 1)[-1]}: {was} -> {now} {won:+.1f}")
+            args = (a.rare, a.plain, a.then, a.marks, a.marks_after)
+            for was, now, won, around in changed(m, cases, nearby, scale, margin, *args):
+                print(f"{test.rsplit('/', 1)[-1]}: {was} -> {now} {won:+.1f} | {around}")
             continue
-        report(test.rsplit("/", 1)[-1], *judge(m, cases, nearby, a.rare, a.plain, a.then, a.marks))
+        report(test.rsplit("/", 1)[-1], *judge(m, cases, nearby, a.rare, a.plain, a.then, a.marks, a.marks_after))
 
 
 if __name__ == "__main__":
