@@ -1,15 +1,19 @@
-//! Where a key that picks a changed word again would find the right spelling.
+//! Where a key that picks a changed phrase again would find the right reading.
 //!
 //! usage: cargo run --release --example repick_eval TABLE RUNS TRUTH
 //! RUNS and TRUTH come from `research.crosscheck`. Each run is typed twice: every word without
-//! marks, and every word as written, so only words written without marks are guessed. After the
-//! last word, with the run still open, each word shown wrong is scored: where the right spelling is
-//! among the other choices or the word as typed, and how many words the key could pick come after
-//! it. A word the key can pick is one shown other than typed, or only one the model is unsure of.
+//! marks, and every word as written, so only words written without marks are guessed. The phrase
+//! the key picks is the changed words (shown other than typed) among the last K words of the run.
+//! After the last word, with the run still open, a run with a wrong word is scored: whether every
+//! wrong word is in that phrase, and if so where the right reading of the phrase is among
+//! `Typing::readings` (first press, among the next two, the two after) or only as typed. Also scored
+//! for each wrong word: whether it was wrong while still among the last K words, and whether no later
+//! changed word has its letters, so typing it again could point at it.
 
 use timsen::{Table, ToneStyle, Typing};
 
-const UNSURE: [f64; 2] = [0.9, 0.99];
+const SPANS: [usize; 2] = [2, 3];
+const TOP: usize = 6;
 
 fn read_runs(path: &str) -> std::io::Result<Vec<Vec<String>>> {
     let text = std::fs::read_to_string(path)?;
@@ -26,87 +30,87 @@ struct Tally {
     changed: usize,
     wrong: usize,
     runs_wrong: usize,
-    runs_one_wrong: usize,
-    /// Where the right spelling is: second choice, third, only as typed, nowhere.
-    at: [usize; 4],
-    /// For each set of words the key can pick (changed, then unsure at each threshold): the wrong
-    /// words in it, and how many picked words come after them (0, 1, 2, 3 or more).
-    pickable: [usize; 3],
-    back: [[usize; 4]; 3],
+    /// Per span length: runs with every wrong word in the phrase, and where its right reading is:
+    /// first press, second or third, fourth or fifth, only as typed, nowhere.
+    inside: [usize; 2],
+    at: [[usize; 5]; 2],
+    /// Per span length: wrong words that were wrong while among the last K words.
+    in_reach: [usize; 2],
+    /// Wrong words a word typed again would point at.
+    retyped: usize,
 }
 
 impl Tally {
-    fn add(&mut self, table: &Table, typed: &[String], truth: &[String]) {
+    fn add(&mut self, table: &Table, typed: &[String], plain: &[String], truth: &[String]) {
         let mut typing = Typing::new(table);
+        let mut guesses = Vec::with_capacity(typed.len());
         for word in typed {
             typing.push(word);
+            guesses.push(typing.guess(ToneStyle::New));
         }
-        let shown = typing.guess(ToneStyle::New);
-        let choices = typing.choices(typed.len(), false, ToneStyle::New);
+        let n = typed.len();
+        let shown = &guesses[n - 1];
         let changed: Vec<bool> = shown.iter().zip(typed).map(|(s, t)| s != t).collect();
-        let sets: [Vec<bool>; 3] = [
-            changed.clone(),
-            unsure(&changed, &choices, UNSURE[0]),
-            unsure(&changed, &choices, UNSURE[1]),
-        ];
-        let wrong: Vec<usize> = (0..typed.len()).filter(|&j| shown[j] != truth[j]).collect();
-        self.words += typed.len();
+        let wrong: Vec<usize> = (0..n).filter(|&j| shown[j] != truth[j]).collect();
+        self.words += n;
         self.changed += changed.iter().filter(|&&c| c).count();
         self.wrong += wrong.len();
-        self.runs_wrong += usize::from(!wrong.is_empty());
-        self.runs_one_wrong += usize::from(wrong.len() == 1);
-        for &j in &wrong {
-            let others = &choices[j].spellings[1..];
-            let k = match others.iter().position(|s| *s == truth[j]) {
-                Some(p) => p,
-                None if typed[j] == truth[j] => 2,
-                None => 3,
-            };
-            self.at[k] += 1;
-            for (s, set) in sets.iter().enumerate() {
-                if set[j] {
-                    self.pickable[s] += 1;
-                    let after = set[j + 1..].iter().filter(|&&p| p).count();
-                    self.back[s][after.min(3)] += 1;
-                }
+        if wrong.is_empty() {
+            return;
+        }
+        self.runs_wrong += 1;
+        for (s, &k) in SPANS.iter().enumerate() {
+            let span: Vec<usize> = (n.saturating_sub(k)..n).filter(|&j| changed[j]).collect();
+            for &j in &wrong {
+                let last = (j + k).min(n);
+                self.in_reach[s] += usize::from((j..last).any(|t| guesses[t][j] != truth[j]));
             }
+            if !wrong.iter().all(|j| span.contains(j)) {
+                continue;
+            }
+            self.inside[s] += 1;
+            let readings = typing.readings(&span, TOP, false, ToneStyle::New);
+            let bucket = match readings.iter().position(|r| r == truth) {
+                Some(1) => 0,
+                Some(2..=3) => 1,
+                Some(4..=5) => 2,
+                _ if span.iter().all(|&j| typed[j] == truth[j]) => 3,
+                _ => 4,
+            };
+            self.at[s][bucket] += 1;
+        }
+        for &j in &wrong {
+            let alone = !(j + 1..n).any(|t| changed[t] && plain[t] == plain[j]);
+            self.retyped += usize::from(changed[j] && alone);
         }
     }
 
     fn print(&self, name: &str) {
         let pct = |n: usize, d: usize| 100.0 * n as f64 / d.max(1) as f64;
         println!(
-            "{name}: {} words, {:.2}% changed, {:.2}% wrong ({}); {} runs with a wrong word, {:.1}% of them one",
+            "{name}: {} words, {:.2}% changed, {:.2}% wrong ({}), {} runs with a wrong word",
             self.words,
             pct(self.changed, self.words),
             pct(self.wrong, self.words),
             self.wrong,
             self.runs_wrong,
-            pct(self.runs_one_wrong, self.runs_wrong),
         );
-        let [a, b, c, d] = self.at.map(|n| pct(n, self.wrong));
-        println!(
-            "  right spelling of a wrong word: second {a:.1}%, third {b:.1}%, only as typed {c:.1}%, nowhere {d:.1}%"
-        );
-        for (s, label) in ["changed", "unsure < 0.90", "unsure < 0.99"]
-            .iter()
-            .enumerate()
-        {
-            let [z, o, t, m] = self.back[s].map(|n| pct(n, self.pickable[s]));
+        for (s, k) in SPANS.iter().enumerate() {
+            let [a, b, c, d, e] = self.at[s].map(|n| pct(n, self.inside[s]));
             println!(
-                "  pickable as {label}: {:.1}% of wrong words; picked words after them: 0 {z:.1}%, 1 {o:.1}%, 2 {t:.1}%, 3+ {m:.1}%",
-                pct(self.pickable[s], self.wrong),
+                "  last {k}: every wrong word in the phrase for {:.1}% of those runs; right reading: first press {a:.1}%, 2-3 {b:.1}%, 4-5 {c:.1}%, only as typed {d:.1}%, nowhere {e:.1}%",
+                pct(self.inside[s], self.runs_wrong),
+            );
+            println!(
+                "    wrong while among the last {k}: {:.1}% of wrong words",
+                pct(self.in_reach[s], self.wrong)
             );
         }
+        println!(
+            "  typed again, points at {:.1}% of wrong words",
+            pct(self.retyped, self.wrong)
+        );
     }
-}
-
-fn unsure(changed: &[bool], choices: &[timsen::Choices], below: f64) -> Vec<bool> {
-    changed
-        .iter()
-        .zip(choices)
-        .map(|(&c, ch)| c && ch.confidence < below)
-        .collect()
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -118,8 +122,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (runs, truth) = (read_runs(runs)?, read_runs(truth)?);
     let (mut plain, mut written) = (Tally::default(), Tally::default());
     for (run, truth) in runs.iter().zip(&truth) {
-        plain.add(&table, run, truth);
-        written.add(&table, truth, truth);
+        plain.add(&table, run, run, truth);
+        written.add(&table, truth, run, truth);
     }
     plain.print("typed without marks");
     written.print("typed as written");

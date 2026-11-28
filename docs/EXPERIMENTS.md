@@ -4102,40 +4102,51 @@ such shorthands are typed, and the second decision has the same fault. The word 
 behind the cursor; what that costs the person typing was not measured. Limits as before: synthetic
 slips in assumed shares, Telex only, both words after taken as typed right.
 
-## 2026-11-28 · Where a key that picks a changed word again finds the right spelling
+## 2026-11-28 · Where a key that picks a changed phrase again finds the right reading
 
 Question: a user typed `la đà` with every other word of the line marked, and the guess made it `là
 đà` (`là` scores 0.02 above `la` with `đà` after it). To fix it he has to click back into the line.
-An input method could instead offer a key that, with the cursor where it is, changes the latest
-changed word to its next spelling. Which spelling should a press give, and how often is the wrong
-word the latest one the key could pick?
+An input method could instead offer a key that, with the cursor where it is, gives the words it
+changed near the end of the line their next likeliest reading as one phrase, and shows the next few
+readings to pick from with Tab and a digit. How often is every wrong word in that phrase, and is its
+right reading the first press, among the few shown, or only the words as typed?
 
 Setup: `cargo run --release --example repick_eval TABLE RUNS TRUTH` on the released table
 (`diacritics.timsen` of Ngó Sen), RUNS and TRUTH from `research.crosscheck`. Each run is typed twice:
 every word without marks, and every word as written, so that only the words written without marks
-are guessed. After the last word, with the run still open, each word shown wrong is scored: where
-its right spelling is (the second choice of `Typing::choices`, the third, only the word as typed, or
-nowhere), and how many words the key could pick come after it. The key picks a word shown other than
-typed, or, in two narrower sets, such a word whose confidence is under 0.9 or under 0.99. Files: the
-frozen `wiki` and `forum`, and `wiki-unseen`, `forum-unseen` and `social`. A check on the line above
-alone, before this prediction: typed as written, one word wrong, its right spelling second, no
-changed word after it.
+are guessed. The phrase is the changed words (shown other than typed) among the last 2 or the last 3
+words. After the last word, with the run still open, each run with a wrong word is scored: whether
+every wrong word is in the phrase, and if so where the right reading of the run is in
+`Typing::readings` over the phrase, each of its words trying its 6 likeliest spellings (index 1, the
+first press; 2 to 3; 4 to 5; only the words as typed; nowhere). For each wrong word also: whether it
+was shown wrong while still among the last 2 or 3 words, so a user watching could have reached it,
+and whether no later changed word has the same letters, so typing it again could point at it.
+Files: the frozen `wiki` and `forum`, and `wiki-unseen`, `forum-unseen` and `social`.
+
+Seen before this prediction, on the line above alone: typed as written, its one wrong word is in the
+phrase and the first press reads it right. Typed without marks, the line reads `là đã`, and with
+each word trying only its 4 likeliest spellings `la đà` is not among the readings (`đà` is not among
+the 4 for `da`); hence 6. This entry first asked for the latest changed word alone; the user chose
+the phrase and the list before any run on the files, so the question and the prediction were
+rewritten then.
 
 Prediction, before any run on the files:
 
 - Typed without marks, wrong words: 5% to 6.5% on `wiki`, 8% to 10% on `forum`, 11% to 16% on
-  `social`; of the runs with a wrong word, 55% to 70% have one. The right spelling of a wrong word is
-  second for 55% to 70%, third for 8% to 15%, only as typed for 3% to 10%, nowhere for 15% to 25%.
-  Of the wrong words, 80% to 92% are changed words, and 15% to 30% of those have no changed word
-  after them. Under 0.9: 70% to 85% of wrong words, 45% to 65% of them with no such word after.
-- Typed as written, wrong words: 0.3% to 1.2% on `wiki` and `forum`, 0.8% to 2.5% on `social`. The
-  right spelling is second for 75% to 95%, only as typed for the rest, nowhere for none. Every wrong
-  word is a changed word, and 75% to 90% of them have no changed word after them; under 0.9, 60% to
-  85% of wrong words.
+  `social`. Last 3: every wrong word in the phrase for 35% to 55% of runs with one; of those, the
+  first press right for 40% to 55%, index 2 to 3 for 15% to 25%, 4 to 5 for 3% to 8%, only as typed
+  1% to 5%, nowhere 20% to 30%. Wrong while among the last 3: 75% to 90% of wrong words. Typing a
+  word again points at 80% to 92% of wrong words.
+- Typed as written, wrong words: 0.3% to 1.2% on `wiki` and `forum`, 0.8% to 2.5% on `social`. Last
+  3: every wrong word in the phrase for 60% to 80% of runs with one; of those, the first press right
+  for 70% to 90%, nowhere under 5%. Wrong while among the last 3: 90% to 98%. Typing a word again
+  points at 95% to 100%.
+- Last 2 against last 3: fewer runs with every wrong word in the phrase, by 5 to 15 points, and the
+  first press right more often.
 
-The key is worth building as planned (a press gives the next choice, then the word as typed, on the
-latest changed word) if, typed as written on `forum-unseen` and `social`, at least 75% of wrong
-words have no changed word after them and at least 90% have their right spelling second or as
-typed; and if, typed without marks, at least 50% of the wrong words that are unsure under 0.9 have
-no such word after them and at least 75% of all wrong words have their right spelling second, third
-or as typed.
+The key is worth building as planned if, typed as written on `forum-unseen` and `social`, at least
+60% of runs with a wrong word have every wrong word in the last-3 phrase and at least 85% of those
+have the right reading at index 1 to 3 or as typed; typed without marks on the same files, at least
+75% of wrong words are wrong while among the last 3 and, of the runs with every wrong word in the
+phrase, at least 70% have the right reading at index 1 to 3 or as typed; and typing a word again
+points at at least 85% of wrong words both ways.

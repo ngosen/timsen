@@ -302,6 +302,86 @@ impl<'t> Typing<'t> {
             .collect()
     }
 
+    /// The run read other ways at syllables `at` only, best first, the guess first: what a key
+    /// that picks a changed phrase again offers. Each of those syllables tries its `top` likeliest
+    /// candidates; the rest keep their guess.
+    pub fn readings(
+        &self,
+        at: &[usize],
+        top: usize,
+        ended: bool,
+        style: ToneStyle,
+    ) -> Vec<Vec<String>> {
+        let best = self.best_path(ended);
+        let Some(&from) = at.iter().min() else {
+            return vec![self.spell(&best, style)];
+        };
+        let marginals = self.max_marginals(from, ended);
+        let tops: Vec<Vec<usize>> = (at.iter())
+            .map(|&i| {
+                let m = &marginals[i - from];
+                let mut order: Vec<usize> = (0..m.len()).collect();
+                order.sort_by(|&x, &y| m[y].total_cmp(&m[x]));
+                order.truncate(top.max(1));
+                order
+            })
+            .collect();
+        let mut scored = Vec::new();
+        let mut idx = vec![0; at.len()];
+        'combos: loop {
+            let mut picks = best.clone();
+            for (j, &i) in at.iter().enumerate() {
+                picks[i] = tops[j][idx[j]];
+            }
+            scored.push((self.path_score(&picks, ended), picks));
+            let mut j = at.len();
+            loop {
+                if j == 0 {
+                    break 'combos;
+                }
+                j -= 1;
+                idx[j] += 1;
+                if idx[j] < tops[j].len() {
+                    break;
+                }
+                idx[j] = 0;
+            }
+        }
+        // Stable, so equal scores keep the order the candidates were tried in.
+        scored.sort_by(|a, b| b.0.total_cmp(&a.0));
+        let mut out = vec![self.spell(&best, style)];
+        for (_, picks) in scored {
+            let reading = self.spell(&picks, style);
+            if !out.contains(&reading) {
+                out.push(reading);
+            }
+        }
+        out
+    }
+
+    /// The score of one path through the run, as the lattice adds it up.
+    fn path_score(&self, picks: &[usize], ended: bool) -> f64 {
+        let id = |i: usize, back: usize| {
+            if i >= back {
+                self.opts[i - back][picks[i - back]]
+            } else {
+                START[0]
+            }
+        };
+        let mut s = 0.0;
+        for (i, &k) in picks.iter().enumerate() {
+            let (u, v) = (id(i, 2), id(i, 1));
+            s += self
+                .src
+                .logp_left(u, v, self.opts[i][k], self.src.context_left(u, v));
+        }
+        if ended {
+            let n = picks.len();
+            s += self.src.logp(id(n, 2), id(n, 1), EOS);
+        }
+        s
+    }
+
     /// For syllables `from..`, the score of the best path through each of their candidates. A
     /// backward pass over those syllables meets the stored forward scores.
     fn max_marginals(&self, from: usize, ended: bool) -> Vec<Vec<f64>> {
@@ -491,6 +571,68 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn readings_are_every_other_path_at_those_syllables_best_first() {
+        let t = table();
+        let runs = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/tiny.runs"
+        ));
+        let mut longest = 0;
+        for run in runs.unwrap().lines().chain(["nguoi ta co go cua"]) {
+            let mut typing = Typing::new(&t);
+            for w in run.split(' ') {
+                typing.push(w);
+            }
+            let n = typing.len();
+            for ended in [false, true] {
+                let best = typing.best_path(ended);
+                let at: Vec<usize> = (n.saturating_sub(3)..n).collect();
+                let got = typing.readings(&at, usize::MAX, ended, ToneStyle::New);
+                assert_eq!(got[0], typing.spell(&best, ToneStyle::New), "{run}");
+                let score = |r: &[String]| {
+                    let ids: Vec<u32> = r.iter().map(|w| typing.src.id_of(w)).collect();
+                    path_score(&t, &ids, ended)
+                };
+                let combos: usize = at.iter().map(|&i| typing.opts[i].len()).product();
+                assert!(
+                    got.len() <= combos && got.len() > combos / 2,
+                    "{run}: {}",
+                    got.len()
+                );
+                for pair in got[1..].windows(2) {
+                    assert!(score(&pair[0]) >= score(&pair[1]) - 1e-9, "{run}: {pair:?}");
+                }
+                for r in &got {
+                    assert_eq!(r[..n - at.len()], got[0][..n - at.len()], "{run}");
+                }
+                longest = longest.max(got.len());
+            }
+        }
+        assert!(
+            longest >= 4,
+            "the order is only checked with three readings after the guess"
+        );
+    }
+
+    #[test]
+    fn readings_try_only_the_likeliest_candidates() {
+        let t = table();
+        let mut typing = Typing::new(&t);
+        for w in ["nguoi", "ta", "co", "go", "cua"] {
+            typing.push(w);
+        }
+        let one = typing.readings(&[3], 1, false, ToneStyle::New);
+        assert_eq!(one, vec![typing.guess(ToneStyle::New)]);
+        let two = typing.readings(&[3], 2, false, ToneStyle::New);
+        assert_eq!(two.len(), 2);
+        assert_eq!(
+            two[1][3],
+            typing.choices(2, false, ToneStyle::New)[0].spellings[1]
+        );
+        assert_eq!(typing.readings(&[], 3, false, ToneStyle::New).len(), 1);
     }
 
     #[test]
