@@ -4101,3 +4101,41 @@ shorthands turned into another word, which the five files of the bar have none o
 such shorthands are typed, and the second decision has the same fault. The word changes two words
 behind the cursor; what that costs the person typing was not measured. Limits as before: synthetic
 slips in assumed shares, Telex only, both words after taken as typed right.
+
+## 2026-11-28 · Where a key that picks a changed word again finds the right spelling
+
+Question: a user typed `la đà` with every other word of the line marked, and the guess made it `là
+đà` (`là` scores 0.02 above `la` with `đà` after it). To fix it he has to click back into the line.
+An input method could instead offer a key that, with the cursor where it is, changes the latest
+changed word to its next spelling. Which spelling should a press give, and how often is the wrong
+word the latest one the key could pick?
+
+Setup: `cargo run --release --example repick_eval TABLE RUNS TRUTH` on the released table
+(`diacritics.timsen` of Ngó Sen), RUNS and TRUTH from `research.crosscheck`. Each run is typed twice:
+every word without marks, and every word as written, so that only the words written without marks
+are guessed. After the last word, with the run still open, each word shown wrong is scored: where
+its right spelling is (the second choice of `Typing::choices`, the third, only the word as typed, or
+nowhere), and how many words the key could pick come after it. The key picks a word shown other than
+typed, or, in two narrower sets, such a word whose confidence is under 0.9 or under 0.99. Files: the
+frozen `wiki` and `forum`, and `wiki-unseen`, `forum-unseen` and `social`. A check on the line above
+alone, before this prediction: typed as written, one word wrong, its right spelling second, no
+changed word after it.
+
+Prediction, before any run on the files:
+
+- Typed without marks, wrong words: 5% to 6.5% on `wiki`, 8% to 10% on `forum`, 11% to 16% on
+  `social`; of the runs with a wrong word, 55% to 70% have one. The right spelling of a wrong word is
+  second for 55% to 70%, third for 8% to 15%, only as typed for 3% to 10%, nowhere for 15% to 25%.
+  Of the wrong words, 80% to 92% are changed words, and 15% to 30% of those have no changed word
+  after them. Under 0.9: 70% to 85% of wrong words, 45% to 65% of them with no such word after.
+- Typed as written, wrong words: 0.3% to 1.2% on `wiki` and `forum`, 0.8% to 2.5% on `social`. The
+  right spelling is second for 75% to 95%, only as typed for the rest, nowhere for none. Every wrong
+  word is a changed word, and 75% to 90% of them have no changed word after them; under 0.9, 60% to
+  85% of wrong words.
+
+The key is worth building as planned (a press gives the next choice, then the word as typed, on the
+latest changed word) if, typed as written on `forum-unseen` and `social`, at least 75% of wrong
+words have no changed word after them and at least 90% have their right spelling second or as
+typed; and if, typed without marks, at least 50% of the wrong words that are unsure under 0.9 have
+no such word after them and at least 75% of all wrong words have their right spelling second, third
+or as typed.
