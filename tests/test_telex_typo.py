@@ -124,7 +124,7 @@ def test_a_second_decision_fixes_a_word_once_the_next_is_typed(model, driver, tm
     assert tt.judge(model, cases, nearby, 0, False)[0][0][1].made[0] == 2
     typed = ["bàn", "phin", "này"]
     listed = list(tt.changed(model, [(typed, 1, "phin", None)], nearby, 0, 0, 0, False, at_end[0] + 0.01))
-    assert [(a, b) for a, b, _ in listed] == [("phin", "phím")]
+    assert [(a, b, around) for a, b, _, around in listed] == [("phin", "phím", "bàn phin này")]
     assert list(tt.changed(model, [(typed[:2], 1, "phin", None)], nearby, 0, 0, 0, False, at_end[0] + 0.01)) == []
 
 
@@ -132,6 +132,19 @@ def test_a_word_the_table_knows_is_no_target_until_it_counts_as_rare(model):
     assert tt.nearby_words(model, "phím", {"nhanh": ["f"]}, 0) == {}
     assert set(tt.nearby_words(model, "phím", {"nhanh": ["f"]}, 10**6)) == {"nhanh"}
     assert tt.nearby_words(model, "phin", {"zzz": ["n"]}, 0) == {}
+
+
+def test_a_word_seen_under_marks_is_a_target_for_its_marks_only(model):
+    words = {"phim": ["n"], "nhanh": ["n"]}
+    assert set(tt.nearby_words(model, "phím", words, 0, 10**6)) == {"phim"}
+    assert set(tt.nearby_words(model, "phím", {"nhanh": ["k"]}, 0, 10**6)) == {"nhanh"}
+    assert tt.nearby_words(model, "phím", words, 0, 0) == {}
+
+
+def test_a_key_left_out_that_changes_only_marks():
+    assert tt.mark_spots("nguowif") == [4, 6]
+    assert tt.mark_spots("ddoongf") == [1, 3, 6]
+    assert tt.mark_spots("sao") == []
 
 
 def test_judges_clean_and_mistyped_words_apart(model, driver, tmp_path):
@@ -189,10 +202,10 @@ def test_lists_the_words_typed_right_that_the_fix_changes(model, driver):
     truth = ["tôi", "gõ", "phin"]
     cases = [(truth, i, w, None) for i, w in enumerate(["tooi", "gox", "phin"])] + [(truth, 2, "phin", "near")]
     nearby = {"tooi": ("tôi", {}), "gox": ("gõ", {}), "phin": ("phin", {"phím": ["n"]})}
-    (was, now, won), *rest = tt.changed(model, cases, nearby, 0, 0, 0, False)
+    (was, now, won, _), *rest = tt.changed(model, cases, nearby, 0, 0, 0, False)
     assert (was, now, rest) == ("phin", "phím", []) and won > 0
     assert list(tt.changed(model, cases, nearby, 0, won + 1, 0, False)) == []
-    assert [(a, b) for a, b, _ in tt.changed(model, cases, nearby, None, 0, 0, False)] == [("phin", "phím")]
+    assert [(a, b) for a, b, _, _ in tt.changed(model, cases, nearby, None, 0, 0, False)] == [("phin", "phím")]
 
 
 def test_a_narrower_search_keeps_only_the_ways_it_would_try():
@@ -200,6 +213,8 @@ def test_a_narrower_search_keeps_only_the_ways_it_would_try():
     assert tt.only(words, "all") == words
     assert tt.only(words, "one") == {"người": ["f", "s"], "ngồi": ["i"], "mười": ["e", "n"]}
     assert tt.only(words, "narrow") == {"người": ["s"], "mười": ["e", "n"]}
+    assert tt.only({"người": ["k"], "ngồi": ["i"]}, "marks") == {"người": ["k"]}
+    assert tt.only({"người": ["k"]}, "narrow") == {}
 
 
 def test_the_ways_reach_the_candidates_read_from_the_driver(model, driver):
