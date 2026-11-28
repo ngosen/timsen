@@ -4024,3 +4024,39 @@ out than the fix as it is (30.0% and 22.4% against 4.7% and 4.2%), keeps 99.6% o
 right on edited text, and of the 72 words typed right it changes on the three files beyond the fix
 as it is, 4 are real words, all on `social`. It needs the next word, so it is for a field whose
 earlier words can change, and it searches near every word typed, not only the words the table lacks.
+
+## 2026-11-28 · A third decision for the typed-keys fix, once two words after it are typed
+
+Question: a user typed `khaorng` for `khoảng` in a chat box, after `trong câu này chắc`, and it was
+not fixed. On the released table `khoảng` is the best candidate at every stage but short of the
+margin: −0.83 at the word's end, +1.81 with `ba` after it, +5.21 with `ba mươi` after it. How many
+more mistyped words does the fix put right when a word that misses the margin at its end and after
+the next word is decided a third time once the two words after it have ended, and how many more of
+the words typed right does it change? (In that user's line the word after was `30%`; a digit ends
+the run, so no later decision would have fixed it.)
+
+Setup: `research.telex_typo --then MARGIN --then2`. A word fixed at its end or after the next word
+at MARGIN is fixed as before. One that misses both is rated again with the two words after it as
+context and fixed when it then beats the runner-up and keeping by the margin of the table row; a
+word with fewer than two words after it in its run gets no third decision, and its second decision
+must reach MARGIN. Both words after are taken as typed right. Same table, driver, seed and narrow
+search as "A second decision for the typed-keys fix", scale 2; `--then 4` against `--then 4
+--then2`, and `--then 2` against `--then 2 --then2`, on the three frozen files and the three unseen
+ones. The one-off script of that entry rated with two words after in place of one and found it no
+better (26.2% against 27.3%); a third decision only adds to the second.
+
+Prediction, before the run, at margin 4 (fixed right / fixes right / words typed right changed; the
+second decision at 4 gave 30.6% / 99.8% / 0.001%, 30.1% / 99.6% / 0.017% and 12.2% / 99.1% /
+0.024%):
+
+- `wiki-unseen`: 32% to 35% fixed right, 99.5% to 99.9% of fixes right, at most 0.004% changed.
+- `forum-unseen`: 31.5% to 35%, 99.2% to 99.7%, 0.018% to 0.030%.
+- `social`: 13% to 16%, 98.5% to 99.3%, 0.025% to 0.045%.
+- On `wiki`, `subs` and `forum`, 1.5 to 4 points more fixed right than `--then 4` gives.
+
+The third decision is worth building if at margin 4 it puts right at least 2 points more of the
+mistyped words than the second decision does on both `wiki-unseen` and `forum-unseen`, keeps at
+least 99% of fixes right on both, changes at most 0.006 points more of the words typed right on
+each, and at most 0.060% of the words typed right on `social`; and if, read in context with the
+rule of the entry before (a spelling no standard dictionary has counts as a typo put right), the
+words it adds over the second decision on the five files hold at most 3 real words.
