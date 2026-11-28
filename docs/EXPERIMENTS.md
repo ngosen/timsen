@@ -4060,3 +4060,44 @@ least 99% of fixes right on both, changes at most 0.006 points more of the words
 each, and at most 0.060% of the words typed right on `social`; and if, read in context with the
 rule of the entry before (a spelling no standard dictionary has counts as a typo put right), the
 words it adds over the second decision on the five files hold at most 3 real words.
+
+Result (mistyped words fixed right / fixes right / words typed right that were changed). Each run
+took 300 to 430 seconds, eight at once.
+
+| margin 4 | `wiki-unseen` | `forum-unseen` | `social` |
+| --- | --- | --- | --- |
+| at the word's end and after the next word | 30.6% / 99.8% / 0.001% | 30.1% / 99.6% / 0.017% | 12.2% / 99.1% / 0.024% |
+| and after the two next words | 33.1% / 99.7% / 0.001% | 33.1% / 99.5% / 0.018% | 13.9% / 99.0% / 0.032% |
+
+| margin 4 | `wiki` | `subs` | `forum` |
+| --- | --- | --- | --- |
+| at the word's end and after the next word | 27.3% / 99.8% / 0.001% | 27.5% / 99.7% / 0.003% | 27.0% / 99.4% / 0.005% |
+| and after the two next words | 30.1% / 99.8% / 0.001% | 30.6% / 99.7% / 0.006% | 30.3% / 99.4% / 0.005% |
+
+| margin 2 | `wiki-unseen` | `forum-unseen` | `social` |
+| --- | --- | --- | --- |
+| at the word's end and after the next word | 35.9% / 99.6% / 0.002% | 38.0% / 98.8% / 0.027% | 18.9% / 98.0% / 0.077% |
+| and after the two next words | 37.4% / 99.5% / 0.002% | 40.0% / 98.8% / 0.029% | 20.5% / 97.9% / 0.090% |
+
+Against the prediction: every number at margin 4 hit, on the unseen files (33.1%, 99.7%, 0.001%;
+33.1%, 99.5%, 0.018%; 13.9%, 99.0%, 0.032%) and on the frozen ones (2.8, 3.1 and 3.3 points more in
+1.5 to 4). Nothing was predicted for margin 2, where `social` is over the 0.060% of the bar with the
+second decision alone.
+
+`--changed 2 4` on the six files, with `--then 4` and with `--then 4 --then2`, matched by the word
+and the words around it: the third decision changes 12 words typed right more and none fewer. On the
+five files of the bar there are 2: `nộin` to `nội` (`thi hành nộin dung`), a typo put right, and
+`ngh` to `ng` in a line of broken encoding (`ngýõi ngh ta s sng`). On `social` there are 10: `choei`
+to `chơi`, a typo put right, and 9 chat shorthands, each turned into a shorter word: `nma` (`nhưng
+mà`) to `mà` five times, `ktra` (`kiểm tra`) to `trả`, `snghi` (`suy nghĩ`) to `nghĩ`, `nta`
+(`người ta`) to `ta`, `tsua` (`trà sữa`) to `sữa`. The second decision alone already turns `nma`
+into `mà` five times on the same file. None of these shorthands is in the keep list, which has `ko`
+and `k`.
+
+Conclusion: by the bar set before the run the third decision is worth building. At margin 4 it puts
+right 2.5 and 3.0 points more of the mistyped words on unseen Wikipedia and forum text, its fixes as
+often right, and on those files it changes no real word. On social-media comments it adds 9
+shorthands turned into another word, which the five files of the bar have none of; chat is where
+such shorthands are typed, and the second decision has the same fault. The word changes two words
+behind the cursor; what that costs the person typing was not measured. Limits as before: synthetic
+slips in assumed shares, Telex only, both words after taken as typed right.
