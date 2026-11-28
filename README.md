@@ -99,6 +99,9 @@ Tiến độ từng bước theo [`docs/PLAN.md`](docs/PLAN.md):
   sửa đúng 12,6–17,1% số từ gõ nhầm (riêng `Typing::fix`: 4,3–6,0%) và đúng 99,5–99,9% số lần.
   Với `Run::fixing_again`, từ chưa đủ chắc được xét lại khi từ kế tiếp gõ xong: sửa đúng khoảng
   30% số từ gõ nhầm trên văn bản Wikipedia và diễn đàn chưa dùng để chọn tham số.
+  `Run::push_marks` sửa cả từ bảng đã biết nhưng chỉ lệch dấu (quên một phím dấu: `nhuwng` →
+  `những`), chỉ khi từ kế tiếp gõ xong và vượt ít nhất 12 điểm (`MARKS_MARGIN`): sửa đúng 30,0% và
+  22,4% số từ quên một phím dấu (trước: 4,7% và 4,2%).
 - **Bước 6 · Sẵn sàng cho bộ gõ (Đã xong):** tệp bảng được đọc hoàn toàn vào bộ nhớ khi mở (không
   dùng `memmap2`). Crate nhắm tới bản Rust tối thiểu là 1.88. `Dictionary` cung cấp khả năng cô
   lập snapshot giữa các trường nhập để các đoạn gõ không bao giờ bị lẫn số đếm. Cơ chế lưu tệp

@@ -24,6 +24,14 @@ All notable changes to Tim Sen. The format follows [Keep a Changelog](https://ke
 
 ### Added
 
+- `Run::push_marks` and `Typing::fix_marks` fix a word the table knows to one that differs from it
+  only in marks (`những` typed as `nhuwng`, `được` as `dduowc`), given the words an input method
+  found near the keys typed. Keeping the word is scored as that word, and the word is decided only
+  once the word after it ends (`Run::fixing_again`), by `MARKS_MARGIN`, 12. On unseen Wikipedia
+  and forum text it puts right 30.0% and 22.4% of words with one mark key left out (4.7% and 4.2%
+  without it); of the words typed right it changes beyond what the fix changes now, 4 of 72 on
+  three files were real words, all in chat (`docs/EXPERIMENTS.md`, "A mark key left out, decided
+  only once the next word ends").
 - `research.quant`: scores a table with its counts rounded to a few bits; one byte per count loses
   nothing measurable.
 - `research.external`: scores another program's restoration of a test file on the words
