@@ -3964,3 +3964,63 @@ Prediction (as the fix is: 4.7% / 0.001%, 4.2% / 0.017% and 1.4% / 0.024% with `
 - With `--slip mixed`, 99.3% to 99.6% of fixes right on both files for all three.
 - By the bar as written none passes, on `social`. By the second reading "seen under 100,000 times,
   at 10" passes and "every word, at 10" does not.
+
+Result on the unseen files, decided after the next word:
+
+| `--slip mark` | `wiki-unseen` | `forum-unseen` | `social` |
+| --- | --- | --- | --- |
+| the fix as it is | 4.7% / 99.9% / 0.001% | 4.2% / 99.3% / 0.017% | 1.4% / 100.0% / 0.024% |
+| seen under 10,000 times, at 10 | 13.1% / 100.0% / 0.003% | 11.1% / 99.7% / 0.036% | 4.5% / 99.8% / 0.057% |
+| seen under 10,000 times, at 12 | 11.4% / 100.0% / 0.002% | 8.9% / 99.7% / 0.024% | 3.3% / 99.8% / 0.041% |
+| seen under 100,000 times, at 10 | 18.0% / 99.9% / 0.007% | 15.2% / 99.8% / 0.051% | 6.1% / 99.8% / 0.070% |
+| seen under 100,000 times, at 12 | 15.1% / 100.0% / 0.005% | 11.7% / 99.7% / 0.030% | 4.2% / 99.8% / 0.048% |
+| every word, at 10 | 38.0% / 99.9% / 0.016% | 31.9% / 99.9% / 0.071% | 11.8% / 99.7% / 0.098% |
+| every word, at 12 | 30.0% / 99.9% / 0.008% | 22.4% / 99.8% / 0.041% | 7.0% / 99.9% / 0.061% |
+
+| `--slip mixed` | `wiki-unseen` | `forum-unseen` | `social` |
+| --- | --- | --- | --- |
+| the fix as it is | 30.6% / 99.8% / 0.001% | 30.1% / 99.6% / 0.017% | 12.2% / 99.1% / 0.024% |
+| seen under 100,000 times, at 10 | 32.8% / 99.7% / 0.007% | 32.4% / 99.6% / 0.051% | 13.1% / 98.6% / 0.070% |
+| every word, at 10 | 33.7% / 99.6% / 0.016% | 33.0% / 99.6% / 0.071% | 13.3% / 98.6% / 0.098% |
+| every word, at 12 | 32.9% / 99.8% / 0.008% | 32.1% / 99.6% / 0.041% | 12.9% / 99.0% / 0.061% |
+
+Real words among the changes the fix as it is does not make, read with the words around each:
+
+| Setting | `wiki-unseen` | `forum-unseen` | `social` |
+| --- | --- | --- | --- |
+| seen under 100,000 times, at 10 | 0 of 11 | 0 of 23 | 10 of 55 |
+| every word, at 10 | 0 of 25 | 1 of 36 | 13 of 88 |
+| every word, at 12 | 0 of 12 | 0 of 16 | 4 of 44 |
+
+The real word on `forum-unseen` is `tay cụ run run`, changed to `cứ`. Those on `social`: the pun
+`tư bẩn`, `cọ` twice (scrubbing, changed to `có`), the name `Mỵ` (all three settings); `bả`,
+`bển`, `ẻm` (contractions of `bà ấy`, `bên ấy`, `em ấy`), `để mỡ ra` to `mở`, `đi quánh nhau` to
+`quanh` and `sắp lăn rồi` (unsure) with "seen under 100,000 times"; those and `mấy ba mấy ma` to
+`bà`, `e thề e` to `sẽ`, `thứ t với m` to `tư` with "every word, at 10". The rest are typos of the
+text put right, or spellings no standard dictionary has: `khong` and `toi` typed without marks,
+`ròi` and `ồi` to `rồi`, `nội dụng` to `nội dung`, `xây dụng`, `biểu tính`, `ghi nhân`.
+
+Against the prediction.
+
+- Seen under 100,000 times, at 10: 13.3 and 11.0 points more (hit); words typed right changed
+  0.007%, 0.051% and 0.070% (hit); real words 0, 0 and 10 (hit); fixes right with `--slip mixed`
+  99.7% on `wiki-unseen` (missed, over 99.6%) and 99.6% (hit).
+- Every word, at 10: 33.3 points more on `wiki-unseen` (missed, over 22 to 30) and 27.7 on
+  `forum-unseen` (hit); 0.016%, 0.071% and 0.098% (hit); real words 0 (missed, under 1 to 6), 1 and
+  13 (hit); 99.6% and 99.6% (hit).
+- Every word, at 12: 25.3 and 18.2 points more (missed on `wiki-unseen`, over 15 to 22; hit on
+  `forum-unseen`); 0.008%, 0.041% and 0.061% (all three missed, under); real words 0, 0 (hit) and 4
+  (missed, under 8 to 20); 99.8% (missed, over) and 99.6% (hit).
+- By the bar as written none passes, on `social` (hit): "every word, at 12" changes 0.061% there
+  against 0.060%, one word. By the second reading "seen under 100,000 times, at 10" passes and
+  "every word, at 10" does not, by two real words (hit), and, not predicted, "every word, at 12"
+  passes too.
+
+Conclusion: worth an experimental setting, off by default, by the second reading. The setting is
+"every word, at 12": a word typed with marks, or shown as its keys, is a target for the words that
+differ from it only in marks or that a mark key left out leads to, and is decided only once the
+next word ends, at margin 12. It puts right 25 and 18 points more of the words with a mark key left
+out than the fix as it is (30.0% and 22.4% against 4.7% and 4.2%), keeps 99.6% or more of fixes
+right on edited text, and of the 72 words typed right it changes on the three files beyond the fix
+as it is, 4 are real words, all on `social`. It needs the next word, so it is for a field whose
+earlier words can change, and it searches near every word typed, not only the words the table lacks.
